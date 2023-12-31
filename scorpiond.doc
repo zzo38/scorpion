@@ -65,6 +65,8 @@ mimetypes *
 
 === Usage ===
 
+Call the program by xinetd.
+
 See CONFIG_ROOT where to store the files.
 
 These directories can then contain any files. If the file name begins with
@@ -72,6 +74,7 @@ These directories can then contain any files. If the file name begins with
 both group and others in order to be accessible.
 
 If a file is executable by both group and others then it will be executed,
-with the full request as its argument; it must write the header line and
+with the full request as its first argument, and only the pat after the
+file name as its second argument; it must write the header line and
 all data to stdout, according to the Scorpion protocol.
 
