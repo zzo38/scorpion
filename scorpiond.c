@@ -181,7 +181,7 @@ int main(int argc,char**argv) {
   if(*p++!='/') goto badproxy;
   if(*p++!='/') goto badproxy;
   // Change directory
-  if(chdir(CONFIG_ROOT)) goto notfound;
+  if(chdir(argc>1?argv[1]:CONFIG_ROOT)) goto notfound;
   // Read host:port, possibly preceded by username:password
   for(c=n=0;;) {
     if(c==CONFIG_MAX_NAME) goto toolong;

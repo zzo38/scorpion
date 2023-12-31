@@ -530,13 +530,22 @@ non-TLS, as described above.)
 
 * Some of the above sections has parts which are incomplete.
 
+* Some way to specify conversion of files, using a simple mechanism,
+which can be used to display unsupported formats. (It would be a feature
+which is optional to implement.)
+
+* File format of data tables, if needed.
+
+* The ".special" directory, if such a thing is ever helpful. (However,
+most clients should never access them automatically.)
+
 * If any part of the document is unclear, improve it.
 
 * Comparison with other protocols and file formats.
 
 * Better examples.
 
-* A reference implementation.
+* A reference implementation. (This is partially written.)
 
 (It is also possible that other changes may be made in future, than
 the above, including changes to existing things, and possibly also

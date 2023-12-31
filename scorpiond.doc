@@ -25,9 +25,7 @@ CONFIG_MAX_NAME *
 CONFIG_ROOT *
   The root directory where the files are stored. This directory must
   contain subdirectories whose names are the domain names of the sites
-  to be served. (The port number is ignored; if you want to serve different
-  files on different ports, you must compile it multiple times and then set
-  up xinetd to call the other compiled versions for different ports.)
+  to be served. (The port number is ignored.)
 
 CONFIG_TIMELIMIT
   The time limit, in seconds. If undefined, there is no time limit.
@@ -65,9 +63,9 @@ mimetypes *
 
 === Usage ===
 
-Call the program by xinetd.
-
-See CONFIG_ROOT where to store the files.
+Call the program by xinetd. You can optionally specify one argument; if it
+is specified then it is used instead of CONFIG_ROOT. If it is omitted, then
+CONFIG_ROOT is used. See CONFIG_ROOT for what it must contain.
 
 These directories can then contain any files. If the file name begins with
 .. then it cannot be accessed. Any file to be access must be readable by
