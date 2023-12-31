@@ -1,0 +1,77 @@
+(NOTE: This program is not fully tested and may be incomplete.)
+
+
+=== Configuration ===
+
+Edit the scorpiond.config file and recompile to change the configuration.
+Any one marked * below means mandatory; the others are optional and can be
+commented out if they are not to be used.
+
+Note: Where MIME types and ULFI types are expected, they are only allowed
+to consist of ASCII characters 0x21 to 0x7E; spaces are not allowed.
+
+CONFIG_MAINTENANCE
+  If defined, the server always responds with an error message. This must
+  start with 41 and then a space and then the number of seconds (or ? if
+  it is unknown) and then a space and the error message and then "\r\n".
+  Leave this undefined for normal operation.
+
+CONFIG_MAX_REQUEST *
+  The maximum length of a request.
+
+CONFIG_MAX_NAME *
+  The maximum length of a file name.
+
+CONFIG_ROOT *
+  The root directory where the files are stored. This directory must
+  contain subdirectories whose names are the domain names of the sites
+  to be served. (The port number is ignored; if you want to serve different
+  files on different ports, you must compile it multiple times and then set
+  up xinetd to call the other compiled versions for different ports.)
+
+CONFIG_TIMELIMIT
+  The time limit, in seconds. If undefined, there is no time limit.
+
+CONFIG_UNEXPECTED_ERROR_TIME *
+  A string literal specifying the minimum number of seconds that the client
+  should wait in case of a 4x error; use "?" if it is unknown.
+
+CONFIG_DEFAULT_MIMETYPE *
+  The default MIME type or ULFI type for files whose type is unknown.
+
+CONFIG_DEFAULT_FILENAME
+  If defined, the default file name to use when no file name is specified.
+  If the file does not exist, it will be a directory listing, if enabled.
+
+CONFIG_DIRLIST
+  If defined, then directory listings are allowed.
+
+CONFIG_FILENAME_CHARSET *
+  The character set for file names, according to the Scorpion file format
+  (e.g. use 0x10 for PC character set).
+
+CONFIG_SAFE_FILENAMES
+  If defined, then disallows some characters in file names (whitelisting).
+
+CONFIG_ALLOW_CGI
+  If defined, then it is allowed to execute other programs. If not defined,
+  then the execute permissions are ignored.
+
+mimetypes *
+  An array of the file types. Each element is a structure of two elements,
+  the first being the last part of the file name after the "." (which it
+  must be sorted by) and the second being the MIME or ULFI type.
+
+
+=== Usage ===
+
+See CONFIG_ROOT where to store the files.
+
+These directories can then contain any files. If the file name begins with
+.. then it cannot be accessed. Any file to be access must be readable by
+both group and others in order to be accessible.
+
+If a file is executable by both group and others then it will be executed,
+with the full request as its argument; it must write the header line and
+all data to stdout, according to the Scorpion protocol.
+

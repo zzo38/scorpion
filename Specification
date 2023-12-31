@@ -1,0 +1,608 @@
+(DRAFT)
+SCORPION PROTOCOL/FILE-FORMAT
+
+
+=== Protocol ===
+
+The protocol can be TLS or non-TLS. Implementation of TLS is optional but
+is recommended. The same port number can be used for TLS and non-TLS; this
+is distinguished by the first byte that the client sends (TLS if it is 0x16
+or non-TLS otherwise).
+
+Unless otherwise specified, the text in the protocol is ASCII.
+
+The first byte is the subprotocol, and then optional subprotocol parameter,
+and then a space, and then the absolute URL (the scheme is mandatory), and
+then a carriage return and a line feed. (See the below sections about the
+definitions of the send and receive subprotocols. "Subprotocols" is similar
+than the different methods of HTTP, such as GET and PUT.)
+
+The server then sends the status line, which consists of a two-digit status
+code, followed by a space and then the parameters (which may be empty), and
+then another carriage return and line feed. Parameters are separated by
+spaces, although the last parameter may include spaces (the client will
+know how many parameters according to the major status code).
+
+The URL may include a username/password (the usual format of username and
+password in a URL is used); if so, the client should not display the
+password (unless the user has enabled an option to tell it to not hide
+passwords). The client software should also include a command to discard
+any existing username/password, in order to log out.
+
+However, if the URL contains # then the client should not include the #
+and what comes afterward, since that part is only for the client.
+
+If the host name of the URL does not match any host name that this server
+serves, or if the scheme is neither "scorpion:" nor "scorpions:", then it
+is a proxy request (which the server may refuse if it wishes, due to
+whatever criteria they want). Proxies should normally avoid converting the
+files into a different format. (Note that a proxy to another service on
+the same server might be implemented without needing to make another
+connection, although this is not mandatory and not something that the
+client needs to worry about.)
+
+If it is not a proxy request, then the TLS and non-TLS variants of the
+same protocol URI scheme should be treated as equivalent by the server
+(but not by the client, which must treat them differently).
+
+
+=== Status codes ===
+
+The first digit is the major code, and the second digit is the minor code.
+Clients may ignore the minor code.
+
+0x = Interactive mode; used only for the "I" subprotocol. After this is
+sent to the client then arbitrary two-way communication is possible.
+
+1x = Requires input; the parameter is the prompt text, which it should
+display to the user, and then the user enters any text, and the client
+redirects to the same as the current URL but with ? added and then the text
+entered by the user, which should be percent-encoded if necessary. If the
+existing URL already has a query string, then the result is unspecified;
+servers MUST NOT use this code in that case.
+
+2x = The response is OK and the contents of the file will follow; after
+this line is the data of the file. The parameters are:
+
+* The file size in decimal notation, or ? if the size is unknown (e.g. if
+it is a dynamic file).
+
+* The file type/format. MIME has some problems and ULFI is better, but for
+now, for compatibility you can use MIME; however, spaces are not allowed.
+If the "charset" parameter is not included then the default according to
+the file format should be used; "us-ascii" is a recommended default.
+
+* Optionally, the version, which if present must consist only of uppercase
+and lowercase letters, digits, and forward slash and plus sign.
+
+3x = Redirect. The parameter is another URL which it should redirect to,
+which can be temporary or permanent.
+
+4x = Temporary error. Has two parameters:
+
+* The number of seconds which is recommended to wait before trying again;
+it must be a unsigned 31-bit number, or it can be ? if it is unable to
+estimate the required time before trying again.
+
+* The error message text (optional).
+
+5x = Permanent error. The parameter is an error message. The request should
+not be repeated by automatic tasks, unless such tasks are manually reset by
+the operator of the computer that controls such tasks.
+
+6x = Client certificate required. The parameter is some text which may be
+displayed to the user to specify what kind of client certificate should be
+provided by the user. If the protocol is non-TLS, then this implies a
+redirect to the corresponding TLS protocol if a client certificate has been
+provided by the user. The user may specify which URLs the certificate can
+be used for, and when to stop sending it with new requests; by default, it
+should expire at the end of the session, although the user can always tell
+it to remove client certificates at any time manually.
+
+7x = Ready to receive; used only for the "S" subprotocol.
+
+8x = Received data accepted; used only for the "S" subprotocol. The
+parameters are same as for 2x but the data of the file is omitted. If
+the file has been deleted then the parameters are omitted.
+
+
+=== Detailed status codes ===
+
+00 = Beginning of arbitrary two-way communication. (This is only valid for
+the "I" subprotocol.)
+
+10 = Requires input. (This protocol does not have the 11 code that Gemini
+has; putting the password in the query string isn't very good because then
+it is a part of the URL and might not be hidden.)
+
+20 = Response is OK.
+
+21 = Response is OK, but it is only a part of the file and not the entire
+file; this is used as the response of a range request. The file size
+parameter is the entire file size, and not only the requested part.
+
+30 = Temporary redirect.
+
+31 = Permanent redirect. A client may automatically update bookmarks, etc
+if this feature has not been disabled by the user.
+
+40 = Temporary error with a not more specific code.
+
+41 = Down for maintenance.
+
+42 = A dynamic file has an unexpected temporary error such as time out.
+
+43 = Proxy error; this request requires the server to make another
+connection, but it is unable to do so, or is able to connect but cannot
+receive a valid response.
+
+44 = Slow down; the client is sending requests too fast and should wait
+before trying again.
+
+45 = Temporarily locked file; used with the "S" subprotocol.
+
+50 = Permanent error with a not more specific code.
+
+51 = File not found (maybe it is at Area 51).
+
+52 = The file does not exist (probabily because it has been deliberately
+removed) and is not expected to exist again; clients should remember this
+and not request it again automatically. (This code also means a permanently
+locked file, if used with the "S" subprotocol.)
+
+53 = A proxied request was refused by the server. A server MAY also use
+this status code if a username/password have been provided in the URL but
+are not required to access any files on this server (this is to simplify
+the server implementation, so that it can check that it is not its own name
+and therefore refuse the request). A server MAY also use this status code
+if a URL with no scheme has been provided, for the same reason.
+
+54 = Forbidden request.
+
+55 = Edit conflict; used with the "S" subprotocol.
+
+59 = Bad request.
+
+60 = A client certificate is required to access this file, but none has
+been provided.
+
+61 = The supplied client certificate is not authorized to access this file.
+The certificate may be valid to access a different file, though (possibly
+but not necessarily on the same server).
+
+62 = The supplied client certificate is not valid (e.g. because it has
+expired or because the signature is not valid).
+
+70 = Ready to receive new file.
+
+71 = Ready to receive to replace an existing file.
+
+80 = Accepted received data and created a new file.
+
+81 = Accepted received data to modify an existing file.
+
+
+=== Receive subprotocol ===
+
+This is the usual subprotocol, coded as "R".
+
+The subprotocol parameter can be blank or can be a range request. Servers
+are not required to support range requests, and can respond with a 59 code
+if it is not implemented. (It is also possible that range requests will be
+possible only with some files and not with other files.)
+
+A range request consists of two nonnegative integers in decimal notation
+with - in between; these are zero-based file offsets, of the first byte to
+receive, and of the first byte to not receive (e.g. "3-9" means the six
+bytes, being the fourth, fifth, ..., ninth bytes of the file). The end
+address can be omitted in which case it means up to the end of the file.
+
+
+=== Send subprotocol ===
+
+This subprotocol is coded as "S".
+
+The subprotocol parameter can be omitted, but if not omitted then it is the
+version of the file being replaced; this can check for edit conflicts. (The
+server MAY require the version to be specified.)
+
+The response code should not be 2x nor 8x, but can be any other code. If it
+is 7x then this means it is ready for the client to upload the file. If it
+is 1x or 3x then they modify the URL and mean that the upload is required to
+be made to a different URL instead of the one that was initially requested.
+
+For the client to upload the file, it sends a status lines, and if 2x then
+it is followed by the data. The possible status codes are:
+
+* 20 = Upload a file. The size is mandatory and you cannot substitute a
+question mark instead. The version is optional, and the server may override
+it with its own version specification.
+
+* 30 or 31 = Make the file into a redirect to a different file.
+
+* 51 or 52 = Delete a file.
+
+A server does not need to implement all of the above possibilities.
+
+After the client finishes sending, the server sends the status line, which
+will be a 8x code if successful or a different code if it is an error.
+
+
+=== Interactive subprotocol ===
+
+This subprotocol is coded as "I", and is used for two-way communication
+(usually terminal emulation, although it can be used with any kind of
+two-way communication). (The main reason for this is if you have
+multiple programs and you want to be able to specify the URL of each one.)
+
+The subprotocol parameter is optional but if present it is the requested
+capability codes; see below.
+
+If it is acceptable, then the server sends a 00 response; its parameter is
+the actual capability codes or can be blank. After that, it will continue
+with ordinary two-way TCP communication. (Other valid status codes are 4x,
+5x, and 6x, in which case the server closes the connection after that, like
+it does with the other subprotocols. The 2x codes MUST NOT be used.)
+
+Capability codes have no delimiters between them, and each one has the
+following format (similar than CSI codes, in order that implementations
+can use the same subroutines to parse them if they do terminal emulation):
+
+* Zero or one byte in range 0x3C to 0x3F.
+
+* Zero or more bytes in range 0x30 to 0x39 or 0x3B.
+
+* Zero or one byte in range 0x20 to 0x2F.
+
+* One byte in range 0x40 to 0x7E.
+
+(Note that the protocol before the actual data will be ASCII only, so that
+ait is possible to use even with terminal emulators that do not implement
+this subprotocol.)
+
+
+=== Hashed URI scheme ===
+
+The "hashed:" URI scheme has the format "hashed:X/Y,Z" where X is the
+hash algorithm, Y is the hash (in hexadecimal format), and Z is another
+URL (which can be absolute or relative, and can be of any scheme, including
+another "hashed:" URL, in case you want to specify multiple hashes which
+are using different hashing algorithms).
+
+It refers to the same file as Z if X/Y is that file's hash, or is an error
+if that file's hash is not X/Y.
+
+If "[X|Y]" means the absolute URL corresponding to the URL Y treated as
+relative to the absolute URL X, then the rules for resolving relative URLs
+of this scheme are as follows:
+
+"[hashed:A/B,C|D]" = "[C|D]" if "D" does not start with "#"
+
+"[hashed:A/B,C|#D]" = "hashed:A/B,[C|#D]"
+
+"[A|hashed:B/C,D]" = "hashed:B/C,[A|D]"
+
+In case the notation is confusing: "[http://example.org/files/1.txt|2.txt]"
+= "http://example.org/files/2.txt" is a valid equation, and the uppercase
+letters in the above are placeholders.
+
+For example, if the current URL is "hashed:0/ab8974,file:///tmp/help.txt"
+and you want to access the relative URL "help2.txt", then the new absolute
+URL is "file:///tmp/help2.txt" and not
+"hashed:0/ab8974,file:///tmp/help2.txt", because "0/ab8964" is the hash of
+"help.txt" and not of "help2.txt". However, if the relative URL starts with
+# then it is a link to another part of the same file, so it is the same
+file and therefore has the same hash and therefore it should not strip out
+the hash in this case.
+
+(A request of the Scorpion protocol that sends a URL using the hashed:
+scheme is considered to be a proxied request (even if it is a URL of a file
+on that server), and may be refused.)
+
+
+=== File format ===
+
+The file format consists of a sequence of blocks, each of which has the
+format (there is no global header, delimiters, etc):
+
+* One byte being the block type and character encoding.
+
+* Big-endian 16-bit attribute length.
+
+* Attribute data.
+
+* Big-endian 24-bit body length.
+
+* Body data.
+
+The block types are:
+
+* 0x00 = Normal paragraph. The attribute is unused and MUST be empty. The
+body is the text of the paragraph.
+
+* 0x01 to 0x06 = Heading levels 1 (outermost) to 6 (innermost). The
+attribute is the part after # in the URL to refer to this section, and
+the body is the heading text.
+
+* 0x08 = Normal hyperlink. The attribute is the URL (in ASCII encoding)
+and the body is the link text.
+
+* 0x09 = Hyperlink requesting input. Like 0x08 but it is treated like a
+10 status code (with an implementation-defined prompt; it may be the same
+as the text of the link) without making the request. This link type is not
+to be used for gopher links (if it occurs anyways, a client SHOULD treat
+it as a normal hyperlink but with type 7 instead of 1).
+
+* 0x0A = Interactive hyperlink. Like 0x08 but with the "I" subprotocol.
+Implementation is optional. (Some implementations may wish to use an
+external program which is an existing terminal emulator, if they can
+add initial input.)
+
+* 0x0C = Blockquote. The attribute is unused and MUST be empty. The body
+is the text of the paragraph.
+
+* 0x0D = Preformatted text. Valid control codes are tab and line feed. The
+attribute SHOULD be blank. The client MUST display this text with a
+fixpitch font.
+
+The possible character encodings are:
+
+* 0x00 = TRON-8 (left to right)
+
+* 0x10 = PC (left to right)
+
+* 0x80 = TRON-8 (right to left)
+
+The control codes are:
+
+* 0x09 = Tab; only in a preformatted block. This should not be used if
+exact spacing is requred, since the way that it is displayed is
+implementation-dependent (and possibly configurable by the user).
+
+* 0x0A = Line break; only in a preformatted block.
+
+* 0x10 = Only with PC character code; follow by one byte in range 0x41
+to 0x5F, and you must subtract 0x40 to make the code of the graphic
+character to display. This is allowed in preformatted blocks as well
+as in other blocks.
+
+* 0x11 = Normal style.
+
+* 0x12 = Strong style.
+
+* 0x13 = Emphasis style.
+
+* 0x14 = Fixpitch style. This style MUST be displayed by fixpitch fonts
+(but it is acceptable to display everything by fixpitch fonts, which
+would mean that a special handling is not required).
+
+* 0x15 = Forward text direction.
+
+* 0x16 = Reverse text direction.
+
+* 0x17 = Begin the main text of furigana. This should be followed by
+the text and then 0x18 and then the other text and then the 0x19.
+
+* 0x18 = Begin the furigana text of the furigana. If furigana is not
+implemented (or if the user disabled it), then it should display the
+main text of a furigana block but should not display the furigana text.
+
+* 0x19 = End of the furigana. You are not supposed to nest any other
+control codes inside of the furigana blocks.
+
+It is not required to implement most of the control codes, except as
+specified above.
+
+Stateful encodings MUST shift the state at the beginning of each block.
+It is also required after 0x18 or 0x19 if the state before such a code
+does not match the state at before the furigana block. Any document
+which does not satisfy this criteria may result in an unreliable display
+on some clients.
+
+(If data tables are required, you can link to a separate file that
+contains the data; you cannot have inline data tables.)
+
+
+=== Recommendations and other notes ===
+
+There are only two legitimate uses for the version field of the 2x
+response; a client MUST NOT use it for any other purpose. They are:
+
+* To use as the subprotocol parameter of a upload, to avoid edit conflicts.
+
+* When making a range request, to compare the entire status text to check
+if the file might have changed. This is only to be used for resuming a
+download and is not to be used for caching.
+
+Clients MUST implement the non-TLS protocol and SHOULD implement the TLS
+protocol. Servers SHOULD implement both protocols, especially the non-TLS
+protocol. Servers SHOULD serve the same files regardless of whether it is
+TLS or non-TLS (except files which require a client certificate to access).
+
+The recommended way to handle TLS cipher suites, TLS validation, etc, is
+whatever way the client software uses for any protocols that it already
+implements (e.g. Gemini client can use TOFU, curl can validate them in the
+usual way but allow bypassing by the -k switch). However, a client should
+include the possibility for the user to change the options, and for the
+user to manually add and remove certificates. It should also be possible
+for the user to specify the security levels when manually adding
+certificates (in order to prevent downgrading attacks).
+
+Unicode is no good. Clients SHOULD NOT automatically convert TRON code
+into Unicode, except as a fallback in case suitable fonts are not available
+or a similar problem, and such fallbacks should be avoided if possible.
+
+Redirects should not be overused.
+
+A client should have a redirect limit; the default redirect limit should
+not exceed five. If a redirect would occur beyond the limit (which may be
+configurable by the user), or if a TLS connection redirects to a non-TLS,
+or to specific other protocols (e.g. HTTPS), or a connection to the
+internet tries to redirect or link to a LAN or localhost address (it
+should resolve the DNS first if necessary) or to a local file (the "file:"
+scheme), then it should warn the user first (with a non-modal message if
+possible), and not redirect unless the user manually allows it.
+
+Clients made for users to view (i.e. not something like curl which is only
+for downloading files and not for display) should implement at least the
+above file format specification (or a subset of it which is at least the
+minimal subset) and the "text/plain" format. It is also recommended
+(although a lesser recommendation) to implement the "text/gemini" format,
+especially if the client software also implements the Gemini protocol.
+
+Clients should allow URLs entered by the user to be treated as relative
+if no scheme has been explicitly specified by the user.
+
+It is recommended to have an option to display a table of contents window
+for any file formats that it is suitable.
+
+IDN is not required to be implemented (and is recommended to not do so
+unless it is already implemented for other reasons). If it is implemented,
+clients should use a different colour to display non-ASCII characters for
+security purpose, and should ensure that even invisible characters are
+displayed. It must include an option to use only ASCII, and it is
+recommended to use only ASCII for domain names.
+
+Clients should not download any additional files or make any additional
+network requests due to the contents of a document that are merely being
+viewed; it should do so only by the user selecting links in the document.
+("Selecting" a link means explicitly navigated to or redirected to, not
+merely hovering or things like that.)
+
+It is acceptable for a minimal client to only implement the "R" subprotocol
+and not implement range requests; the same is true for a minimal server.
+
+If the jar: scheme is implemented, then file: URLs which reference a ZIP
+archive should automatically redirect to the jar: URL for the root
+directory of the ZIP archive. If it is a Gempub file, it may redirect to
+the index file instead (possibly subject to user configuration); even if
+it does, it should be possible for the user to manually enter the jar: URL
+for a directory listing instead.
+
+It is possible (but probably unnecessary, since SOCKS can be used instead,
+which would be better) for a server to implement a proxy with raw data, by
+using the "I" subprotocol and the "tcp://" URI scheme in the request. (It
+is recommended to use SOCKS instead if possible.)
+
+
+=== Recommended URI schemes ===
+
+These are merely suggestions and are not requirements.
+
+  data:
+  file: !%?
+  gemini:
+  gopher: !
+  hashed: ^
+  jar: ^
+  mailto: ?*
+  news: ?*
+  nntp: *!
+  scorpion: !
+  scorpions:
+  spartan: !
+  telnet: *!
+  view-source: !^
+
+! means highly recommended.
+
+? means that system-dependent considerations and/or configuration may
+be required.
+
+% means it is a local file, and redirects and links from remote files
+that refer to local files should not automatically be followed.
+
+^ means that it contains another URL, so the considerations of that
+other URL must also be followed.
+
+* means that the implementation may use external programs to implement
+this scheme. (It doesn't have to; a client might also have its own
+built-in implementation, or an extension to implement it.)
+
+
+=== Missing details ===
+
+This section describes what is currently missing or incomplete in this
+document. They are:
+
+* The default port number. (The same port number is used for TLS and for
+non-TLS, as described above.)
+
+* Some of the above sections has parts which are incomplete.
+
+* If any part of the document is unclear, improve it.
+
+* Comparison with other protocols and file formats.
+
+* Better examples.
+
+* A reference implementation.
+
+(It is also possible that other changes may be made in future, than
+the above, including changes to existing things, and possibly also
+removing things if they are unnecessary.)
+
+
+=== FAQ ===
+
+*** What are the design goals?
+
+* Simplicity is important, but should include a good set of features.
+
+* Low-level programming is considered and not only high-level.
+
+* Multiple implementations should be possible, and they might have some
+of the same and some different features.
+
+* Whether or not HTTP, HTML, and other protocols does or does not do
+something (or whether or not it can emulate them) is not a reason to
+do or not do something in this protocol and file format. This is not
+meant to be a subset or a superset of the capabilities of any other
+protocol or file format.
+
+* It should be designed for user autonomy, and for things to be set by
+the user instead of by the document author, where possible. (For example,
+there is no CSS.) (This is similar than Gemini's principles.)
+
+* Criticisms of this and other formats (such as Gemini) should be
+considered, although they might be rejected.
+
+* Other protocols and file formats are not obsolete, just as Gemini does
+not intend to replace gopher and web, either.
+
+* The file format should be suitable both for on screen and printing out.
+(As in Gemini, there are no inline links, although Gemini has a different
+reason to avoid inline links.)
+
+*** What is the reason for the name?
+
+The Gemini is the name of a constellation (even though that is not why
+Gemini protocol was named as such), so I use a different one, such as
+the Scorpion.
+
+*** What is the TRON character code?
+
+For some details, see:
+  http://tronweb.super-nova.co.jp/chinesecharsandtroncode.html
+  http://tronweb.super-nova.co.jp/unicoderevisited.html
+  http://zzo38computer.org/fossil/osdesign.ui/finfo?name=draft/charsets
+  http://fileformats.archiveteam.org/wiki/TRON_code
+
+Note that the Unicode planes are deprecated in the Extended TRON Code.
+
+*** Why is it restricted to ASCII only?
+
+There are a few reasons for this:
+
+* It improves the simplicity in some cases.
+
+* The URL and some other parts are "computer code", where large character
+sets are inappropriate due to homoglyphs and other complexity; it isn't
+meant to be text in any language.
+
+* Plain text files are ASCII at the simplest case, but you can still
+specify a different character encoding anyways.
+
+Note that not everything is restricted to ASCII only; specifically, the
+documents are not restricted to ASCII only.
+
