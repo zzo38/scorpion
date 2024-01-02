@@ -594,7 +594,10 @@ there is no CSS.) (This is similar than Gemini's principles.)
 considered, although they might be rejected.
 
 * Other protocols and file formats are not obsolete, just as Gemini does
-not intend to replace gopher and web, either.
+not intend to replace gopher and web, either. (It is especially not
+intended to replace NNTP and IRC; those protocols should still be used
+for public communication of many writers, since those are better ways of
+doing it than using web forums, mailing lists, proprietary apps, etc.)
 
 * The file format should be suitable both for on screen and printing out.
 (As in Gemini, there are no inline links, although Gemini has a different
