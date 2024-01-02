@@ -9,6 +9,8 @@ is recommended. The same port number can be used for TLS and non-TLS; this
 is distinguished by the first byte that the client sends (TLS if it is 0x16
 or non-TLS otherwise).
 
+The default port number (for both TLS and non-TLS) is 1517.
+
 Unless otherwise specified, the text in the protocol is ASCII.
 
 The first byte is the subprotocol, and then optional subprotocol parameter,
@@ -666,9 +668,6 @@ requires it) and for client certificates if any have been provided.
 This section describes what is currently missing or incomplete in this
 document. They are:
 
-* The default port number. (The same port number is used for TLS and for
-non-TLS, as described above.)
-
 * Some of the above sections has parts which are incomplete.
 
 * Some way to specify conversion of files, using a simple mechanism,
@@ -734,6 +733,14 @@ reason to avoid inline links.)
 The Gemini is the name of a constellation (even though that is not why
 Gemini protocol was named as such), so I use a different one, such as
 the Scorpion.
+
+*** What is the reason for the default port number?
+
+It was chosen by asking someone else, who suggested 1517 because it is a
+date of historical significance (the Protestant Reformation), as well as
+being a number between 1024 and 32767. According to who suggested it, "the
+current state of the internet is in dire need of reformation especially how
+dire a perverted mess the web has has become".
 
 *** What is the TRON character code?
 
