@@ -1,0 +1,93 @@
+
+void scorpionlib_ask(const char*in,char*out,int len,const char*prompt)
+  If there is no query string, then it asks the user (with the given prompt
+  text) and terminates. If there is a query string, then it is the same as
+  scorpionlib_query.
+
+void scorpionlib_bad_request(void);
+  Send a bad request error and terminate.
+
+void scorpionlib_begin(const char*type,const char*version);
+  Send a header for a file of an unknown size, where "type" is the MIME or
+  ULFI type, and "version" is the version string (which can be null).
+
+void scorpionlib_begin_size(char kind,unsigned long size,const char*type,const char*version);
+  Like scorpionlib_begin but the size is explicitly known, and the "kind"
+  should be the kind that was written by scorpionlib_receiver ('0' if it
+  is not a range request, or '1' if it is).
+
+void scorpionlib_error(const char*text);
+  Send a custom permanent error message (it automatically adds "50")
+  and then it will immediately terminate.
+
+void scorpionlib_forbid(void);
+  Send a forbidden error and terminate.
+
+int scorpionlib_fputc_pc(int code,FILE*file);
+  Write a single byte character; if it is in the controls range then it
+  will send the appropriate code (according to the Scorpion file format)
+  to treat it as a graphic character instead. This should be used only
+  with the PC character set.
+
+int scorpionlib_fputc_tron8(unsigned int*state,unsigned long code,FILE*file);
+  Write a single TRON character, encoding it as TRON-8. If state is null,
+  then it always emits a plane shift if it is not a control code. If state
+  is not null, then it reads from it and omits the plane shift if it is
+  already in the correct state, or does emit the plane shift and also
+  updates the state, if it needs to change the state. (The initial state
+  should normally be zero.)
+
+void scorpionlib_fputs_pc(const char*text,FILE*file);
+  Send a character string with the PC character set, replacing all codes
+  in the control range with the control code to display them as graphic
+  characters (according to the Scorpion file format).
+
+int scorpionlib_fputs_tron8(unsigned int*state,const char*text,FILE*file);
+  Write a TRON-8 string. If the state is null then it is the same as fputs.
+  If state is not null, then it will omit any prefix that selects the shift
+  state if that is already the shift state, and will update the state with
+  the final shift state of the string.
+
+void scorpionlib_not_found(void);
+  Send a file not found error and terminate.
+
+void scorpionlib_print_block(int type,const char*adata,int alen,const char*bdata,int blen);
+  Writes a block in the Scorpion file format to stdout. The type is the
+  bitwise OR of the constant for the block type and the character encoding.
+  The adata and alen are the attribute data and length, and the bdata and
+  blen are the body data and length.
+
+int scorpionlib_query(const char*in,char*out,int len);
+  The in argument should be argv[2]. If it has no query string, then it
+  returns zero. If there is a query string, then it is decoded and written
+  to out, up to the maximum length, and returns 1. If there is any invalid
+  percent encoding then it calls scorpionlib_bad_request(). (The maximum
+  length does not include the null terminator; the buffer must be big
+  enough to include it.)
+
+int scorpionlib_receiver(const char*req,unsigned long*start,unsigned long*end,char*kind);
+  The first argument should be argv[1]. It checks that it is a receive
+  request. If not, it returns 0. Otherwise, it will check for a range
+  request, write to start and end if they are not null, and return 1.
+  The end is left unchanged if it is not a range request or if no
+  ending range has been specified. It returns 0 if it is a range request
+  but start and/or end are null. The kind will be set to '0' if it is not
+  a range request or to '1' if it is.
+
+void scorpionlib_redirect(char perm,const char*target);
+  Sends a redirect and terminates. The first argument is zero for a
+  temporary redirect or nonzero for permanent, and the second argument
+  is the target URL.
+
+int scorpionlib_user_info(const char*req,char*user,int userlen,char*pass,int passlen);
+  The first argument should be argv[1]. The user and pass must be not null,
+  and userlen and passlen are the maximum lengths (the actual size of the
+  buffers must be one more, to add the null character). It returns 1 if a
+  user name has been provided but no password, 2 if both a user name and a
+  password have been provided or 0 if neither has been provided or if the
+  provided user name and/or password are too long. The user name and
+  password are written into the provided buffers.
+
+void scorpionlib_write_block(FILE*fp,int type,const char*adata,int alen,const char*bdata,int blen);
+  Like scorpionlib_print_block but writes to a file instead of stdout.
+
