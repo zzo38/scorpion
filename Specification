@@ -403,6 +403,130 @@ on some clients.
 contains the data; you cannot have inline data tables.)
 
 
+=== Automated crawling ===
+
+(This section is currently a draft and may be changed in future. There is
+some disputes about some of the below, so it is likely to be changed.)
+
+Please note that all of this section is not actually enforceable and is
+not intended to be. It is intended to be guidelines for bots that is
+likely to be implemented correctly when it is implemented. It is a similar
+idea than the "robots.txt", but is meant to be less ambiguous.
+
+The recommendation for automated crawling/indexing is described here. This
+specification applies to recursive crawlers that automatically download
+files, especially if they use recurring intervals, and to public search
+engines and mirrors that work automatically. It does not apply to users
+that manually download files or that only download a single list of files
+once, nor does it apply to proxies, gateway services, etc (but see below
+about proxies that are themself available to be crawled).
+
+It should first try to download the file named "/.special/crawl" to find
+the policy set up by the server administrator (it should not do this more
+than once per crawling interval). Depending on the status code returned by
+the server:
+
+* 2x = Read and parse the file according to the below specifications.
+
+* 4x = Do not access the server for at least the specified amount of time,
+possibly plus some random number. After that, the crawler MAY try again,
+and will again try to download the /.special/crawl file.
+
+* 5x = No crawling policy is available. (If the code is neither 51 nor 52
+then the server is probably misconfigured.) (Note: It might be a good idea
+for such a response to exclude search engines and other automated programs
+by default, but it might be a bad idea; people are disagreeing about it.)
+
+Note that you cannot assume that the crawling policy file will not be
+changed in future. If you start over the crawling then you should try to
+download the crawling policy file again.
+
+The format of the file is lines ending with line feeds; each line starts
+with one byte command code, and then the parameter. If the command code
+has bit5 set then it SHOULD skip that line if it is not understood. If it
+has bit5 clear then the client MUST treat the entire file as not understood
+and should not proceed with crawling (and it might abort with an error
+message in this case).
+
+Each crawler also has zero or more names, which are sequences of printable
+ASCII characters.
+
+The commands are:
+
+* "`" = A comment that has no meaning. It may contain information which is
+useful for users, search engine operators, mirror operators, etc, such as
+downloading an archive file that contains all of the data.
+
+* "@" = The parameter is the name of the crawler. Any lines preceding the
+first line with @ are effective, and anything from the first @ line
+matching the crawler's name up to the next line with @ are effective; all
+other lines are ineffective. Ineffective lines MUST be ignored even if the
+bit5 of the command code is clear.
+
+* "i" = Suggests indexing the specified URL.
+
+* "v" = Suggests not indexing the specified URL.
+
+* "c" = Allows crawling the specified URL.
+
+* "C" = Disallows crawling the specified URL.
+
+* "n" = Estimated number of files to download.
+
+* "t" = Estimated total size of files to download.
+
+* "N" = Maximum number of files to download.
+
+* "P" = Maximum number of simultaneous downloads.
+
+* "D" = Minimum delay (in seconds) after downloading one file before
+proceeding with the next one.
+
+* "R" = Minimum delay (in seconds) after starting to download the first
+file before starting over from the beginning.
+
+* "w" = Suggested time (in seconds) to wait before downloading the crawling
+policy file again.
+
+Numbers are given in decimal notation, and are always nonnegative integers,
+using only digits 0 to 9. URLs start with / and are relative to the root
+directory of the server. If a URL starts with * and then / then it means
+that it applies to all URLs that the specified URL is a prefix of (which
+includes that URL itself).
+
+Once a command is found that matches the URL being accessed, then it should
+ignore all further commands for the purpose of accessing that URL. However,
+it still must keep those commands in memory or on disk so that it can refer
+to them again later for another access. (It is also possible to work in an
+alternative way, by somehow converting the data into an internal format on
+the client that can more efficiently determine the access policy, as long
+as the behaviour matches that described here.) If no command is found that
+matches the URL that it wants to access, then it SHOULD be treated like a
+5x response to the request for the crawling policy file.
+
+A crawler may have a name with <> around it (in addition to its other
+names) if it has the purposes described below:
+
+* "<MIRROR>" = Mirrors and backups.
+
+* "<SEARCH>" = Public search engines and indexing. This also applies to
+proxies which do not themself have a policy to prohibit indexing.
+
+* "<STUDY>" = Programs that are intended to study statistical properties
+such as number of files, average file sizes, broken links, etc.
+
+If a proxy service is available to be crawled/indexed, then the proxy
+service should also check the above policies, and either refuse the proxy,
+or to set up its own policy which prohibits access to the proxied files
+to automated crawlers (either conditionally (according to which Scorpion
+server is being accessed) or unconditionally (for all proxied files,
+regardless of which server it is accessing through the proxy)).
+
+Clients MAY add a query string when requesting the crawling policy file
+which identifies the crawler. (This is only for the crawling policy file;
+it is not supposed to do that for any other file.)
+
+
 === Recommendations and other notes ===
 
 There are only two legitimate uses for the version field of the 2x
