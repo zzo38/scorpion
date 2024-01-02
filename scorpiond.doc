@@ -55,6 +55,10 @@ CONFIG_ALLOW_CGI
   If defined, then it is allowed to execute other programs. If not defined,
   then the execute permissions are ignored.
 
+CONFIG_CANCEL_ALARM
+  If defined, then any time limit that has been set by CONFIG_TIMELIMIT
+  will be removed before calling an external program.
+
 mimetypes *
   An array of the file types. Each element is a structure of two elements,
   the first being the last part of the file name after the "." (which it

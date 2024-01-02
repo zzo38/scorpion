@@ -267,6 +267,9 @@ int main(int argc,char**argv) {
           if(*req!='R') goto badsub;
 #ifdef CONFIG_ALLOW_CGI
           if((stats.st_mode&(S_IXGRP|S_IXOTH))==(S_IXGRP|S_IXOTH)) {
+#ifdef CONFIG_CANCEL_ALARM
+            alarm(0);
+#endif
             execl(name,name,req,p,(char*)0);
             printf("50 File cannot be executed\r\n");
             return 0;

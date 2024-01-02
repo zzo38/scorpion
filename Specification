@@ -252,7 +252,7 @@ can use the same subroutines to parse them if they do terminal emulation):
 
 * Zero or more bytes in range 0x30 to 0x39 or 0x3B.
 
-* Zero or one byte in range 0x20 to 0x2F.
+* Zero or one byte in range 0x21 to 0x2F.
 
 * One byte in range 0x40 to 0x7E.
 
@@ -582,6 +582,8 @@ not intend to replace gopher and web, either.
 * The file format should be suitable both for on screen and printing out.
 (As in Gemini, there are no inline links, although Gemini has a different
 reason to avoid inline links.)
+
+* Avoid wasting the computer's power when it is not needed.
 
 *** What is the reason for the name?
 
