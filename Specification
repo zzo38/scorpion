@@ -520,6 +520,23 @@ this scheme. (It doesn't have to; a client might also have its own
 built-in implementation, or an extension to implement it.)
 
 
+=== Dynamic files ===
+
+Servers can implement dynamic files however they want to do (including not
+at all), but the suggested convention on POSIX systems is as follows:
+
+Set argv[1] to the entire request (excluding CRLF). Set argv[2] to the
+part of the request following the name of the external program (also
+excluding CRLF); note that there might be a path and/or a query string
+in argv[2], or it might be empty, but don't omit it even if it is empty.
+
+It is up to the external program to parse the subprotocol parameters, and
+to check if the subprotocol is one that it can handle.
+
+Environment variables can be used for the remote IP address (if any program
+requires it) and for client certificates if any have been provided.
+
+
 === Missing details ===
 
 This section describes what is currently missing or incomplete in this
