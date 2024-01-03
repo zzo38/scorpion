@@ -465,13 +465,13 @@ matching the crawler's name up to the next line with @ are effective; all
 other lines are ineffective. Ineffective lines MUST be ignored even if the
 bit5 of the command code is clear.
 
-* "i" = Suggests indexing the specified URL.
+* "i" = Suggests indexing the specified prefix.
 
-* "v" = Suggests not indexing the specified URL.
+* "v" = Suggests not indexing the specified prefix.
 
-* "c" = Allows crawling the specified URL.
+* "c" = Allows crawling the specified prefix.
 
-* "C" = Disallows crawling the specified URL.
+* "C" = Disallows crawling the specified prefix.
 
 * "n" = Estimated number of files to download.
 
@@ -491,10 +491,9 @@ file before starting over from the beginning.
 policy file again.
 
 Numbers are given in decimal notation, and are always nonnegative integers,
-using only digits 0 to 9. URLs start with / and are relative to the root
-directory of the server. If a URL starts with * and then / then it means
-that it applies to all URLs that the specified URL is a prefix of (which
-includes that URL itself).
+using only digits 0 to 9. URL prefixes start with / and are relative to the
+root directory of the server; it matches all URLs that it is a prefix of
+(including that URL itself).
 
 Once a command is found that matches the URL being accessed, then it should
 ignore all further commands for the purpose of accessing that URL. However,
