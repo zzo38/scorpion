@@ -342,7 +342,8 @@ attribute is the part after # in the URL to refer to this section, and
 the body is the heading text.
 
 * 0x08 = Normal hyperlink. The attribute is the URL (in ASCII encoding)
-and the body is the link text.
+and the body is the link text. The URL can be relative or absolute. If the
+attribute is empty then it means the same as the current URL.
 
 * 0x09 = Hyperlink requesting input. Like 0x08 but it is treated like a
 10 status code (with an implementation-defined prompt; it may be the same
