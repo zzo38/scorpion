@@ -17,10 +17,10 @@ CONFIG_MAINTENANCE
   Leave this undefined for normal operation.
 
 CONFIG_MAX_REQUEST *
-  The maximum length of a request.
+  The maximum length of a request. Must be less than 0xFFFF.
 
 CONFIG_MAX_NAME *
-  The maximum length of a file name.
+  The maximum length of a file name. Must be less than CONFIG_MAX_REQUEST.
 
 CONFIG_ROOT *
   The root directory where the files are stored. This directory must

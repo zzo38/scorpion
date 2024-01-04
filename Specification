@@ -297,6 +297,21 @@ URL is "file:///tmp/help2.txt" and not
 file and therefore has the same hash and therefore it should not strip out
 the hash in this case.
 
+The hash algorithms are specified as hexadecimal numbers without a leading
+zero, which are multicodec numbers (but not encoded as varint). The hash
+values are specified as an even number of hexadecimal digits, which will
+include leading zeros if any. List of hash algorithms:
+  11  SHA-1
+  12  SHA2-256
+  13  SHA2-512
+  14  SHA3-512
+  15  SHA3-384
+  16  SHA3-256
+  17  SHA3-224
+  d5  MD5
+
+(Note that some hash algorithms are deprecated because they are insecure.)
+
 (A request of the Scorpion protocol that sends a URL using the hashed:
 scheme is considered to be a proxied request (even if it is a URL of a file
 on that server), and may be refused.)
@@ -344,7 +359,8 @@ add initial input.)
 is the text of the paragraph.
 
 * 0x0D = Preformatted text. Valid control codes are tab and line feed. The
-attribute SHOULD be blank. The client MUST display this text with a
+attribute SHOULD be blank; see below for its meaning (although a client is
+allowed to ignore the attribute). The client MUST display this text with a
 fixpitch font.
 
 The possible character encodings are:
@@ -401,6 +417,14 @@ does not match the state at before the furigana block. Any document
 which does not satisfy this criteria may result in an unreliable display
 on some clients.
 
+If the attribute of a preformatted block is not empty, then a client
+program MAY be able to use it to implement syntax highlighting, equations,
+simple diagrams, etc. It MUST have an option to ignore the attribute if the
+user wants to display all preformatted block as plain text, and MUST treat
+unrecognized attributes the same as a blank attribute. Authors should write
+the document with the expectation of the client not recognizing it. Clients
+MAY display the attribute text of preformatted blocks.
+
 (If data tables are required, you can link to a separate file that
 contains the data; you cannot have inline data tables.)
 
@@ -423,6 +447,9 @@ that manually download files or that only download a single list of files
 once, nor does it apply to proxies, gateway services, etc (but see below
 about proxies that are themself available to be crawled).
 
+Note that this does not probhit anyone from making links to any files
+regardless of whether or not crawling is allowed.
+
 It should first try to download the file named "/.special/crawl" to find
 the policy set up by the server administrator (it should not do this more
 than once per crawling interval). Depending on the status code returned by
@@ -434,10 +461,8 @@ the server:
 possibly plus some random number. After that, the crawler MAY try again,
 and will again try to download the /.special/crawl file.
 
-* 5x = No crawling policy is available. (If the code is neither 51 nor 52
-then the server is probably misconfigured.) (Note: It might be a good idea
-for such a response to exclude search engines and other automated programs
-by default, but it might be a bad idea; people are disagreeing about it.)
+* 5x = No crawling policy is available. (The behaviour of a crawler in such
+a case is not specified by this document.)
 
 Note that you cannot assume that the crawling policy file will not be
 changed in future. If you start over the crawling then you should try to
@@ -468,6 +493,9 @@ bit5 of the command code is clear.
 * "i" = Suggests indexing the specified prefix.
 
 * "v" = Suggests not indexing the specified prefix.
+
+* "d" = Means that the files with the specified prefix are probably dynamic
+so it might not be useful to mirror them.
 
 * "c" = Allows crawling the specified prefix.
 
@@ -502,8 +530,8 @@ to them again later for another access. (It is also possible to work in an
 alternative way, by somehow converting the data into an internal format on
 the client that can more efficiently determine the access policy, as long
 as the behaviour matches that described here.) If no command is found that
-matches the URL that it wants to access, then it SHOULD be treated like a
-5x response to the request for the crawling policy file.
+matches the URL that it wants to access, then assume that an implicit "C/"
+follows (meaning it is disallowed).
 
 A crawler may have a name with <> around it (in addition to its other
 names) if it has the purposes described below:
@@ -515,6 +543,8 @@ proxies which do not themself have a policy to prohibit indexing.
 
 * "<STUDY>" = Programs that are intended to study statistical properties
 such as number of files, average file sizes, broken links, etc.
+
+All crawlers MUST have an empty string as one of their names.
 
 If a proxy service is available to be crawled/indexed, then the proxy
 service should also check the above policies, and either refuse the proxy,
@@ -675,9 +705,6 @@ which is optional to implement.)
 
 * File format of data tables, if needed.
 
-* The ".special" directory, if such a thing is ever helpful. (However,
-most clients should never access them automatically.)
-
 * If any part of the document is unclear, improve it.
 
 * Comparison with other protocols and file formats.
@@ -696,6 +723,9 @@ removing things if they are unnecessary.)
 *** What are the design goals?
 
 * Simplicity is important, but should include a good set of features.
+Making some features optional can help. However, it is also necessary to
+consider if simplifying some things too much would result in additional
+complexity elsewhere (a criticism of Gemini protocol once mentioned).
 
 * Low-level programming is considered and not only high-level.
 
@@ -739,7 +769,8 @@ It was chosen by asking someone else, who suggested 1517 because it is a
 date of historical significance (the Protestant Reformation), as well as
 being a number between 1024 and 32767. According to who suggested it, "the
 current state of the internet is in dire need of reformation especially how
-dire a perverted mess the web has has become".
+dire a perverted mess the web has has become", and the author of this
+document agrees with that too.
 
 *** What is the TRON character code?
 
