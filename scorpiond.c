@@ -58,14 +58,14 @@ static int comparemime(const void*a,const void*b) {
 }
 
 #ifdef CONFIG_DIRLIST
-static void send_link(const char*name) {
-  size_t s=strlen(name);
+static void send_link(const char*n) {
+  size_t s=strlen(n);
   if(s>CONFIG_MAX_NAME) return;
   putchar(CONFIG_FILENAME_CHARSET|0x08);
   putchar(s>>8); putchar(s);
-  fwrite(name,1,s+1,stdout);
+  fwrite(n,1,s+1,stdout);
   putchar(s>>8); putchar(s);
-  fwrite(name,1,s,stdout);
+  fwrite(n,1,s,stdout);
 }
 #endif
 
@@ -264,7 +264,6 @@ int main(int argc,char**argv) {
           }
           if(chdir(name)) goto internal;
         } else if(S_ISREG(stats.st_mode)) {
-          if(*req!='R') goto badsub;
 #ifdef CONFIG_ALLOW_CGI
           if((stats.st_mode&(S_IXGRP|S_IXOTH))==(S_IXGRP|S_IXOTH)) {
 #ifdef CONFIG_CANCEL_ALARM
@@ -275,6 +274,7 @@ int main(int argc,char**argv) {
             return 0;
           }
 #endif
+          if(*req!='R') goto badsub;
           if(c=='/') goto notfound;
           normal(s);
           return 0;
