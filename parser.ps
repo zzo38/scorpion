@@ -1,0 +1,15 @@
+
+/STDIN (%stdin) (r) file def
+
+/ReadBlock {
+  //STDIN read {
+    /bType 1 index 15 and def
+    /bCharset exch -4 bitshift def
+    /bAttrib <86 00 00> //STDIN dup 2 index 1 2 getinterval readstring pop pop exch cvx exec string readstring pop def
+    /bText <84 00 00 00 00> //STDIN dup 2 index 2 3 getinterval readstring pop pop exch cvx exec string readstring pop def
+    //true
+  } {
+    //false
+  } ifelse
+} bind def
+
