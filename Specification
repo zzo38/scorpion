@@ -519,6 +519,9 @@ file before starting over from the beginning.
 * "w" = Suggested time (in seconds) to wait before downloading the crawling
 policy file again.
 
+* "a" = (This command is intended to be used for archiving, but the
+specification of the archiving has not been written yet.)
+
 Numbers are given in decimal notation, and are always nonnegative integers,
 using only digits 0 to 9. URL prefixes start with / and are relative to the
 root directory of the server; it matches all URLs that it is a prefix of
@@ -621,7 +624,9 @@ program format and the rest as the parameters:
 
 * 0x01 = It is a binary uxn / varvara program. The file name and file stat
 ports should not be used, and neither should the date/time ports be used,
-nor any device ports that are not valid for non-GUI mode.
+nor any device ports that are not valid for non-GUI mode. If there are
+errors during the conversion, they should be written to stderr and end
+with a nonzero exit code.
 
 For record type 0x04, the fourth field has the first byte specifying the
 program format and the rest as the parameters:
@@ -829,14 +834,18 @@ removing things if they are unnecessary.)
 *** What are the design goals?
 
 * Simplicity is important, but should include a good set of features.
-Making some features optional can help. However, it is also necessary to
+Features should be made optional as much as possible (and authors should
+use only the really necessary parts). However, it is also necessary to
 consider if simplifying some things too much would result in additional
 complexity elsewhere (a criticism of Gemini protocol once mentioned).
 
 * Low-level programming is considered and not only high-level.
 
 * Multiple implementations should be possible, and they might have some
-of the same and some different features.
+of the same and some different features. It should also be possible that
+implementations of some protocols/formats can be used together with other
+implementatations of other protocols/formats, e.g. if there is a link to
+a picture you can use an external program to display or convert it.
 
 * Whether or not HTTP, HTML, and other protocols does or does not do
 something (or whether or not it can emulate them) is not a reason to
@@ -903,4 +912,105 @@ specify a different character encoding anyways.
 
 Note that not everything is restricted to ASCII only; specifically, the
 documents are not restricted to ASCII only.
+
+*** How is it comparing with HTTP(S)/HTML?
+
+It is a different protocol and file format, but by analogy with HTTP and
+HTML are specified below:
+
+1. The only response headers are Content-Type (although it can use ULFI and
+not only MIME), Content-Length (optional), and ETag (also optional, and it
+cannot be used for tracking; see below). For redirection, the equivalent of
+the Location header is used.
+
+2. The methods are GET ("R" in Scorpion) and PUT ("S" in Scorpion); there
+is no POST request.
+
+3. The only request header used for all requests is Host. GET requests also
+can have Range, while PUT requests have Content-Length (mandatory for PUT
+requests) and If-Match (optional for PUT requests). (Note that If-Match
+cannot be used for GET requests.)
+
+4. The file format uses <P>, <PRE>, <BLOCKQUOTE>, <ISINDEX>, <H1> to <H6>,
+and <A>, but with more limits than HTML has (e.g. links must be on a line
+by themself). There are also some inline formats which are mutually
+exclusive, which are the equivalent of <STRONG>, <EM>, and <TT>.
+
+5. It uses TRON character code instead of Unicode.
+
+6. Character sets can be mixed in one file.
+
+7. There is no cookies, tracking, scripts, CSS, etc. (This is deliberate.)
+
+8. Like with Gemini, and unlike HTML, Scorpion does not require multiple
+accesses to display a single document.
+
+*** How is it comparing with Gemini?
+
+1. TLS is not mandatory.
+
+2. There is limited specification of formatting within paragraphs (only
+four mutually exclusive kinds: normal, strong, emphasis, fixpitch).
+
+3. There is support for furigana (clients may ignore it).
+
+4. All 4x responses specify the estimated time you should wait before
+trying again, instead of only one of them.
+
+5. The 2x responses specify the file size (if known).
+
+6. Range requests are possible (servers and clients are not required to
+implement them).
+
+7. It uses TRON character code instead of Unicode.
+
+8. Character sets can be mixed in one file.
+
+9. The specification is intended to be less ambiguous than Gemini.
+
+10. URLs are ASCII and not UTF-8.
+
+11. TOFU is not the recommended way to be implemented. (Better is, if the
+user already knows the required certificate, they can install it manually.)
+
+12. PUT requests are possible. (Titan allows this with Gemini, but I think
+there are some problems with Titan.)
+
+13. Username/password auth is possible.
+
+*** How is it compating with Gopher?
+
+1. Character encodings can be specified.
+
+2. You can mix document and links together, and there are some formatting
+codes available (e.g. blockquote, strong, fixpitch, headings).
+
+3. MIME and ULFI can be used, instead of the limited types of Gopher.
+
+4. Relative URLs are possible.
+
+5. Domain-based virtual hosting.
+
+6. Error codes.
+
+7. The file size is transmitted (if known) instead of using "." on a line
+by itself. Range requests are also possible (if implemented; the
+implementation of range requests is optional).
+
+8. Optional TLS is possible.
+
+*** Why is there no support for styling?
+
+This is deliberate; the style should be controlled by the user, and not by
+the author. Documents can only specify a limited set of styles, and the
+user may be able to configure how exactly each one is displayed (by fonts,
+colours, etc).
+
+Furthermore, different clients for different displays might prefer a
+different style too, instead of the author having to try to make one that
+will work for everyone and then it doesn't work for everyone.
+
+*** What is the copyright of this file?
+
+This document is public domain.
 
