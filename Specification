@@ -558,6 +558,105 @@ Clients MAY add a query string when requesting the crawling policy file
 which identifies the crawler. (This is only for the crawling policy file;
 it is not supposed to do that for any other file.)
 
+The crawling policy file is not allowed to be retroactive.
+
+
+=== Conversion ===
+
+This part of the specification is optional.
+
+Conversion between file formats is possible, and can be specified by the
+file called "/.special/conversion". Clients MUST NOT try to download this
+file unless the user explicitly commands the computer to do so; it is not
+supposed to do so merely by finding a file that is not known how to handle.
+(Client software also MUST allow the user to override them and remove any
+such files that have already been downloaded.)
+
+Furthermore, any client that is able to understand it MUST NOT require that
+it comes from the same server as the file; it can also be a local file
+which has been written by the end user, a file from another server (or the
+same server but a different path) etc, and once a conversion has been
+enabled by the user then the same conversion might be used with other
+servers too if apporopriate (not all kinds of conversions are appropriate
+for using with other servers (e.g. if file name rewriting is used then it
+is not appropriate for arbitrary servers), but some can).
+
+Clients might also have their own mechanisms for conversion beyond what are
+written here, e.g. allowing to use local programs with pipes (which is a
+recommended way of doing so); such ways can only be used if set up by the
+end user or the system administrator and cannot be specified by servers.
+(This is possible even if the rest of the specification in this section of
+this document is not implemented.)
+
+Each record consists of the 8-bit record type, and then four fields which
+are each the big-endian 16-bit length and then the data.
+
+If the high bit of the record type is clear then the first field specifies
+the input format and the second field specifies the output format. If the
+high bit of the record type is set (currently there are no defined record
+types which use this) then the first field specifies the original URI
+scheme and the second field specifies the target URI scheme. For some
+record types, it is allowed for one or both fields to be empty.
+
+The record types are:
+
+* 0x01 = File name rewriting. The third field is a file name suffix
+(excluding any ? or # and anything that comes afterward) of the original
+file (if the file name does not match, then this record does not match
+and cannot be used with this file), and the fourth field is the suffix to
+replace the original suffix with to find the alternative file.
+
+* 0x02 = Use a program to convert the file. The third field is the URL of
+the program. The fourth field is described below.
+
+* 0x03 = Use interactive mode. The second field should be blank. The third
+field is the recommended capability.
+
+* 0x04 = Use a program to display the file. The third field is the URL of
+the program. The fourth field is described below. The second field should
+be blank.
+
+For record type 0x02, the fourth field has the first byte specifying the
+program format and the rest as the parameters:
+
+* 0x01 = It is a binary uxn / varvara program. The file name and file stat
+ports should not be used, and neither should the date/time ports be used,
+nor any device ports that are not valid for non-GUI mode.
+
+For record type 0x04, the fourth field has the first byte specifying the
+program format and the rest as the parameters:
+
+* 0x01 = It is a binary uxn / varvara program. It will run in GUI mode but
+is likely to be sandboxed (which clients SHOULD do if possible).
+
+For record type 0x02 and 0x04 and program format 0x01, the parameter is one
+byte, and is a bit field as follows:
+
+* bit0 = Clear for stdin/stdout, or set if the first file device is the
+input file (which is read only) and the second file device is the output
+file (which is normally write only, but other flags may affect this).
+
+* bit1 = Set if the input file is seekable and can be closed and reopened
+(which requires some of the nonstandard features of uxn38).
+
+* bit2 = Set if the output file is seekable and can be closed and reopened,
+and might also be read by the program as well as written. (These also
+require some of the nonstandard features of uxn38.) (This bit should not
+be set if the record type is 0x04, since there is no output file.)
+
+* bit3 = Set if the first command-line argument is the picture size, in the
+decimal ASCII format (only digits 0 to 9) with "x" in between (where the
+horizontal size is first, and then the vertical size). (This is meant for
+scalable vector diagrams.)
+
+Note that it is OK if there are multiple records which match the same file.
+
+Recommended output formats for pictures are farbfeld (true colours) and
+XPM2 (indexed colours, which also allows specifying symbolic colours which
+can be specified by user preferences). In the XPM2 format, you should not
+use X11 colour names; only hex, "black", "white", "None", and symbolic
+names (with the "s" colour type) should be used.
+
 
 === Recommendations and other notes ===
 
@@ -639,6 +738,12 @@ It is possible (but probably unnecessary, since SOCKS can be used instead,
 which would be better) for a server to implement a proxy with raw data, by
 using the "I" subprotocol and the "tcp://" URI scheme in the request. (It
 is recommended to use SOCKS instead if possible.)
+
+Don't use R subprotocol to change the state of files in the server, except
+for optional logging (which should only be used for diagnostics). For
+example, don't use it for adding user's comments, etc. (If you want to have
+discussion forum with commenting, then NNTP is better. You can link to a
+NNTP from a Scorpion file if you want to do.)
 
 
 === Recommended URI schemes ===
