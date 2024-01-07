@@ -255,7 +255,7 @@ int main(int argc,char**argv) {
           if(errno==EACCES) goto forbid;
           goto internal;
         }
-        if((stats.st_mode&(S_IRGRP|S_IROTH))!=(S_IRGRP|S_IROTH)) goto forbid;
+        if((stats.st_mode&(CONFIG_FILEMODE_ACCESS))!=(CONFIG_FILEMODE_ACCESS)) goto forbid;
         if(S_ISDIR(stats.st_mode)) {
           if(c!='/') {
             // Redirect
@@ -265,7 +265,7 @@ int main(int argc,char**argv) {
           if(chdir(name)) goto internal;
         } else if(S_ISREG(stats.st_mode)) {
 #ifdef CONFIG_ALLOW_CGI
-          if((stats.st_mode&(S_IXGRP|S_IXOTH))==(S_IXGRP|S_IXOTH)) {
+          if((stats.st_mode&(CONFIG_FILEMODE_EXECUTE))==(CONFIG_FILEMODE_EXECUTE)) {
 #ifdef CONFIG_CANCEL_ALARM
             alarm(0);
 #endif

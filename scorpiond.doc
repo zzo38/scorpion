@@ -59,6 +59,20 @@ CONFIG_CANCEL_ALARM
   If defined, then any time limit that has been set by CONFIG_TIMELIMIT
   will be removed before calling an external program.
 
+CONFIG_FILEMODE_ACCESS *
+  The file modes needed for a client to be able to access a file. For
+  example, set it to (S_IRGRP|S_IROTH) if group and other must be able to
+  read it. All bits in the mask must be set to permit access. If this is
+  zero then it does not check. This applies to all files and directories,
+  whether or not they are executable.
+
+CONFIG_FILEMODE_EXECUTE *
+  The file modes needed for a client to be able to make the server to
+  execute a file. For example, set it to (S_IXGRP|S_IXOTH) if group and
+  other must be able to execute it. All bits in the mask must be set to
+  execute the file, otherwise it will send the contents of the file to
+  the client. (This is only required if CONFIG_ALLOW_CGI is defined.)
+
 mimetypes *
   An array of the file types. Each element is a structure of two elements,
   the first being the last part of the file name after the "." (which it
@@ -72,11 +86,10 @@ is specified then it is used instead of CONFIG_ROOT. If it is omitted, then
 CONFIG_ROOT is used. See CONFIG_ROOT for what it must contain.
 
 These directories can then contain any files. If the file name begins with
-.. then it cannot be accessed. Any file to be access must be readable by
-both group and others in order to be accessible.
+.. then it cannot be accessed.
 
-If a file is executable by both group and others then it will be executed,
-with the full request as its first argument, and only the pat after the
-file name as its second argument; it must write the header line and
-all data to stdout, according to the Scorpion protocol.
+If a file is executable then it will be executed, with the full request as
+its first argument, and only the pat after the file name as its second
+argument; it must write the header line and all data to stdout, according
+to the Scorpion protocol.
 
