@@ -75,7 +75,9 @@ If the "charset" parameter is not included then the default according to
 the file format should be used; "us-ascii" is a recommended default.
 
 * Optionally, the version, which if present must consist only of uppercase
-and lowercase letters, digits, and forward slash and plus sign.
+and lowercase letters, digits, and forward slash and plus sign. (Clients
+and servers are not required to verify that the version code uses this
+restricted character set.)
 
 3x = Redirect. The parameter is another URL which it should redirect to,
 which can be temporary or permanent.
@@ -207,6 +209,11 @@ This subprotocol is coded as "S".
 The subprotocol parameter can be omitted, but if not omitted then it is the
 version of the file being replaced; this can check for edit conflicts. (The
 server MAY require the version to be specified.)
+
+Optionally, the subprotocol parameter can be a HMAC followed by @ and then
+the version (which may be empty). The HMAC is of everything that follows
+the at sign, including the entire request and everything the client will
+send after the server responds the first time.
 
 The response code should not be 2x nor 8x, but can be any other code. If it
 is 7x then this means it is ready for the client to upload the file. If it
