@@ -437,6 +437,101 @@ MAY display the attribute text of preformatted blocks.
 contains the data; you cannot have inline data tables.)
 
 
+=== Database file format ===
+
+This file format is optional to implement. (However, scientific clients
+should implement this format.)
+
+Each item consists of:
+
+* One byte being the flag byte.
+
+* The length of the data. This is a big-endian number. How many bytes are
+needed for the length depends on the low 2-bits of the flag byte: zero (no
+data) if 0, one byte if 1, two bytes if 2, or four bytes if 3.
+
+* The data.
+
+The bit3 and bit2 of the flag byte specify the command, which can be:
+
+* 0 = A data cell. There must be begin table or matrix before this command.
+
+* 1 = Begin a new table (high nybble 1) or matrix (high nybble 2) or
+relational (high nybble 3), or end of file (high nybble 0).
+
+* 2 = A data cell with null data. The entire flag byte should be only 0x02.
+
+* 3 = (Reserved)
+
+The meaning of the high nybble of the flag byte depends on both the command
+and on the schema. In the case of data cells, this is called the "subtype".
+In some cases, it specifies the character encoding, as the document format.
+
+A table specification consists of:
+
+* The table name (in ASCII encoding), prefixed by a one byte length.
+
+* One byte indicating how many fields.
+
+* The specifications for each field; see below.
+
+A matrix specification is similar, but there is only one field, and instead
+of one byte indicating how many fields, you will have two big-endian 24-bit
+numbers being how many rows and how many columns.
+
+A field specification consists of:
+
+* The field name (in ASCII encoding), prefixed by a one byte length.
+
+* The type/flag byte. The type is low nybble and the flag is high nybble.
+
+The data types are listed below.
+
+* 0x00 = Blob. The subtype has no inherent meaning but you can use it for
+your own use.
+
+* 0x01 = Plain text. The subtype is the character encoding.
+
+* 0x02 = Scorpion paragraph text. The subtype is the character encoding.
+
+* 0x03 = Scorpion preformatted text. The subtype is the character encoding.
+
+* 0x04 = URL (in ASCII encoding). The subtype is 0.
+
+* 0x05 = Integer, encoded as big-endian. The subtype is 0x00 for a
+non-negative integer or 0x80 for a negative integer (it will use the
+bitwise complement of the encoded number). The size can be any number,
+including zero, to make arbitrarily big integers (although some
+implementations might be limited).
+
+* 0x06 = Floating point, encoded as big-endian IEEE 32-bits or 64-bits.
+The subtype is 0.
+
+* 0x07 = Date/time. The subtype specifies which subfields are present,
+where 0x10 means the 16-bit signed time zone offset (in minutes), 0x20
+means the 32-bit signed number of nanoseconds, and 0x80 means that the
+timestamp is negative (as for the integer data type). It is then followed
+by the integer number of seconds excluding leap seconds since January 1,
+1985, 00:00:00, UTC (it can be any length, as the integer data type).
+
+The flags of fields can be:
+
+* 0x80 = If this field is a part of the primary key. (The primary key is
+not mandatory.)
+
+* 0x40 = Allows the data to be null.
+
+Relations are specified as:
+
+* Two table names (in ASCII encoding), each prefixed by a one byte length;
+the first is the table containing the field that references a record in
+the second table.
+
+* Any number of one byte zero-based field numbers in the first table, which
+must be the same number of how many fields make up the primary key in the
+second table.
+
+
 === Automated crawling ===
 
 (This section is currently a draft and may be changed in future. There is
@@ -821,8 +916,6 @@ document. They are:
 which can be used to display unsupported formats. (It would be a feature
 which is optional to implement.)
 
-* File format of data tables, if needed.
-
 * If any part of the document is unclear, improve it.
 
 * Comparison with other protocols and file formats.
@@ -842,9 +935,10 @@ removing things if they are unnecessary.)
 
 * Simplicity is important, but should include a good set of features.
 Features should be made optional as much as possible (and authors should
-use only the really necessary parts). However, it is also necessary to
-consider if simplifying some things too much would result in additional
-complexity elsewhere (a criticism of Gemini protocol once mentioned).
+use only the really necessary parts), and can be implemented independently
+as needed. However, it is also necessary to consider if simplifying some
+things too much would result in additional complexity elsewhere (a
+criticism of Gemini protocol once mentioned).
 
 * Low-level programming is considered and not only high-level.
 
