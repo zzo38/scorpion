@@ -188,7 +188,8 @@ expired or because the signature is not valid).
 
 === Receive subprotocol ===
 
-This is the usual subprotocol, coded as "R".
+This is the usual subprotocol, coded as "R". (It is the only subprotocol
+which is mandatory to be implemented.)
 
 The subprotocol parameter can be blank or can be a range request. Servers
 are not required to support range requests, and can respond with a 59 code
@@ -235,6 +236,14 @@ A server does not need to implement all of the above possibilities.
 
 After the client finishes sending, the server sends the status line, which
 will be a 8x code if successful or a different code if it is an error.
+
+Note that if the client disconnects before sending its own status line or
+before sending the amount of data of the file that it said it was going to
+send to the server, then the upload is aborted; if the file is locked then
+the server can unlock it, etc. (For example, a client might not want to
+overwrite an existing file, but the server says 71 and the client wants to
+add a new file and not overwrite an existing file, then the client can
+disconnect, in which case the files on the server will be unchanged.)
 
 
 === Interactive subprotocol ===
@@ -324,7 +333,7 @@ scheme is considered to be a proxied request (even if it is a URL of a file
 on that server), and may be refused.)
 
 
-=== File format ===
+=== Document file format ===
 
 The file format consists of a sequence of blocks, each of which has the
 format (there is no global header, delimiters, etc):
