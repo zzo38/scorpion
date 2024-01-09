@@ -85,8 +85,9 @@ which can be temporary or permanent.
 4x = Temporary error. Has two parameters:
 
 * The number of seconds which is recommended to wait before trying again;
-it must be a unsigned 31-bit number, or it can be ? if it is unable to
-estimate the required time before trying again.
+it must be a unsigned 31-bit number (encoded as decimal in ASCII, not as
+binary), or it can be ? if it is unable to estimate the required time
+before trying again.
 
 * The error message text (optional).
 
@@ -449,7 +450,9 @@ contains the data; you cannot have inline data tables.)
 === Database file format ===
 
 This file format is optional to implement. (However, scientific clients
-should implement this format.)
+should implement this format. Another possibility is to use separate
+software to handle this; it might or might not be displayed in the same
+window even if separate software is used.)
 
 Each item consists of:
 
