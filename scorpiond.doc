@@ -46,7 +46,8 @@ CONFIG_DIRLIST
 
 CONFIG_FILENAME_CHARSET *
   The character set for file names, according to the Scorpion file format
-  (e.g. use 0x10 for PC character set).
+  (e.g. use 0x10 for PC character set). (This is only relevant if
+  CONFIG_DIRLIST is also defined; otherwise it is meaningless.)
 
 CONFIG_SAFE_FILENAMES
   If defined, then disallows some characters in file names (whitelisting).
@@ -92,4 +93,27 @@ If a file is executable then it will be executed, with the full request as
 its first argument, and only the pat after the file name as its second
 argument; it must write the header line and all data to stdout, according
 to the Scorpion protocol.
+
+
+=== Not implemented ===
+
+So far, the following features are not implemented yet:
+
+* User directories (if URL path starts with /~ and a user name)
+
+* TLS and client certificates
+
+* MIME/ULFI overrides per file or directory
+
+* EUC file names (only relevant for making directory listings)
+
+* Uploading files to the server, and versioned files
+
+* Rate limiting
+
+* Logs
+
+Some of the above features can be implemented by external programs,
+althouigh not all of them can be. Some might be better to be implemented
+within scorpiond itself.
 
