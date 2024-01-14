@@ -523,7 +523,7 @@ int scogem_relative(FILE*out,const char*base,const char*url) {
     fwrite(base,1,end-base,out);
   } else {
     for(p=base;p<end;p++) {
-      if((*p>='A' && *p<='Z') || (*p>='a' && *p<='z') || (*p>='0' && *p<='9') || *p=='.' || *p=='-' || *p=='_' || *p=='/') {
+      if((*p>='A' && *p<='Z') || (*p>='a' && *p<='z') || (*p>='0' && *p<='9') || *p=='.' || *p=='-' || *p=='_' || *p=='/' || *p=='~') {
         fputc(*p,out);
       } else {
         fprintf(out,"%%%02X",*p&0xFF);
@@ -568,5 +568,122 @@ int scogem_relative_cwd(FILE*out,const char*url) {
   } else {
     return scogem_relative(out,urlbuf,url);
   }
+}
+
+void scogem_encode_c(uint8_t flag,FILE*out,uint8_t in) {
+  if(in || (flag&SCOGEM_ALLOW_NULL)) {
+    if((in>='A' && in<='Z') || (in>='a' && in<='z') || (in>='0' && in<='9') || in=='.' || in=='-' || in=='_' || in=='~' || ((flag&SCOGEM_NOENCODE_SLASH) && in=='/')) {
+      fputc(in,out);
+    } else if(in==' ' && (flag&SCOGEM_SPACE_AS_PLUS)) {
+      fputc('+',out);
+    } else {
+      fprintf(out,"%%%02X",in);
+    }
+  }
+}
+
+void scogem_encode_f(uint8_t flag,FILE*out,FILE*in) {
+  int c;
+  while((c=fgetc(in))!=EOF) {
+    if(!(flag&SCOGEM_ALLOW_NULL) && !c) return;
+    if((flag&SCOGEM_CONTROL_STOP) && !(c&~0x1F)) return;
+    if((c>='A' && c<='Z') || (c>='a' && c<='z') || (c>='0' && c<='9') || c=='.' || c=='-' || c=='_' || c=='~' || ((flag&SCOGEM_NOENCODE_SLASH) && c=='/')) {
+      fputc(c,out);
+    } else if(c==' ' && (flag&SCOGEM_SPACE_AS_PLUS)) {
+      fputc('+',out);
+    } else {
+      fprintf(out,"%%%02X",c&0xFF);
+    }
+  }
+}
+
+void scogem_encode_m(uint8_t flag,FILE*out,const char*in,size_t len) {
+  while(len--) {
+    if(!(flag&SCOGEM_ALLOW_NULL) && !*in) return;
+    if((flag&SCOGEM_CONTROL_STOP) && !(*in&~0x1F)) return;
+    if((*in>='A' && *in<='Z') || (*in>='a' && *in<='z') || (*in>='0' && *in<='9') || *in=='.' || *in=='-' || *in=='_' || *in=='~' || ((flag&SCOGEM_NOENCODE_SLASH) && *in=='/')) {
+      fputc(*in,out);
+    } else if(*in==' ' && (flag&SCOGEM_SPACE_AS_PLUS)) {
+      fputc('+',out);
+    } else {
+      fprintf(out,"%%%02X",*in&0xFF);
+    }
+    in++;
+  }
+}
+
+void scogem_encode_s(uint8_t flag,FILE*out,const char*in) {
+  while(*in) {
+    if((flag&SCOGEM_CONTROL_STOP) && !(*in&~0x1F)) return;
+    if((*in>='A' && *in<='Z') || (*in>='a' && *in<='z') || (*in>='0' && *in<='9') || *in=='.' || *in=='-' || *in=='_' || *in=='~' || ((flag&SCOGEM_NOENCODE_SLASH) && *in=='/')) {
+      fputc(*in,out);
+    } else if(*in==' ' && (flag&SCOGEM_SPACE_AS_PLUS)) {
+      fputc('+',out);
+    } else {
+      fprintf(out,"%%%02X",*in&0xFF);
+    }
+    in++;
+  }
+}
+
+int scogem_decode_f(uint8_t flag,FILE*out,FILE*in) {
+  int c,d;
+  while((c=fgetc(in))>0) {
+    if(c=='%') {
+      d=fgetc(in);
+      if(d>='0' && d<='9') c=d-'0';
+      else if(d>='A' && d<='F') c=d-'A'+10;
+      else if(d>='a' && d<='f') c=d-'a'+10;
+      else return -1;
+      c<<=4;
+      d=fgetc(in);
+      if(d>='0' && d<='9') c+=d-'0';
+      else if(d>='A' && d<='F') c+=d-'A'+10;
+      else if(d>='a' && d<='f') c+=d-'a'+10;
+      else return -1;
+      if(!c && !(flag&SCOGEM_ALLOW_NULL)) return -1;
+      fputc(c,out);
+    } else if((flag&SCOGEM_CONTROL_STOP) && !(c&~0x1F)) {
+      ungetc(c,in);
+      return 0;
+    } else {
+      if((flag&SCOGEM_SPACE_AS_PLUS) && c=='+') c=' ';
+      fputc(c,out);
+    }
+  }
+  return 0;
+}
+
+int scogem_decode_m(uint8_t flag,FILE*out,const char*in,size_t len) {
+  int c,d;
+  while(len--) {
+    c=*in++;
+    if(!c) return 0;
+    if(c=='%') {
+      d=*in++;
+      if(d>='0' && d<='9') c=d-'0';
+      else if(d>='A' && d<='F') c=d-'A'+10;
+      else if(d>='a' && d<='f') c=d-'a'+10;
+      else return -1;
+      c<<=4;
+      d=*in++;
+      if(d>='0' && d<='9') c+=d-'0';
+      else if(d>='A' && d<='F') c+=d-'A'+10;
+      else if(d>='a' && d<='f') c+=d-'a'+10;
+      else return -1;
+      if(!c && !(flag&SCOGEM_ALLOW_NULL)) return -1;
+      fputc(c,out);
+    } else if((flag&SCOGEM_CONTROL_STOP) && !(c&~0x1F)) {
+      return 0;
+    } else {
+      if((flag&SCOGEM_SPACE_AS_PLUS) && c=='+') c=' ';
+      fputc(c,out);
+    }
+  }
+  return 0;
+}
+
+int scogem_decode_s(uint8_t flag,FILE*out,const char*in) {
+  return scogem_decode_m(flag,out,in,-1);
 }
 

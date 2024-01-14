@@ -46,3 +46,16 @@ void scogem_free_url(Scogem_URL*obj);
 int scogem_relative(FILE*out,const char*base,const char*url);
 int scogem_relative_cwd(FILE*out,const char*url);
 
+#define SCOGEM_SPACE_AS_PLUS 0x01
+#define SCOGEM_CONTROL_STOP 0x02
+#define SCOGEM_ALLOW_NULL 0x04
+#define SCOGEM_NOENCODE_SLASH 0x08
+
+void scogem_encode_c(uint8_t flag,FILE*out,uint8_t in);
+void scogem_encode_f(uint8_t flag,FILE*out,FILE*in);
+void scogem_encode_m(uint8_t flag,FILE*out,const char*in,size_t len);
+void scogem_encode_s(uint8_t flag,FILE*out,const char*in);
+int scogem_decode_f(uint8_t flag,FILE*out,FILE*in);
+int scogem_decode_m(uint8_t flag,FILE*out,const char*in,size_t len);
+int scogem_decode_s(uint8_t flag,FILE*out,const char*in);
+
