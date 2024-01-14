@@ -113,7 +113,9 @@ So far, the following features are not implemented yet:
 
 * Logs
 
+* Version 6 IP addresses in URLs
+
 Some of the above features can be implemented by external programs,
 althouigh not all of them can be. Some might be better to be implemented
-within scorpiond itself.
+within scorpiond itself. Some might be possible with options of xinetd.
 
