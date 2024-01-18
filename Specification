@@ -178,7 +178,10 @@ but not necessarily on the same server).
 62 = The supplied client certificate is not valid (e.g. because it has
 expired or because the signature is not valid).
 
-70 = Ready to receive new file.
+70 = Ready to receive new file. (If a server sends this response but the
+file is created before it has been fully received from the client for any
+reason, then the server SHOULD NOT overwrite the existing file and SHOULD
+instead send a response with an appropriate 4x or 5x status code.)
 
 71 = Ready to receive to replace an existing file.
 
@@ -588,7 +591,7 @@ with one byte command code, and then the parameter. If the command code
 has bit5 set then it SHOULD skip that line if it is not understood. If it
 has bit5 clear then the client MUST treat the entire file as not understood
 and should not proceed with crawling (and it might abort with an error
-message in this case).
+message in this case, explaining what the problem is).
 
 Each crawler also has zero or more names, which are sequences of printable
 ASCII characters.
@@ -631,7 +634,8 @@ proceeding with the next one.
 file before starting over from the beginning.
 
 * "w" = Suggested time (in seconds) to wait before downloading the crawling
-policy file again.
+policy file again. Note that the crawling policy file still counts as a
+file for the purpose of the D and R commands, too.
 
 * "a" = (This command is intended to be used for archiving, but the
 specification of the archiving has not been written yet.)
@@ -673,7 +677,14 @@ regardless of which server it is accessing through the proxy)).
 
 Clients MAY add a query string when requesting the crawling policy file
 which identifies the crawler. (This is only for the crawling policy file;
-it is not supposed to do that for any other file.)
+it is not supposed to do that for any other file. Also, the identification
+does not necessarily match the crawler's name as described above.)
+
+Crawlers that receive a 41 response when downloading any file other than
+the crawling policy file SHOULD try to download the crawling policy file
+again after waiting for the minimum time specified in the response
+(whether or not it has previously downloaded the crawling policy file
+successfully in the past).
 
 The crawling policy file is not allowed to be retroactive.
 
@@ -1130,6 +1141,15 @@ colours, etc).
 Furthermore, different clients for different displays might prefer a
 different style too, instead of the author having to try to make one that
 will work for everyone and then it doesn't work for everyone.
+
+*** What should be done if required parameters of status line are missing?
+
+This is technically an error. However, implementations that wish to recover
+from such errors may treat "2x" as "2x ? :" and "4x" as "4x ?", where the
+colon by itself is the ULFI that does not specify any file formats. For
+redirects (3x status codes), any default value would be inappropriate, so
+it cannot try to recover from such errors in this way and instead will
+have to display an error message.
 
 *** What is the copyright of this file?
 
