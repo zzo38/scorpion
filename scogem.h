@@ -26,17 +26,11 @@ typedef struct {
   uint16_t portnumber,code;
 } Scogem_URL;
 
-typedef enum {
-  SCOGEM_O_USERNAME,
-  SCOGEM_O_PASSWORD, // also used for upload tokens with Gemini
-  SCOGEM_O_URL,
-  SCOGEM_O_FILE_VERSION, // used for upload tokens with Scorpion and for range requests
-  SCOGEM_O_SIZE, // upload size
-  SCOGEM_O_RANGE_START,
-  SCOGEM_O_RANGE_END,
-  SCOGEM_O_CLIENT_CERTIFICATE,
-  SCOGEM_O_EXTRA_HEADERS, // used with HTTP
-} Scogem_Option;
+// Flags for percent-encoding
+#define SCOGEM_SPACE_AS_PLUS 0x01
+#define SCOGEM_CONTROL_STOP 0x02
+#define SCOGEM_ALLOW_NULL 0x04
+#define SCOGEM_NOENCODE_SLASH 0x08
 
 void scogem_ulfi_parse(const Scogem_UlfiList*list,int nlist,const char*text,uint8_t*bits,void*extra);
 
@@ -45,11 +39,6 @@ void scogem_free_url(Scogem_URL*obj);
 
 int scogem_relative(FILE*out,const char*base,const char*url);
 int scogem_relative_cwd(FILE*out,const char*url);
-
-#define SCOGEM_SPACE_AS_PLUS 0x01
-#define SCOGEM_CONTROL_STOP 0x02
-#define SCOGEM_ALLOW_NULL 0x04
-#define SCOGEM_NOENCODE_SLASH 0x08
 
 void scogem_encode_c(uint8_t flag,FILE*out,uint8_t in);
 void scogem_encode_f(uint8_t flag,FILE*out,FILE*in);

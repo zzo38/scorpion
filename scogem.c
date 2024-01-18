@@ -173,8 +173,8 @@ static const Scheme schemes[]={
   {SCH_SCORPION,"scorpion",1517,SCHF_INTERNET|SCHF_PASSWORD|SCHF_SEND},
   {SCH_SCORPIONS,"scorpions",1517,SCHF_INTERNET|SCHF_PASSWORD|SCHF_TLS|SCHF_SEND},
   {SCH_SPARTAN,"spartan",300,SCHF_INTERNET|SCHF_SEND},
-  {SCH_TELNET,"telnet",23,SCHF_INTERNET|SCHF_PASSWORD|SCHF_INACCESSIBLE},
-  {SCH_VIEW_SOURCE,"view-source",0,SCHF_COMPOUND|SCHF_NOHOST|SCHF_INACCESSIBLE},
+  {SCH_TELNET,"telnet",23,SCHF_INTERNET|SCHF_PASSWORD},
+  {SCH_VIEW_SOURCE,"view-source",0,SCHF_COMPOUND|SCHF_NOHOST},
   {SCH_WAIS,"wais",210,SCHF_INTERNET},
 };
 
@@ -686,4 +686,6 @@ int scogem_decode_m(uint8_t flag,FILE*out,const char*in,size_t len) {
 int scogem_decode_s(uint8_t flag,FILE*out,const char*in) {
   return scogem_decode_m(flag,out,in,-1);
 }
+
+// Protocol implementations were going to be added here, but I should add them into a separate file instead, perhaps.
 
