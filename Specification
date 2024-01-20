@@ -282,6 +282,19 @@ can use the same subroutines to parse them if they do terminal emulation):
 ait is possible to use even with terminal emulators that do not implement
 this subprotocol.)
 
+Possible capability codes:
+
+* L = Line mode. The value is 0 for not local line editing (and not local
+echo), or 1 for local line editing so that the text is not sent until an
+entire line is entered and the user pushes send. Even in line mode it is
+still possible for the server to send data to the client while the user
+has partially entered a line of text; the client should handle that by
+displaying the user's text entry separately.
+
+* x = Screen size. The value is two numbers being the number of columns
+and the number of rows; in both cases zero can mean unlimited. Optionally
+can have a third number; 1 means the client handles pagination.
+
 
 === Hashed URI scheme ===
 
