@@ -339,6 +339,7 @@ static int r_gopher(const Scogem_URL*u,Receiver*z) {
         if(z->header) {
           // Redirect to telnet:// or tn3270:// URL with same host:port as the gopher:// URL is.
           // This shouldn't happen (the client should automatically do this), but it is done here in case the client doesn't do that.
+          rewind(memfile);
           fprintf(memfile,"31 %s://",u->url[u->resource_start+1]=='8'?"telnet":"tn3270");
           if(u->resource_end>u->resource_start+2) {
             t=u->url+u->resource_start+2;
