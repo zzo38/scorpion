@@ -642,6 +642,7 @@ int scogem_decode_f(uint8_t flag,FILE*out,FILE*in) {
       else if(d>='a' && d<='f') c+=d-'a'+10;
       else return -1;
       if(!c && !(flag&SCOGEM_ALLOW_NULL)) return -1;
+      if(c=='/' && (flag&SCOGEM_NOENCODE_SLASH)) return -1;
       fputc(c,out);
     } else if((flag&SCOGEM_CONTROL_STOP) && !(c&~0x1F)) {
       ungetc(c,in);
@@ -672,6 +673,7 @@ int scogem_decode_m(uint8_t flag,FILE*out,const char*in,size_t len) {
       else if(d>='a' && d<='f') c+=d-'a'+10;
       else return -1;
       if(!c && !(flag&SCOGEM_ALLOW_NULL)) return -1;
+      if(c=='/' && (flag&SCOGEM_NOENCODE_SLASH)) return -1;
       fputc(c,out);
     } else if((flag&SCOGEM_CONTROL_STOP) && !(c&~0x1F)) {
       return 0;
