@@ -661,6 +661,8 @@ int scogem_decode_m(uint8_t flag,FILE*out,const char*in,size_t len) {
     c=*in++;
     if(!c) return 0;
     if(c=='%') {
+      if(len<2) return -1;
+      len-=2;
       d=*in++;
       if(d>='0' && d<='9') c=d-'0';
       else if(d>='A' && d<='F') c=d-'A'+10;
