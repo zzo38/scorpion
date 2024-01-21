@@ -389,6 +389,16 @@ Implementation is optional. (Some implementations may wish to use an
 external program which is an existing terminal emulator, if they can
 add initial input.)
 
+* 0x0B = Alternate service (e.g. mirrors, etc) than the previous block
+(which MUST be a link block; if it is also 0x0B then it is an additional
+alternate service), or, if there is no previous block, the current file.
+The attribute is the URL of the alternate service. The body is not normally
+used, but may contain text explaining the alternate service. Clients SHOULD
+normally hide this block, although it might have a way to display some kind
+of "alternate service" menu, to have an option to display them, to have an
+option to automatically select for load balancing, etc. (This is similar
+than the "+" type in Gopher menus.)
+
 * 0x0C = Blockquote. The attribute is unused and MUST be empty. The body
 is the text of the paragraph.
 
