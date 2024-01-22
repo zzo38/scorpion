@@ -54,7 +54,8 @@ The first digit is the major code, and the second digit is the minor code.
 Clients may ignore the minor code.
 
 0x = Interactive mode; used only for the "I" subprotocol. After this is
-sent to the client then arbitrary two-way communication is possible.
+sent to the client then arbitrary two-way communication is possible. The
+parameter is optional and is the capability codes if it is not blank.
 
 1x = Requires input; the parameter is the prompt text, which it should
 display to the user, and then the user enters any text, and the client
@@ -104,7 +105,8 @@ be used for, and when to stop sending it with new requests; by default, it
 should expire at the end of the session, although the user can always tell
 it to remove client certificates at any time manually.
 
-7x = Ready to receive; used only for the "S" subprotocol.
+7x = Ready to receive; used only for the "S" subprotocol. The parameter is
+an arbitrary text.
 
 8x = Received data accepted; used only for the "S" subprotocol. The
 parameters are same as for 2x but the data of the file is omitted. If

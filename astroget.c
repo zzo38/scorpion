@@ -15,6 +15,7 @@ exit
 #define ERR_UNKNOWN 9
 #define ERR_NET 10
 #define ERR_PROTOCOL 11
+#define ERR_EXISTS 12
 
 #include "scogem.h"
 #include <arpa/inet.h>
@@ -37,6 +38,7 @@ static char*url;
 static Scogem_URL urlinfo;
 static uint16_t option;
 static FILE*upfile;
+static const char*uptype;
 static uint64_t range_start=0;
 static uint64_t range_end=NO_LIMIT;
 
@@ -103,7 +105,13 @@ typedef struct {
 } Receiver;
 
 typedef struct {
-  //TODO
+  void*obj;
+  char delete;
+  uint64_t total;
+  const char*type;
+  const char*version;
+  int(*header)(void*obj,const char*data);
+  int(*read)(void*obj,char*data,size_t length);
 } Sender;
 
 typedef struct {
@@ -153,6 +161,18 @@ static void send_data(int f,const char*p,size_t r) {
   }
 }
 
+static void raw_upload_to(int f,Sender*z) {
+  uint64_t q=z->total;
+  uint64_t r;
+  char buf[0x4000];
+  while(q) {
+    if(q>0x4000) r=0x2000; else r=q;
+    if(z->read(z->obj,buf,r)) return;
+    send_data(f,buf,r);
+    q-=r;
+  }
+}
+
 static int recv_byte(int f) {
   unsigned char b[1];
   ssize_t s=recv(f,b,1,MSG_WAITALL);
@@ -185,14 +205,28 @@ static void send_mem(int f) {
   rewind(memfile);
 }
 
-static void head_mem(Receiver*z) {
+static int head_mem(Receiver*z) {
+  int i=0;
   if(z->header) {
     fputc(0,memfile);
     fflush(memfile);
     if(!membuf) errx(ERR_MEMORY,"Memory error");
-    z->header(z->obj,membuf);
+    i=z->header(z->obj,membuf);
   }
   rewind(memfile);
+  return i;
+}
+
+static int head_mem_sender(Sender*z) {
+  int i=0;
+  if(z->header) {
+    fputc(0,memfile);
+    fflush(memfile);
+    if(!membuf) errx(ERR_MEMORY,"Memory error");
+    i=z->header(z->obj,membuf);
+  }
+  rewind(memfile);
+  return i;
 }
 
 static signed char b64invs[]={
@@ -417,6 +451,59 @@ static int r_scorpion(const Scogem_URL*u,Receiver*z) {
   return r_scorpion_1(u,z,0);
 }
 
+static int s_scorpion(const Scogem_URL*u,Sender*z) {
+  int c,f,i,r;
+  fputc('S',memfile);
+  if(z->version) fputs(z->version,memfile);
+  fputc(' ',memfile);
+  fputc('\r',memfile);
+  fputc('\n',memfile);
+  f=dial(u->host,u->portnumber);
+  send_mem(f);
+  for(r=i=0;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_PROTOCOL,"Connection closed unexpectedly");
+    if(i<2) {
+      if(c<'0' || c>'9') errx(ERR_PROTOCOL,"Syntax error in header");
+      r=10*i*r+c-'0';
+    } else if(i==2 && c!=' ') {
+      errx(ERR_PROTOCOL,"Syntax error in header");
+    }
+    if(i++>0x2000) errx(ERR_PROTOCOL,"Header too long");
+    if(c=='\r') continue;
+    if(c=='\n') break;
+    if(c<0x20) errx(ERR_PROTOCOL,"Unexpected control character (%d; after %d bytes)",c,i);
+    fputc(c,memfile);
+  }
+  if(i=head_mem_sender(z)) {
+    shutdown(f,SHUT_RDWR);
+    close(f);
+    return i;
+  }
+  if(r<70 || r>79) return r;
+  if(z->delete) {
+    fputs("51 DELETE\r\n",memfile);
+    send_mem(f);
+  } else {
+    fprintf(memfile,"20 %llu %s%s%s\r\n",(unsigned long long)z->total,z->type,z->version?" ":"",z->version?:"");
+    send_mem(f);
+    raw_upload_to(f,z);
+  }
+  for(i=0;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_PROTOCOL,"Connection closed unexpectedly");
+    if(i++>0x2000) errx(ERR_PROTOCOL,"Header too long");
+    if(c=='\r') continue;
+    if(c=='\n') break;
+    if(c<0x20) errx(ERR_PROTOCOL,"Unexpected control character (%d; after %d bytes)",c,i);
+    fputc(c,memfile);
+  }
+  i=head_mem_sender(z);
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  return i;
+}
+
 static int r_spartan(const Scogem_URL*u,Receiver*z) {
   int c,f,i,r;
   fprintf(memfile,"%s ",u->host);
@@ -424,7 +511,7 @@ static int r_spartan(const Scogem_URL*u,Receiver*z) {
     if(u->url[i]=='?') break;
     if(u->url[i]&0x80) fprintf(memfile,"%%%02X",u->url[i]&0xFF); else fputc(u->url[i],memfile);
   }
-  if(i==u->resource_end) fputc('/',memfile);
+  if(i==u->resource_start) fputc('/',memfile);
   if(u->url[i]=='?' && i+1<u->resource_end) {
     char*vb=0;
     size_t vs=0;
@@ -465,12 +552,49 @@ static int r_spartan(const Scogem_URL*u,Receiver*z) {
   return 0;
 }
 
+static int s_spartan(const Scogem_URL*u,Sender*z) {
+  int c,f,i,r;
+  if(z->delete) errx(ERR_NOT_IMPLEMENTED,"Deleting remote files is not implemented");
+  fprintf(memfile,"%s ",u->host);
+  for(i=u->resource_start;i<u->resource_end;i++) {
+    if(u->url[i]=='?') errx(ERR_URL,"Cannot upload to Spartan URL with query string");
+    if(u->url[i]&0x80) fprintf(memfile,"%%%02X",u->url[i]&0xFF); else fputc(u->url[i],memfile);
+  }
+  if(i==u->resource_start) fputc('/',memfile);
+  fprintf(memfile," %llu\r\n",(unsigned long long)z->total);
+  f=dial(u->host,u->portnumber);
+  send_mem(f);
+  if(i=z->header(z->obj,"70 Ready to receive")) return i;
+  raw_upload_to(f,z);
+  switch(r=recv_byte(f)) {
+    case '2': fprintf(memfile,"20 ? "); break;
+    case '3': fprintf(memfile,"30 "); break;
+    case '4': fprintf(memfile,"50 "); break;
+    case '5': fprintf(memfile,"50 "); break;
+    default: errx(ERR_UNKNOWN,"Unexpected response (0x%02X) from Spartan",r);
+  }
+  if((c=recv_byte(f))!=' ') errx(ERR_UNKNOWN,"Unexpected response (0x%02X,0x%02X) from Spartan",r,c);
+  for(i=0;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_PROTOCOL,"Connection closed unexpectedly");
+    if(i++>0x2000) errx(ERR_PROTOCOL,"Header too long");
+    if(c=='\r') continue;
+    if(c=='\n') break;
+    if(c<0x20) errx(ERR_PROTOCOL,"Unexpected control character (%d; after %d bytes)",c,i);
+    if(r!='2' || c!=' ') fputc(c,memfile);
+  }
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  head_mem_sender(z);
+  return 0;
+}
+
 static const ProtocolInfo protocol_info[]={
   {"data",r_data,0,0},
   {"file",r_file,rr_file,0},
   {"gopher",r_gopher,0,0},
-  {"scorpion",r_scorpion,rr_scorpion,0},
-  {"spartan",r_spartan,0,0},
+  {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
+  {"spartan",r_spartan,0,s_spartan},
 };
 
 static int compare_protocol(const void*a,const void*b) {
@@ -486,6 +610,18 @@ static const ProtocolInfo*find_protocol(const Scogem_URL*u) {
 
 static int out_header(void*obj,const char*text) {
   printf("%s\r\n",text);
+  if(*text=='7' && text[1]!='0' && !(option&0x0008)) errx(ERR_EXISTS,"Remote file already exists");
+  return 0;
+}
+
+static int main_header(void*obj,const char*text) {
+  if(*text!='2') errx(*text,"Server returned status: %s",text);
+  return 0;
+}
+
+static int main_up_header(void*obj,const char*text) {
+  if(*text!='7' && *text!='8') errx(*text,"Server returned status: %s",text);
+  if(*text=='7' && text[1]!='0' && !(option&0x0008)) errx(ERR_EXISTS,"Remote file already exists");
   return 0;
 }
 
@@ -493,11 +629,16 @@ static ssize_t out_write(void*obj,const char*data,size_t length) {
   return fwrite(data,1,length,stdout);
 }
 
+static int up_read(void*obj,char*data,size_t length) {
+  -fread(data,1,length,obj);
+  return 0;
+}
+
 static int do_download(void) {
   const ProtocolInfo*pi=find_protocol(&urlinfo);
   Receiver z={};
   if(!pi) errx(ERR_NOT_IMPLEMENTED,"Protocol '%s' not implemented",urlinfo.scheme);
-  if(option&0x0002) z.header=out_header;
+  z.header=(option&0x0002?out_header:main_header);
   z.write=out_write;
   if(option&0x0004) {
     z.start=range_start;
@@ -512,7 +653,25 @@ static int do_download(void) {
 }
 
 static int do_upload(void) {
-  errx(ERR_NOT_IMPLEMENTED,"Not implemented yet");
+  const ProtocolInfo*pi=find_protocol(&urlinfo);
+  Sender z={};
+  if(!pi) errx(ERR_NOT_IMPLEMENTED,"Protocol '%s' not implemented",urlinfo.scheme);
+  if(!pi->send) errx(ERR_NOT_IMPLEMENTED,"Sending to protocol '%s' not implemented",urlinfo.scheme);
+  if(option&0x0010) {
+    z.delete=1;
+    z.total=0;
+  } else {
+    flock(fileno(upfile),LOCK_SH|LOCK_NB);
+    if(fseek(upfile,0,SEEK_END)) err(ERR_IO_ERROR,"Cannot measure size of input file");
+    z.total=ftell(upfile);
+    rewind(upfile);
+    z.obj=upfile;
+    z.type=uptype;
+  }
+  z.header=(option&0x0002?out_header:main_up_header);
+  z.read=up_read;
+  pi->send(&urlinfo,&z);
+  return 0;
 }
 
 int main(int argc,char**argv) {
@@ -520,12 +679,15 @@ int main(int argc,char**argv) {
   int c;
   memfile=open_memstream(&membuf,&membufsize);
   if(!memfile) err(ERR_MEMORY,"Cannot open stream");
-  while((c=getopt(argc,argv,"+B:QY:hr:u:"))>=0) switch(c) {
+  while((c=getopt(argc,argv,"+B:DOQY:hr:t:u:"))>=0) switch(c) {
     case 'B': baseurl=optarg; break;
+    case 'D': upfile=stderr; option|=0x0018; break;
+    case 'O': option|=0x0008; break;
     case 'Q': option|=0x0001; break;
     case 'Y': return do_ulfi(optarg); break;
     case 'h': option|=0x0002; break;
     case 'r': option|=0x0004; range_start=strtol(optarg,&optarg,10); if(*optarg=='-' && optarg[1]) range_end=strtol(optarg+1,0,10); break;
+    case 't': uptype=optarg; break;
     case 'u': upfile=fopen(optarg,"r"); if(!upfile) err(ERR_IO_ERROR,"Cannot open file to be sent"); break;
     default: return ERR_ARGUMENT;
   }
@@ -537,6 +699,7 @@ int main(int argc,char**argv) {
     return 0;
   }
   if(upfile) {
+    if(!uptype) uptype=":";
     return do_upload();
   } else {
     return do_download();
