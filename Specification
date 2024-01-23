@@ -968,10 +968,6 @@ document. They are:
 
 * Some of the above sections has parts which are incomplete.
 
-* Some way to specify conversion of files, using a simple mechanism,
-which can be used to display unsupported formats. (It would be a feature
-which is optional to implement.)
-
 * If any part of the document is unclear, improve it.
 
 * Comparison with other protocols and file formats.
@@ -979,6 +975,9 @@ which is optional to implement.)
 * Better examples.
 
 * A reference implementation. (This is partially written.)
+
+* TLS is rather complicated, and has some other problems. Is there a
+better simpler way to do secure internet?
 
 (It is also possible that other changes may be made in future, than
 the above, including changes to existing things, and possibly also

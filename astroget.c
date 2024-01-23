@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o
+gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o simpletls.o -lssl
 exit
 #endif
 
@@ -28,6 +28,7 @@ exit
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "simpletls.h"
 
 static FILE*memfile;
 static char*membuf;
@@ -140,6 +141,19 @@ static int dial(const char*host,uint16_t port) {
   if(f==-1) err(ERR_MEMORY,"Cannot open socket");
   i=connect(f,ai->ai_addr,sizeof(struct sockaddr_in));
   if(i<0) err(ERR_NET,"Cannot connect to '%s:%u'",host,port);
+  freeaddrinfo(ai);
+  return f;
+}
+
+static int dial_secure(const char*host,int16_t port,const Certificate*cert) {
+  char b[8];
+  struct addrinfo h={.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM,.ai_flags=AI_ADDRCONFIG};
+  struct addrinfo*ai=0;
+  int i,f;
+  snprintf(b,8,"%u",port);
+  if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
+  f=secure_socket(ai->ai_addr,host,0,cert);
+  if(f==-1) errx(ERR_MEMORY,"Cannot open secure socket");
   freeaddrinfo(ai);
   return f;
 }
@@ -358,6 +372,92 @@ static int rr_file(const Scogem_URL*u,Receiver*z) {
   return r_file_1(u,z,1);
 }
 
+static int r_gemini(const Scogem_URL*u,Receiver*z) {
+  int c,f,i,r;
+  char buf[0x1000];
+  fwrite(u->url,1,u->resource_end,memfile);
+  fputc('\r',memfile);
+  fputc('\n',memfile);
+  f=dial_secure(u->host,u->portnumber,0);
+  send_mem(f);
+  for(i=0;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_PROTOCOL,"Connection closed unexpectedly");
+    if(c=='\r') {
+      if(recv_byte(f)!='\n') errx(ERR_PROTOCOL,"Unexpected character in header");
+      break;
+    }
+    if(c=='\n') break;
+    if(i>=0xFFE) errx(ERR_PROTOCOL,"Header too long");
+    buf[i++]=c;
+  }
+  if(i==2) buf[i++]=' ';
+  buf[i]=0;
+  if(*buf=='2') {
+    fputs("20 ? ",memfile);
+    for(i=3;buf[i];i++) if(buf[i]!=' ' && buf[i]!='\t') fputc(buf[i],memfile);
+  } else if(*buf=='4' && buf[1]!='4') {
+    fprintf(memfile,"4%c ? %s",buf[1],buf+3);
+  } else if(*buf<'0' || *buf>'9' || buf[1]<'0' || buf[1]>'9' || buf[2]!=' ') {
+    errx(ERR_PROTOCOL,"Improper response header");
+  } else {
+    fputs(buf,memfile);
+  }
+  head_mem(z);
+  if(*buf=='2') raw_download_from(f,z);
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  return 0;
+}
+
+static int s_gemini(const Scogem_URL*u,Sender*z) {
+  int c,f,i,r;
+  char buf[0x1000];
+  fwrite("titan",1,5,memfile);
+  fwrite(u->url+6,1,u->resource_end-6,memfile);
+  if(z->delete) fputs(";size=0",memfile); else fprintf(memfile,";size=%llu",(unsigned long long)z->total);
+  if(z->type && !z->delete) {
+    fputs(";mime=",memfile);
+    scogem_encode_s(0,memfile,z->type);
+  }
+  if(z->version) {
+    fputs(";token=",memfile);
+    scogem_encode_s(0,memfile,z->version);
+  }
+  fputc('\r',memfile);
+  fputc('\n',memfile);
+  f=dial_secure(u->host,u->portnumber,0);
+  send_mem(f);
+  if(i=z->header(z->obj,"70 Ready to receive")) return i;
+  if(!z->delete) raw_upload_to(f,z);
+  for(i=0;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_PROTOCOL,"Connection closed unexpectedly");
+    if(c=='\r') {
+      if(recv_byte(f)!='\n') errx(ERR_PROTOCOL,"Unexpected character in header");
+      break;
+    }
+    if(c=='\n') break;
+    if(i>=0xFFE) errx(ERR_PROTOCOL,"Header too long");
+    buf[i++]=c;
+  }
+  if(i==2) buf[i++]=' ';
+  buf[i]=0;
+  if(*buf=='2') {
+    fputs("80 ?",memfile);
+  } else if(*buf=='4' && buf[1]!='4') {
+    fprintf(memfile,"4%c ? %s",buf[1],buf+3);
+  } else if(*buf<'0' || *buf>'9' || buf[1]<'0' || buf[1]>'9' || buf[2]!=' ') {
+    errx(ERR_PROTOCOL,"Improper response header");
+  } else {
+    fputs(buf,memfile);
+  }
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  head_mem_sender(z);
+  return 0;
+}
+
 static int r_gopher(const Scogem_URL*u,Receiver*z) {
   int f,i;
   const char*t="20 ? text:gopher-menu";
@@ -414,7 +514,7 @@ static int r_gopher(const Scogem_URL*u,Receiver*z) {
   return 0;
 }
 
-static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr) {
+static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr,char tls) {
   int c,f,i;
   fputc('R',memfile);
   if(isr) {
@@ -425,7 +525,7 @@ static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr) {
   fwrite(u->url,1,u->resource_end,memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=dial(u->host,u->portnumber);
+  f=(tls?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber));
   send_mem(f);
   for(i=0;;) {
     c=recv_byte(f);
@@ -444,11 +544,19 @@ static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr) {
 }
 
 static int rr_scorpion(const Scogem_URL*u,Receiver*z) {
-  return r_scorpion_1(u,z,1);
+  return r_scorpion_1(u,z,1,0);
 }
 
 static int r_scorpion(const Scogem_URL*u,Receiver*z) {
-  return r_scorpion_1(u,z,0);
+  return r_scorpion_1(u,z,0,0);
+}
+
+static int rr_scorpions(const Scogem_URL*u,Receiver*z) {
+  return r_scorpion_1(u,z,1,1);
+}
+
+static int r_scorpions(const Scogem_URL*u,Receiver*z) {
+  return r_scorpion_1(u,z,0,1);
 }
 
 static int s_scorpion(const Scogem_URL*u,Sender*z) {
@@ -458,7 +566,7 @@ static int s_scorpion(const Scogem_URL*u,Sender*z) {
   fputc(' ',memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=dial(u->host,u->portnumber);
+  f=(u->url[8]=='s'?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber));
   send_mem(f);
   for(r=i=0;;) {
     c=recv_byte(f);
@@ -485,7 +593,7 @@ static int s_scorpion(const Scogem_URL*u,Sender*z) {
     fputs("51 DELETE\r\n",memfile);
     send_mem(f);
   } else {
-    fprintf(memfile,"20 %llu %s%s%s\r\n",(unsigned long long)z->total,z->type,z->version?" ":"",z->version?:"");
+    fprintf(memfile,"20 %llu %s%s%s\r\n",(unsigned long long)z->total,z->type?:":",z->version?" ":"",z->version?:"");
     send_mem(f);
     raw_upload_to(f,z);
   }
@@ -592,8 +700,10 @@ static int s_spartan(const Scogem_URL*u,Sender*z) {
 static const ProtocolInfo protocol_info[]={
   {"data",r_data,0,0},
   {"file",r_file,rr_file,0},
+  {"gemini",r_gemini,0,s_gemini},
   {"gopher",r_gopher,0,0},
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
+  {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
   {"spartan",r_spartan,0,s_spartan},
 };
 
@@ -620,7 +730,7 @@ static int main_header(void*obj,const char*text) {
 }
 
 static int main_up_header(void*obj,const char*text) {
-  if(*text!='7' && *text!='8') errx(*text,"Server returned status: %s",text);
+  if(*text!='2' && *text!='7' && *text!='8') errx(*text,"Server returned status: %s",text);
   if(*text=='7' && text[1]!='0' && !(option&0x0008)) errx(ERR_EXISTS,"Remote file already exists");
   return 0;
 }
@@ -699,7 +809,6 @@ int main(int argc,char**argv) {
     return 0;
   }
   if(upfile) {
-    if(!uptype) uptype=":";
     return do_upload();
   } else {
     return do_download();
