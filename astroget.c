@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o simpletls.o -lssl
+gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o hash.o simpletls.o -lssl
 exit
 #endif
 
@@ -29,6 +29,7 @@ exit
 #include <sys/types.h>
 #include <unistd.h>
 #include "simpletls.h"
+#include "hash.h"
 
 static FILE*memfile;
 static char*membuf;
@@ -121,6 +122,8 @@ typedef struct {
   int(*receive_range)(const Scogem_URL*u,Receiver*z);
   int(*send)(const Scogem_URL*u,Sender*z);
 } ProtocolInfo;
+
+static const ProtocolInfo*find_protocol(const Scogem_URL*u);
 
 static void status_ok(Receiver*z,char k,uint64_t total,const char*mime) {
   char buf[0x1000];
@@ -372,6 +375,24 @@ static int rr_file(const Scogem_URL*u,Receiver*z) {
   return r_file_1(u,z,1);
 }
 
+static int r_finger(const Scogem_URL*u,Receiver*z) {
+  int f,i;
+  if(u->username) {
+    fputs(u->username,memfile);
+  } else {
+    scogem_decode_m(0,memfile,u->url+u->resource_start+1,u->resource_end-u->resource_start-1);
+  }
+  fputc('\r',memfile);
+  fputc('\n',memfile);
+  f=dial(u->host,u->portnumber);
+  send_mem(f);
+  if(z->header) z->header(z->obj,"20 ? text:plain");
+  raw_download_from(f,z);
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  return 0;
+}
+
 static int r_gemini(const Scogem_URL*u,Receiver*z) {
   int c,f,i,r;
   char buf[0x1000];
@@ -512,6 +533,109 @@ static int r_gopher(const Scogem_URL*u,Receiver*z) {
   shutdown(f,SHUT_RDWR);
   close(f);
   return 0;
+}
+
+typedef struct {
+  FILE*file;
+  char*head;
+} r_hashed_Mem;
+
+static int r_hashed_header(void*obj,const char*data) {
+  r_hashed_Mem*mem=obj;
+  if(!mem->head) mem->head=strdup(data);
+  if(!mem->head) err(ERR_MEMORY,"Allocation failed");
+  return 0;
+}
+
+static ssize_t r_hashed_write(void*obj,const char*data,size_t length) {
+  r_hashed_Mem*mem=obj;
+  return fwrite(data,1,length,mem->file);
+}
+
+static int r_hashed_1(const Scogem_URL*u,Receiver*z,int isr) {
+  r_hashed_Mem mem;
+  const ProtocolInfo*pi;
+  Scogem_URL u2;
+  FILE*f0;
+  FILE*f1;
+  char*data=0;
+  size_t datalen=0;
+  long long alg=0;
+  long hlen,i;
+  unsigned char*hash=0;
+  Receiver z2={};
+  const char*p;
+  int c,d;
+  alg=strtoll(u->url+7,(char**)&p,16);
+  if(!p || *p!='/' || !alg || !u->inner_start) errx(ERR_URL,"URL error");
+  hlen=hash_length(alg);
+  if(!hlen) errx(ERR_NOT_IMPLEMENTED,"Hash algorithm 0x%llX not implemented",alg);
+  if(u->inner_start-(p-u->url)-2!=hlen*2) errx(ERR_URL,"Incorrect hash length (expected %ld hex digits)",hlen*2);
+  hash=malloc(hlen);
+  if(!hash) err(ERR_MEMORY,"Allocation failed");
+  if(scogem_parse_url(&u2,u->url+u->inner_start,0)) errx(ERR_URL,"Failure to parse inner URL (%s)",u->url+u->inner_start);
+  pi=find_protocol(&u2);
+  if(!pi) errx(ERR_NOT_IMPLEMENTED,"Protocol '%s' not implemented",u2.scheme);
+  if(!pi->receive) errx(ERR_NOT_IMPLEMENTED,"Receiving from protocol '%s' not implemented",u2.scheme);
+  f0=open_memstream(&data,&datalen);
+  if(!f0) err(ERR_MEMORY,"Memory error");
+  f1=hash_stream(alg,f0,hash);
+  if(!f1) err(ERR_UNKNOWN,"Cannot open hash stream");
+  mem.file=f1;
+  mem.head=0;
+  z2.obj=&mem;
+  z2.start=0;
+  z2.end=NO_LIMIT;
+  z2.header=r_hashed_header;
+  z2.write=r_hashed_write;
+  i=pi->receive(&u2,&z2);
+  fclose(f1);
+  fclose(f0);
+  if(i || !data) {
+    free(data);
+    free(mem.head);
+    free(hash);
+    return i?:-1;
+  }
+  p=strchr(u->url+7,'/')+1;
+  if(!mem.head) mem.head=strdup("50 Unexpected error");
+  if(!mem.head) err(ERR_MEMORY,"Allocation failed");
+  if(*mem.head=='2') {
+    for(i=0;i<hlen;i++) {
+      d=*p++;
+      if(d>='0' && d<='9') c=d-'0';
+      else if(d>='A' && d<='F') c=d-'A'+10;
+      else if(d>='a' && d<='f') c=d-'a'+10;
+      else errx(ERR_URL,"Invalid hex digit in hash in URL");
+      c<<=4;
+      d=*p++;
+      if(d>='0' && d<='9') c+=d-'0';
+      else if(d>='A' && d<='F') c+=d-'A'+10;
+      else if(d>='a' && d<='f') c+=d-'a'+10;
+      else errx(ERR_URL,"Invalid hex digit in hash in URL");
+      if(c!=hash[i]) {
+        if(z->header) z->header(z->obj,"50 Hash mismatch");
+        goto mismatch;
+      }
+    }
+    if(z->header) z->header(z->obj,mem.head);
+    if(datalen) z->write(z->obj,data,datalen);
+  } else {
+    if(z->header) z->header(z->obj,mem.head);
+  }
+  mismatch:
+  free(data);
+  free(mem.head);
+  free(hash);
+  return 0;
+}
+
+static int r_hashed(const Scogem_URL*u,Receiver*z) {
+  return r_hashed_1(u,z,0);
+}
+
+static int rr_hashed(const Scogem_URL*u,Receiver*z) {
+  return r_hashed_1(u,z,1);
 }
 
 static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr,char tls) {
@@ -700,8 +824,10 @@ static int s_spartan(const Scogem_URL*u,Sender*z) {
 static const ProtocolInfo protocol_info[]={
   {"data",r_data,0,0},
   {"file",r_file,rr_file,0},
+  {"finger",r_finger,0,0},
   {"gemini",r_gemini,0,s_gemini},
   {"gopher",r_gopher,0,0},
+  {"hashed",r_hashed,rr_hashed,0},
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
   {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
   {"spartan",r_spartan,0,s_spartan},
