@@ -3,8 +3,6 @@ gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o hash.o simpletls.o -lssl
 exit
 #endif
 
-// Can you tell me how to work TLS properly with this? I could not get it to work.
-
 #define NO_LIMIT 0x7FFFFFFFFFFFFFFFULL
 
 #define ERR_ARGUMENT 4
@@ -618,8 +616,17 @@ static int r_hashed_1(const Scogem_URL*u,Receiver*z,int isr) {
         goto mismatch;
       }
     }
-    if(z->header) z->header(z->obj,mem.head);
-    if(datalen) z->write(z->obj,data,datalen);
+    if(isr) {
+      if(z->header) {
+        mem.head[1]='1';
+        z->header(z->obj,mem.head);
+      }
+      if(z->end>datalen) z->end=datalen;
+      if(z->start<z->end && z->start<datalen) z->write(z->obj,data+z->start,z->end-z->start);
+    } else {
+      if(z->header) z->header(z->obj,mem.head);
+      if(datalen) z->write(z->obj,data,datalen);
+    }
   } else {
     if(z->header) z->header(z->obj,mem.head);
   }
@@ -636,6 +643,180 @@ static int r_hashed(const Scogem_URL*u,Receiver*z) {
 
 static int rr_hashed(const Scogem_URL*u,Receiver*z) {
   return r_hashed_1(u,z,1);
+}
+
+static void rs_nntp_readline(char*buf,int f) {
+  int i=0;
+  int c;
+  for(;;) {
+    c=recv_byte(f);
+    if(c<=0) errx(ERR_PROTOCOL,"Protocol error");
+    if(c=='\n') break;
+    if(c=='\r') {
+      if(recv_byte(f)=='\n') break; else errx(ERR_PROTOCOL,"Protocol error");
+    }
+    buf[i++]=c;
+    if(i>0x1FFD) errx(ERR_PROTOCOL,"Line too long");
+  }
+  buf[i]=0;
+}
+
+static void send_article(int f,Sender*z) {
+  uint64_t q=z->total;
+  uint64_t r,i;
+  char buf[0x4000];
+  char s=0;
+  while(q) {
+    if(q>0x4000) r=0x2000; else r=q;
+    if(z->read(z->obj,buf,r)) return;
+    for(i=0;i<r;i++) {
+      if(buf[i]=='\r' || !buf[i]) continue;
+      if(buf[i]=='.' && !s) fputc('.',memfile);
+      if(buf[i]=='\n') s=0,fputc('\r',memfile); else s=1;
+      fputc(buf[i],memfile);
+    }
+    send_mem(f);
+    q-=r;
+  }
+  if(s) send_data(f,"\r\n",2);
+}
+
+static void receive_article(int f,Receiver*z) {
+  int c;
+  char b[1];
+  char s=0;
+  for(;;) {
+    c=recv_byte(f);
+    if(c==EOF) errx(ERR_NET,"Unexpected disconnection");
+    if(c=='\n') {
+      if(s==2) return;
+      z->write(z->obj,"\n",1);
+      s=0;
+    } else if(c=='.' && !s) {
+      s=2;
+    } else {
+      *b=c;
+      z->write(z->obj,b,1);
+      if(c!='\r') s=1;
+    }
+  }
+}
+
+static int rs_nntp(const Scogem_URL*u,Receiver*zr,Sender*zs) {
+  int f,i,j;
+  char buf[0x2000];
+  const char*p;
+  f=dial(u->host,u->portnumber);
+  rs_nntp_readline(buf,f);
+  if(*buf!='2') {
+    if(*buf=='4') fprintf(memfile,"40 ? [%s]",buf); else fprintf(memfile,"50 [%s]",buf);
+    if(zr) head_mem(zr); else head_mem_sender(zs);
+    goto end;
+  } else if(zs && buf[2]!='0') {
+    if(zs->header) zs->header(zs->obj,"54 Posting is not allowed");
+    goto end;
+  }
+  if(u->username) {
+    fprintf(memfile,"AUTHINFO USER %s\r\n",u->username);
+    send_mem(f);
+    rs_nntp_readline(buf,f);
+    if(buf[1]!='8' || buf[2]!='1') {
+      autherr:
+      fprintf(memfile,"54 Auth error [%s]",buf);
+      if(zr) head_mem(zr); else head_mem_sender(zs);
+      goto end;
+    }
+    if(buf[1]=='3' && u->password) {
+      fprintf(memfile,"AUTHINFO PASS %s\r\n",u->password);
+      send_mem(f);
+      rs_nntp_readline(buf,f);
+      if(memcmp(buf,"281",3)) goto autherr;
+    } else if(buf[1]!='2') {
+      goto autherr;
+    }
+  }
+  if(zs) {
+    send_data(f,"POST\r\n",6);
+    rs_nntp_readline(buf,f);
+    if(memcmp(buf,"340",3)) {
+      fprintf(memfile,"5%c [%s]",buf[1]=='4'&&buf[2]=='0'?'4':'0',buf);
+      head_mem_sender(zs);
+      goto end;
+    }
+    fprintf(memfile,"70 [%s]",buf);
+    head_mem_sender(zs);
+    send_article(f,zs);
+    send_data(f,".\r\n",3);
+    rs_nntp_readline(buf,f);
+    fprintf(memfile,"%s [%s]",memcmp(buf,"240",3)?"50":"80 ? message/rfc822   ",buf);
+    head_mem_sender(zs);
+  } else {
+    i=u->resource_start;
+    if(u->url[i]!='/' || i+1==u->resource_end) {
+      send_data(f,"LIST\r\n",6);
+      rs_nntp_readline(buf,f);
+      if(memcmp(buf,"215",3)) {
+        fprintf(memfile,"51 [%s]",buf);
+        head_mem(zr);
+      } else {
+        if(zr->header) zr->header(zr->obj,"20 ? nntp.list.active");
+        receive_article(f,zr);
+      }
+    } else {
+      i++;
+      j=i+strcspn(u->url+i,"/?#");
+      fputs("GROUP ",memfile);
+      scogem_decode_m(SCOGEM_CONTROL_STOP,memfile,u->url+i,j-i);
+      fputs("\r\n",memfile);
+      send_mem(f);
+      rs_nntp_readline(buf,f);
+      if(memcmp(buf,"211",3)) {
+        if(!memcmp(buf,"411",3)) fprintf(memfile,"51 %s",buf+3);
+        else fprintf(memfile,"50 [%s]",buf);
+        head_mem(zr);
+      } else if(u->url[j]=='/' && u->resource_end>j+1) {
+        fputs("ARTICLE ",memfile);
+        for(i=j+1;u->url[i]>='0' && u->url[i]<='9';i++) fputc(u->url[i],memfile);
+        fputs("\r\n",memfile);
+        send_mem(f);
+        rs_nntp_readline(buf,f);
+        if(!memcmp(buf,"220",3)) {
+          if(zr->header) zr->header(zr->obj,"20 ? message/rfc822");
+          receive_article(f,zr);
+        } else if(!memcmp(buf,"423",3)) {
+          fprintf(memfile,"51 %s",buf+3);
+          head_mem(zr);
+        } else {
+          fprintf(memfile,"50 [%s]",buf);
+          head_mem(zr);
+        }
+      } else {
+        send_data(f,"OVER 1-\r\n",9);
+        rs_nntp_readline(buf,f);
+        if(!memcmp(buf,"224",3)) {
+          if(zr->header) zr->header(zr->obj,"20 ? nntp.over");
+          receive_article(f,zr);
+        } else if(!memcmp(buf,"423",3)) {
+          if(zr->header) zr->header(zr->obj,"20 0 nntp.over");
+        } else {
+          fprintf(memfile,"50 [%s]",buf);
+          head_mem(zr);
+        }
+      }
+    }
+  }
+  send_data(f,"QUIT\r\n",6);
+  end:
+  close(f);
+  return 0;
+}
+
+static int r_nntp(const Scogem_URL*u,Receiver*z) {
+  return rs_nntp(u,z,0);
+}
+
+static int s_nntp(const Scogem_URL*u,Sender*z) {
+  return rs_nntp(u,0,z);
 }
 
 static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr,char tls) {
@@ -828,6 +1009,7 @@ static const ProtocolInfo protocol_info[]={
   {"gemini",r_gemini,0,s_gemini},
   {"gopher",r_gopher,0,0},
   {"hashed",r_hashed,rr_hashed,0},
+  {"nntp",r_nntp,0,s_nntp},
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
   {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
   {"spartan",r_spartan,0,s_spartan},
