@@ -463,6 +463,13 @@ main text of a furigana block but should not display the furigana text.
 * 0x19 = End of the furigana. You are not supposed to nest any other
 control codes inside of the furigana blocks.
 
+* 0x1B = Used for SGR codes. The next byte MUST be 0x5B, and then zero
+or more bytes in range 0x30 to 0x3B except 0x3A, and then one byte
+which is 0x6D. This is allowed in both preformatted blocks and in other
+blocks, but it is discouraged, especially in non-preformatted blocks.
+Clients should skip over the SGR code entirely, but MAY have an option
+to interpret them.
+
 It is not required to implement most of the control codes, except as
 specified above.
 
