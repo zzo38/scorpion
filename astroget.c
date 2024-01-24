@@ -695,9 +695,10 @@ static void receive_article(int f,Receiver*z) {
     } else if(c=='.' && !s) {
       s=2;
     } else {
+      if(c!='\r') s=1;
+      if(s==2) continue;
       *b=c;
       z->write(z->obj,b,1);
-      if(c!='\r') s=1;
     }
   }
 }
