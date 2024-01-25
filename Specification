@@ -5,9 +5,10 @@ SCORPION PROTOCOL/FILE-FORMAT
 === Protocol ===
 
 The protocol can be TLS or non-TLS. Implementation of TLS is optional but
-is recommended. The same port number can be used for TLS and non-TLS; this
-is distinguished by the first byte that the client sends (TLS if it is 0x16
-or non-TLS otherwise).
+is recommended; implementation of non-TLS is mandatory if it is possible.
+The same port number can be used for TLS and non-TLS; this is distinguished
+by the first byte that the client sends (TLS if it is 0x16 or non-TLS
+otherwise (in which case it is the subprotocol byte)).
 
 The default port number (for both TLS and non-TLS) is 1517.
 
@@ -45,7 +46,22 @@ client needs to worry about.)
 
 If it is not a proxy request, then the TLS and non-TLS variants of the
 same protocol URI scheme should be treated as equivalent by the server
-(but not by the client, which must treat them differently).
+(but not by the client, which MUST treat them differently). (Proxied
+requests will treat the scheme in the request like the client does.)
+
+The recommended use of SNI is:
+
+* Clients SHOULD use SNI when connecting to the server, and MAY have an
+option to disable SNI (in order to mitigate some types of spying).
+
+* Servers SHOULD NOT require SNI, and SHOULD ignore any provided SNI and
+use the host name in the request instead. (Exceptions are possible, e.g.
+if it needs to use a different protocol with the same port number and IP
+address for some reason, but this should be avoided if possible.)
+
+* If possible, clients SHOULD allow to use the system's DNS services to
+implement encrypted Client Hello; if implemented, there MUST be an option
+to disable this feature.
 
 
 === Status codes ===
@@ -96,14 +112,17 @@ before trying again.
 not be repeated by automatic tasks, unless such tasks are manually reset by
 the operator of the computer that controls such tasks.
 
-6x = Client certificate required. The parameter is some text which may be
-displayed to the user to specify what kind of client certificate should be
-provided by the user. If the protocol is non-TLS, then this implies a
-redirect to the corresponding TLS protocol if a client certificate has been
-provided by the user. The user may specify which URLs the certificate can
-be used for, and when to stop sending it with new requests; by default, it
-should expire at the end of the session, although the user can always tell
-it to remove client certificates at any time manually.
+6x = Client certificate required. The parameters are listed below. The
+below section about client certificates has more details.
+
+* The first parameter specifies what URLs the certificate applies to; see
+the below section about client certificates. This is only a hint and is not
+a requirement; clients MAY ignore it, and MUST allow the user to override
+this specification with their own.
+
+* The second parameter is arbitrary text which should be displayed to the
+user, to explain what kind of client certificate is needed and/or why it is
+needed, etc.
 
 7x = Ready to receive; used only for the "S" subprotocol. The parameter is
 an arbitrary text.
@@ -164,9 +183,16 @@ the server implementation, so that it can check that it is not its own name
 and therefore refuse the request). A server MAY also use this status code
 if a URL with no scheme has been provided, for the same reason.
 
-54 = Forbidden request.
+54 = Forbidden request. A username and/or password probably won't help.
+Other conditions might or might not help, depending on the implementation
+(e.g. it might only permit access to LAN addresses or only to 127.0.0.1).
 
 55 = Edit conflict; used with the "S" subprotocol.
+
+56 = A username and/or password are required. Either none have been
+provided, or the username and/or password that have been provided are
+incorrect. The error message SHOULD NOT distinguish between an unknown
+username and an incorrect password for a known username.
 
 59 = Bad request.
 
@@ -190,6 +216,81 @@ instead send a response with an appropriate 4x or 5x status code.)
 80 = Accepted received data and created a new file.
 
 81 = Accepted received data to modify an existing file.
+
+
+=== Client certificates ===
+
+Implementation of client certificates is optional, but it is recommended
+to be implemented if TLS is implemented.
+
+If a 6x response is received on a non-TLS connection, then it should change
+the scheme from "scorpion:" to "scorpions:" when a client certificate is
+available before retrying the request.
+
+The first parameter of a 6x response specifies the suggested set of URLs
+that the client certificate is applicable to. It has one character followed
+by a URL. The URL may be empty to mean the current URL, or can be any URL
+that lacks a scheme and authority. The first character can be:
+
+* "=" = Only that exact URL (as well as any that differ only by the
+fragment part; the fragment part is always ignored for all of these modes).
+
+* "+" = The specified URL as well as any that have a different query string
+or no query string.
+
+* "*" = Discard the query string of the specified URL, and then it means
+the current URL as well as any one consisting of the current URL followed
+by / or ? and then anything. If the URL already ends with / then it means
+that URL followed by anything.
+
+* "-" = An unspecified set of URLs which includes the specified URL.
+
+(If Gemini is implemented as well as Scorpion, then a 6x response from a
+Gemini server SHOULD use the "*" URL set hint (with the current URL) by
+default, since that is what the Gemini specification says.)
+
+The set of URLs MUST include the URL that has been requested, and MUST NOT
+include any URL that differs by scheme, host, and/or port, than the URL
+that has been requested. If this is not the case, clients SHOULD treat it
+as an unrecognized hint.
+
+Clients MUST allow the user to override the specifications above; those
+specifications are merely a hint, and are not mandatory to be implemented.
+Unrecognized hints shouldn't prevent the user from specifying a client
+certificate anyways, but in that case the client MAY require that the user
+explicitly specify which set of URLs it applies to; if it does not then
+there will be a implementation-dependent default setting.
+
+Client certificates normally apply to all subprotocols used with that URL,
+although the user may be allowed to override this. Alternatively, a client
+might apply it to all subprotocols if the subprotocol in the request is R,
+but limit it to the requested subprotocol if it is S or I.
+
+If the server requires a client certificate and a user name, it should use
+a 54 response first, and then 60 once a valid username has been provided.
+If the server requires either a client certificate or a user name (of the
+client's choice), but does not need both, then it should provide a 54
+response if the connection is not using TLS, or 60 if it is using TLS. A
+server SHOULD NOT require both a password and a client certificate at the
+same time.
+
+A client may have any UI its author wishes, but an example of a GUI which
+might be used to manage client certificates would be:
+
+  URL: ________________________________
+  [X] Restrict to current username
+  Subprotocols:  [X] Receive  [X] Send  [X] Interactive
+  Duration:  (*) Session  (*) Permanent  (*) ___ hours  (*) ___ days
+  [X] Remember TLS options
+  <Select...>  <Import...>  <Create...>  <Manage...>
+  <Set>  <Set and go>  <Cancel>
+
+(A client can be designed with whatever differences they want than the
+above. A similar UI may be used for Gemini, except that "Interactive" and
+"Restrict to current username" are not applicable for Gemini.)
+
+A client MUST NOT automatically generate and send a client certificate
+without first asking the user.
 
 
 === Receive subprotocol ===
@@ -382,18 +483,24 @@ The block types are:
 body is the text of the paragraph.
 
 * 0x01 to 0x06 = Heading levels 1 (outermost) to 6 (innermost). The
-attribute is the part after # in the URL to refer to this section, and
-the body is the heading text.
+attribute is the part after # in the URL to refer to this section (empty
+if it cannot be referred to by the URL), and the body is the heading text.
 
 * 0x08 = Normal hyperlink. The attribute is the URL (in ASCII encoding)
 and the body is the link text. The URL can be relative or absolute. If the
-attribute is empty then it means the same as the current URL.
+attribute is empty then it means the same as the current URL (which isn't
+very useful for type 0x08, but may be useful with types 0x09 and 0x0A). If
+the attribute contains a null character, then only the part before the null
+character is the URL, and the null character itself and anything afterward
+will be ignored. Other control characters are not allowed in the URL.
 
 * 0x09 = Hyperlink requesting input. Like 0x08 but it is treated like a
 10 status code (with an implementation-defined prompt; it may be the same
 as the text of the link) without making the request. This link type is not
 to be used for gopher links (if it occurs anyways, a client SHOULD treat
-it as a normal hyperlink but with type 7 instead of 1).
+it as a normal hyperlink but with type 7 instead of 1; however, authors
+should be aware that a client might incorrectly use a question mark instead
+of a tab if this block is used for gopher links).
 
 * 0x0A = Interactive hyperlink. Like 0x08 but with the "I" subprotocol.
 Implementation is optional. (Some implementations may wish to use an
@@ -468,7 +575,7 @@ or more bytes in range 0x30 to 0x3B except 0x3A, and then one byte
 which is 0x6D. This is allowed in both preformatted blocks and in other
 blocks, but it is discouraged, especially in non-preformatted blocks.
 Clients should skip over the SGR code entirely, but MAY have an option
-to interpret them.
+to interpret them (possibly only in preformatted blocks).
 
 It is not required to implement most of the control codes, except as
 specified above.
@@ -521,7 +628,8 @@ relational (high nybble 3), or end of file (high nybble 0).
 
 The meaning of the high nybble of the flag byte depends on both the command
 and on the schema. In the case of data cells, this is called the "subtype".
-In some cases, it specifies the character encoding, as the document format.
+In some cases, it specifies the character encoding, which uses the same
+numbers for character encodings as the document format uses.
 
 A table specification consists of:
 

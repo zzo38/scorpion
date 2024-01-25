@@ -461,6 +461,8 @@ static int r_gemini(const Scogem_URL*u,Receiver*z) {
     for(i=3;buf[i];i++) if(buf[i]!=' ' && buf[i]!='\t') fputc(buf[i],memfile);
   } else if(*buf=='4' && buf[1]!='4') {
     fprintf(memfile,"4%c ? %s",buf[1],buf+3);
+  } else if(*buf=='6') {
+    fprintf(memfile,"6%c * %s",buf[1],buf+3);
   } else if(*buf<'0' || *buf>'9' || buf[1]<'0' || buf[1]>'9' || buf[2]!=' ') {
     errx(ERR_PROTOCOL,"Improper response header");
   } else {
@@ -832,7 +834,9 @@ static int r_http_1(const Scogem_URL*u,Receiver*z,int isr,int tls) {
       free(rh);
       head_mem(z);
       goto done;
-    case '401': case '402': case '403': case '405': case '407':
+    case '401':
+      q[0]='5'; q[1]='6'; goto permanent;
+    case '402': case '403': case '405': case '407':
       q[0]='5'; q[1]='4'; goto permanent;
     case '404':
       q[0]='5'; q[1]='1'; goto permanent;
@@ -857,6 +861,8 @@ static int r_http_1(const Scogem_URL*u,Receiver*z,int isr,int tls) {
       goto done;
     case '410':
       q[0]='5'; q[1]='2'; goto permanent;
+    case '429':
+      q[0]='4'; q[1]='4'; goto temporary;
     case '502': case '504':
       q[0]='4'; q[1]='3'; goto temporary;
     case '503':
