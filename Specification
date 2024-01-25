@@ -225,7 +225,7 @@ to be implemented if TLS is implemented.
 
 If a 6x response is received on a non-TLS connection, then it should change
 the scheme from "scorpion:" to "scorpions:" when a client certificate is
-available before retrying the request.
+available, before retrying the request.
 
 The first parameter of a 6x response specifies the suggested set of URLs
 that the client certificate is applicable to. It has one character followed
@@ -288,6 +288,11 @@ might be used to manage client certificates would be:
 (A client can be designed with whatever differences they want than the
 above. A similar UI may be used for Gemini, except that "Interactive" and
 "Restrict to current username" are not applicable for Gemini.)
+
+In the menu for selecting existing certificates, any existing certificate
+for the same domain should be easy to find, and should allow changing the
+scope of existing certificates. (This is more important for Gemini than it
+is for Scorpion, but it would work with Scorpion too.)
 
 A client MUST NOT automatically generate and send a client certificate
 without first asking the user.
@@ -1022,42 +1027,21 @@ Don't use R subprotocol to change the state of files in the server, except
 for optional logging (which should only be used for diagnostics). For
 example, don't use it for adding user's comments, etc. (If you want to have
 discussion forum with commenting, then NNTP is better. You can link to a
-NNTP from a Scorpion file if you want to do.)
+NNTP from a Scorpion file if you want to do. The S subprotocol may also be
+used, and so can the I subprotocol; in the case of the I subprotocol, it
+should not change the state of files in the server unless the server
+receives any data from the client after the server sends the 00 status.)
 
-
-=== Recommended URI schemes ===
-
-These are merely suggestions and are not requirements.
-
-  data:
-  file: !%?
-  gemini:
-  gopher: !
-  hashed: ^
-  jar: ^
-  mailto: ?*
-  news: ?*
-  nntp: *!
-  scorpion: !
-  scorpions:
-  spartan: !
-  telnet: *!
-  view-source: !^
-
-! means highly recommended.
-
-? means that system-dependent considerations and/or configuration may
-be required.
-
-% means it is a local file, and redirects and links from remote files
-that refer to local files should not automatically be followed.
-
-^ means that it contains another URL, so the considerations of that
-other URL must also be followed.
-
-* means that the implementation may use external programs to implement
-this scheme. (It doesn't have to; a client might also have its own
-built-in implementation, or an extension to implement it.)
+Clients SHOULD allow the user to specify proxies. It is recommended to
+support SOCKS (unless the operating system has the ability to do so without
+the application programs being aware of it). It is also recommended (if
+use of proxies are implemented) to allow use of a Scorpion server for
+proxying with schemes specified by the user; note that if the proxy URL
+does not specify a secure connection, then it should not encrypt any data
+sent through the proxy even if the scheme for the file being accessed is
+"scorpions:" or "gemini:" or another protocol that uses TLS. This is useful
+if the end user has set up their own intercepting proxy on their own
+computer, since it allows 
 
 
 === Dynamic files ===
@@ -1083,6 +1067,15 @@ requires it) and for client certificates (if any have been provided):
 * SSL_CLIENT_I_DN = Issuer DN of client certificates.
 
 (TODO: Keys of client certificates.)
+
+
+=== Security issues ===
+
+This section discusses security issues. Note that many security issues
+with WWW are not applicable to Scorpion and related protocols, since
+they do not have the complexity of WWW.
+
+(TODO)
 
 
 === Missing details ===
