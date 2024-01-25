@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -o ~/bin/astroget astroget.c scogem.o hash.o simpletls.o -lssl
+gcc -s -O2 -o ~/bin/astroget -Wno-multichar astroget.c scogem.o hash.o simpletls.o -lssl
 exit
 #endif
 
@@ -22,6 +22,7 @@ exit
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <stdarg.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -41,6 +42,42 @@ static FILE*upfile;
 static const char*uptype;
 static uint64_t range_start=0;
 static uint64_t range_end=NO_LIMIT;
+
+static void base64encode(FILE*f,...) {
+  static const char e[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  uint32_t v=0;
+  const unsigned char*s;
+  int n=16;
+  va_list ap;
+  va_start(ap,f);
+  while(s=va_arg(ap,unsigned char*)) {
+    while(*s) {
+      v|=*s++<<n;
+      if(n) {
+        n-=8;
+      } else {
+        fputc(e[(v>>18)&63],f);
+        fputc(e[(v>>12)&63],f);
+        fputc(e[(v>>6)&63],f);
+        fputc(e[(v>>0)&63],f);
+        n=16;
+        v=0;
+      }
+    }
+  }
+  va_end(ap);
+  if(n==0) {
+    fputc(e[(v>>18)&63],f);
+    fputc(e[(v>>12)&63],f);
+    fputc(e[(v>>6)&63],f);
+    fputc('=',f);
+  } else if(n==8) {
+    fputc(e[(v>>18)&63],f);
+    fputc(e[(v>>12)&63],f);
+    fputc('=',f);
+    fputc('=',f);
+  }
+}
 
 static char*relative_to_absolute(const char*t) {
   size_t s=0;
@@ -163,6 +200,13 @@ static int raw_download_from(int f,Receiver*z) {
   ssize_t s;
   char buf[0x4000];
   while((s=recv(f,buf,0x4000,0))>0) z->write(z->obj,buf,s);
+  return s;
+}
+
+static int limited_download_from(int f,Receiver*z,uint64_t t) {
+  ssize_t s;
+  char buf[0x4000];
+  while(t && (s=recv(f,buf,t>0x4000?0x4000:t,0))>0) z->write(z->obj,buf,s),t-=s;
   return s;
 }
 
@@ -645,6 +689,244 @@ static int rr_hashed(const Scogem_URL*u,Receiver*z) {
   return r_hashed_1(u,z,1);
 }
 
+static char*response_headers(int f) {
+  char s=0;
+  int c;
+  char*r;
+  for(;;) {
+    c=recv_byte(f);
+    if(!c || c==EOF) break;
+    fputc(c,memfile);
+    if(c=='\r' || c=='\n') s++; else s=0;
+    if(s==4) break;
+  }
+  fputc(0,memfile);
+  fflush(memfile);
+  if(!membuf) errx(ERR_MEMORY,"Memory error");
+  r=strdup(membuf);
+  if(!r) err(ERR_MEMORY,"Memory error");
+  rewind(memfile);
+  return r;
+}
+
+static char*find_http_header(char*h,const char*n) {
+  const char*m;
+  next:
+  h=strchr(h,'\n');
+  if(!h) return 0;
+  h++;
+  m=n;
+  more:
+  if(!*m && *h==':') return h+1+strspn(h+1," \t");
+  if(*h==*m || (*h>='a' && *h<='z' && *h+'A'-'a'==*m)) {
+    h++;
+    m++;
+    goto more;
+  }
+  goto next;
+}
+
+static void conv_http_header(const char*t) {
+  while(*t!='\r' && *t!='\n') fputc(*t++,memfile);
+}
+
+static void conv_http_content_type_header(const char*t) {
+  while(*t!='\r' && *t!='\n') {
+    if(*t!=' ' && *t!='\t') fputc(*t,memfile);
+    t++;
+  }
+}
+
+static int r_http_1(const Scogem_URL*u,Receiver*z,int isr,int tls) {
+  int c,f,i;
+  char*rh;
+  char*p;
+  char*e;
+  char q[2];
+  char chunky=0;
+  uint64_t t;
+  if(isr && z->start==z->end) fputs("HEAD ",memfile); else fputs("GET ",memfile);
+  if(u->resource_start==u->resource_end) fputc('/',memfile); else fwrite(u->url+u->resource_start,1,u->resource_end-u->resource_start,memfile);
+  fprintf(memfile," HTTP/1.1\r\nHost: %s:%u\r\nConnection: close\r\nAccept-Encoding: identity\r\n",u->host,u->portnumber);
+  if(isr && z->start!=z->end) {
+    fprintf(memfile,"Range: bytes=%llu-",(unsigned long long)z->start);
+    if(z->end!=NO_LIMIT) fprintf(memfile,"%llu",(unsigned long long)(z->end-1));
+    fputs("\r\n",memfile);
+  }
+  if(u->username) {
+    fputs("Authorization: Basic ",memfile);
+    base64encode(memfile,u->username,":",u->password,(char*)0);
+    fputs("\r\n",memfile);
+  }
+  fputs("\r\n",memfile); // end of request headers
+  f=tls?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber);
+  send_mem(f);
+  p=rh=response_headers(f);
+  if(p[0]<'0' || p[0]>'9' || p[1]<'0' || p[1]>'9' || p[2]<'0' || p[2]>'9') p=strchrnul(p,' ');
+  if(*p==' ') p++;
+  if(p[0]<'0' || p[0]>'9' || p[1]<'0' || p[1]>'9' || p[2]<'0' || p[2]>'9') errx(ERR_PROTOCOL,"Improper HTTP response");
+  e=p+3;
+  switch(p[0]*'\1\0\0'+p[1]*'\0\1\0'|p[2]*'\0\0\1') {
+    case '200':
+      if(isr && z->start!=z->end) {
+        if(z->header) z->header(z->obj,"59 Range request not satisfied");
+        free(rh);
+        goto done;
+      }
+      fputc('2',memfile);
+      fputc(isr?'1':'0',memfile);
+      fputc(' ',memfile);
+      if(p=find_http_header(rh,"CONTENT-LENGTH")) {
+        while(*p>='0' & *p<='9') fputc(*p++,memfile);
+      } else {
+        fputc('?',memfile);
+      }
+      if(p=find_http_header(rh,"CONTENT-TYPE")) {
+        fputc(' ',memfile);
+        conv_http_content_type_header(p);
+      }
+      head_mem(z);
+      break;
+    case '206':
+      if(p=find_http_header(rh,"CONTENT-RANGE")) {
+        fputs("21 ",memfile);
+        i=strcspn(p,"\r\n/");
+        if(p[i]=='/' && p[i+1]>='0' && p[i+1]<='9') {
+          p+=i+1;
+          while(*p>='0' & *p<='9') fputc(*p++,memfile);
+        } else {
+          fputc('?',memfile);
+        }
+        if(p=find_http_header(rh,"CONTENT-TYPE")) {
+          fputc(' ',memfile);
+          conv_http_content_type_header(p);
+        }
+        head_mem(z);
+      } else {
+        goto unexpected;
+      }
+      break;
+    case '301': case '308':
+      q[0]='3'; q[1]='1'; goto redirect;
+    redirect:
+      if(p=find_http_header(rh,"LOCATION")) {
+        fputc(q[0],memfile);
+        fputc(q[1],memfile);
+        fputc(' ',memfile);
+        conv_http_header(p);
+      } else {
+        errx(ERR_PROTOCOL,"HTTP redirect without Location header");
+      }
+      free(rh);
+      head_mem(z);
+      goto done;
+    case '302': case '303': case '307':
+      q[0]='3'; q[1]='0'; goto redirect;
+    case '400': case '414': case '416': case '417': case '428': case '431': case '501': case '505':
+      q[0]='5'; q[1]='9'; goto permanent;
+    permanent:
+      fputc(q[0],memfile);
+      fputc(q[1],memfile);
+      fputc(' ',memfile);
+      conv_http_header(e);
+      free(rh);
+      head_mem(z);
+      goto done;
+    case '401': case '402': case '403': case '405': case '407':
+      q[0]='5'; q[1]='4'; goto permanent;
+    case '404':
+      q[0]='5'; q[1]='1'; goto permanent;
+    case '408':
+      q[0]='4'; q[1]='0'; goto temporary;
+    temporary:
+      fputc(q[0],memfile);
+      fputc(q[1],memfile);
+      fputc(' ',memfile);
+      if(p=find_http_header(rh,"RETRY-AFTER")) {
+        i=strspn(p,"0123456789");
+        if(!i || (p[i]!='\r' && p[i]!='\n')) goto unknown_time;
+        while(*p>='0' && *p<='9') fputc(*p++,memfile);
+      } else {
+        unknown_time:
+        fputc('?',memfile);
+      }
+      fputc(' ',memfile);
+      conv_http_header(e);
+      free(rh);
+      head_mem(z);
+      goto done;
+    case '410':
+      q[0]='5'; q[1]='2'; goto permanent;
+    case '502': case '504':
+      q[0]='4'; q[1]='3'; goto temporary;
+    case '503':
+      q[0]='4'; q[1]='1'; goto temporary;
+    default: unexpected:
+      free(rh);
+      if(z->header) z->header(z->obj,"50 Unexpected response from HTTP server");
+      goto done;
+  }
+  if(p=find_http_header(rh,"TRANSFER-ENCODING")) {
+    if(!strncmp("chunked",p,7)) chunky=1;
+  }
+  free(rh);
+  if(isr && z->start==z->end) goto done;
+  if(chunky) {
+    chunk:
+    t=0;
+    for(;;) {
+      c=recv_byte(f);
+      if(c==EOF) goto done;
+      if(c=='\n' || c==';') break;
+      if(c>='0' && c<='9') t=(t<<4)|(c-'0');
+      if(c>='A' && c<='F') t=(t<<4)|(c+10-'A');
+      if(c>='a' && c<='f') t=(t<<4)|(c+10-'a');
+    }
+    while(c!='\n') {
+      c=recv_byte(f);
+      if(c==EOF) goto done;
+    }
+    if(!t) goto done;
+    limited_download_from(f,z,t);
+    do c=recv_byte(f); while(c!=EOF && c!='\n');
+    goto chunk;
+  } else {
+    raw_download_from(f,z);
+  }
+  done:
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  return 0;
+}
+
+static int s_http_1(const Scogem_URL*u,Sender*z,int tls) {
+  errx(ERR_NOT_IMPLEMENTED,"Not implemented yet");
+}
+
+static int r_http(const Scogem_URL*u,Receiver*z) {
+  return r_http_1(u,z,0,0);
+}
+
+static int rr_http(const Scogem_URL*u,Receiver*z) {
+  return r_http_1(u,z,1,0);
+}
+
+static int s_http(const Scogem_URL*u,Sender*z) {
+  return s_http_1(u,z,0);
+}
+
+static int r_https(const Scogem_URL*u,Receiver*z) {
+  return r_http_1(u,z,0,1);
+}
+
+static int rr_https(const Scogem_URL*u,Receiver*z) {
+  return r_http_1(u,z,1,1);
+}
+
+static int s_https(const Scogem_URL*u,Sender*z) {
+  return s_http_1(u,z,1);
+}
+
 static void rs_nntp_readline(char*buf,int f) {
   int i=0;
   int c;
@@ -808,6 +1090,7 @@ static int rs_nntp(const Scogem_URL*u,Receiver*zr,Sender*zs) {
   }
   send_data(f,"QUIT\r\n",6);
   end:
+  shutdown(f,SHUT_RDWR);
   close(f);
   return 0;
 }
@@ -1010,6 +1293,8 @@ static const ProtocolInfo protocol_info[]={
   {"gemini",r_gemini,0,s_gemini},
   {"gopher",r_gopher,0,0},
   {"hashed",r_hashed,rr_hashed,0},
+  {"http",r_http,rr_http,s_http},
+  {"https",r_https,rr_https,s_https},
   {"nntp",r_nntp,0,s_nntp},
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
   {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
