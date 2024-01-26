@@ -958,15 +958,6 @@ protocol. Servers SHOULD implement both protocols, especially the non-TLS
 protocol. Servers SHOULD serve the same files regardless of whether it is
 TLS or non-TLS (except files which require a client certificate to access).
 
-The recommended way to handle TLS cipher suites, TLS validation, etc, is
-whatever way the client software uses for any protocols that it already
-implements (e.g. Gemini client can use TOFU, curl can validate them in the
-usual way but allow bypassing by the -k switch). However, a client should
-include the possibility for the user to change the options, and for the
-user to manually add and remove certificates. It should also be possible
-for the user to specify the security levels when manually adding
-certificates (in order to prevent downgrading attacks).
-
 Unicode is no good. Clients SHOULD NOT automatically convert TRON code
 into Unicode, except as a fallback in case suitable fonts are not available
 or a similar problem, and such fallbacks should be avoided if possible.
@@ -1075,6 +1066,21 @@ This section discusses security issues. Note that many security issues
 with WWW are not applicable to Scorpion and related protocols, since
 they do not have the complexity of WWW.
 
+The recommended way to handle TLS cipher suites, TLS validation, etc, is
+whatever way the client software uses for any protocols that it already
+implements (e.g. Gemini client can use TOFU, curl can validate them in the
+usual way but allow bypassing by the -k switch). However, a client should
+include the possibility for the user to change the options, and for the
+user to manually add and remove certificates. It should also be possible
+for the user to specify the security levels when manually adding
+certificates (in order to prevent downgrading attacks).
+
+TLS session tickets can also be used for tracking, although they can speed
+up transfers. By default, clients should not use them, unless explicitly
+enabled. A client might have a setting (default or not) to use TLS session
+tickets if client certificates are used, but it should be possible to be
+disabled even in that case too.
+
 (TODO)
 
 
@@ -1145,6 +1151,9 @@ reason to avoid inline links.)
 
 * Avoid wasting the computer's power when it is not needed.
 
+* The non-extensibility of Gemini does not work quite as well as they had
+intended, as time can tell.
+
 *** What is the reason for the name?
 
 The Gemini is the name of a constellation (even though that is not why
@@ -1185,92 +1194,6 @@ specify a different character encoding anyways.
 
 Note that not everything is restricted to ASCII only; specifically, the
 documents are not restricted to ASCII only.
-
-*** How is it comparing with HTTP(S)/HTML?
-
-It is a different protocol and file format, but by analogy with HTTP and
-HTML are specified below:
-
-1. The only response headers are Content-Type (although it can use ULFI and
-not only MIME), Content-Length (optional), and ETag (also optional, and it
-cannot be used for tracking; see below). For redirection, the equivalent of
-the Location header is used.
-
-2. The methods are GET ("R" in Scorpion) and PUT ("S" in Scorpion); there
-is no POST request.
-
-3. The only request header used for all requests is Host. GET requests also
-can have Range, while PUT requests have Content-Length (mandatory for PUT
-requests) and If-Match (optional for PUT requests). (Note that If-Match
-cannot be used for GET requests.)
-
-4. The file format uses <P>, <PRE>, <BLOCKQUOTE>, <ISINDEX>, <H1> to <H6>,
-and <A>, but with more limits than HTML has (e.g. links must be on a line
-by themself). There are also some inline formats which are mutually
-exclusive, which are the equivalent of <STRONG>, <EM>, and <TT>.
-
-5. It uses TRON character code instead of Unicode.
-
-6. Character sets can be mixed in one file.
-
-7. There is no cookies, tracking, scripts, CSS, etc. (This is deliberate.)
-
-8. Like with Gemini, and unlike HTML, Scorpion does not require multiple
-accesses to display a single document.
-
-*** How is it comparing with Gemini?
-
-1. TLS is not mandatory.
-
-2. There is limited specification of formatting within paragraphs (only
-four mutually exclusive kinds: normal, strong, emphasis, fixpitch).
-
-3. There is support for furigana (clients may ignore it).
-
-4. All 4x responses specify the estimated time you should wait before
-trying again, instead of only one of them.
-
-5. The 2x responses specify the file size (if known).
-
-6. Range requests are possible (servers and clients are not required to
-implement them).
-
-7. It uses TRON character code instead of Unicode.
-
-8. Character sets can be mixed in one file.
-
-9. The specification is intended to be less ambiguous than Gemini.
-
-10. URLs are ASCII and not UTF-8.
-
-11. TOFU is not the recommended way to be implemented. (Better is, if the
-user already knows the required certificate, they can install it manually.)
-
-12. PUT requests are possible. (Titan allows this with Gemini, but I think
-there are some problems with Titan.)
-
-13. Username/password auth is possible.
-
-*** How is it compating with Gopher?
-
-1. Character encodings can be specified.
-
-2. You can mix document and links together, and there are some formatting
-codes available (e.g. blockquote, strong, fixpitch, headings).
-
-3. MIME and ULFI can be used, instead of the limited types of Gopher.
-
-4. Relative URLs are possible.
-
-5. Domain-based virtual hosting.
-
-6. Error codes.
-
-7. The file size is transmitted (if known) instead of using "." on a line
-by itself. Range requests are also possible (if implemented; the
-implementation of range requests is optional).
-
-8. Optional TLS is possible.
 
 *** Why is there no support for styling?
 
