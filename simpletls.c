@@ -7,6 +7,7 @@ exit
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/ip.h>
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <signal.h>
 #include <stdint.h>
@@ -73,6 +74,8 @@ int secure_socket(struct sockaddr*addr,const char*hostname,const char*options,co
           Z('c',SSL_OP_NO_COMPRESSION)
 #undef Z
 #define Z(aa,bb) case aa: if(e=='+') oo|=bb; else if(e=='-') oo&=~(bb); break;
+          Z('0',0x0001)
+          Z('E',0x0002)
 #undef Z
           case 'x': o=strtol(options,(char**)&options,16); if(e=='+') SSL_CTX_set_options(ctx,o); else if(e=='-') SSL_CTX_clear_options(ctx,o); break;
         }
@@ -86,14 +89,13 @@ int secure_socket(struct sockaddr*addr,const char*hostname,const char*options,co
     if(net==-1) _exit(1);
     if(connect(net,addr,sizeof(struct sockaddr_in))<0) _exit(1);
     hi=(net>sv[1]?net:sv[1])+1;
-    //fcntl(net,F_SETFL,fcntl(net,F_GETFL,0)|O_NDELAY);
-    if(hostname) SSL_set_tlsext_host_name(ssl,hostname);
+    if(hostname && !(oo&0x0001)) SSL_set_tlsext_host_name(ssl,hostname);
     SSL_set_fd(ssl,net);
     SSL_set_connect_state(ssl);
     *xx=1;
     send(sv[1],xx,1,0);
-    //fcntl(sv[1],F_SETFL,fcntl(sv[1],F_GETFL,0)|O_NDELAY);
     e=SSL_connect(ssl);
+    if(oo&0x0002) ERR_print_errors_fp(stderr),fflush(stderr);
     for(;;) {
       FD_ZERO(&rs);
       FD_SET(sv[1],&rs);

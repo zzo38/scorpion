@@ -1073,7 +1073,8 @@ usual way but allow bypassing by the -k switch). However, a client should
 include the possibility for the user to change the options, and for the
 user to manually add and remove certificates. It should also be possible
 for the user to specify the security levels when manually adding
-certificates (in order to prevent downgrading attacks).
+certificates (in order to prevent downgrading attacks). Regardless of
+the default settings, the user should be allowed to override them.
 
 TLS session tickets can also be used for tracking, although they can speed
 up transfers. By default, clients should not use them, unless explicitly

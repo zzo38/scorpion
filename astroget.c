@@ -40,8 +40,14 @@ static Scogem_URL urlinfo;
 static uint16_t option;
 static FILE*upfile;
 static const char*uptype;
+static const char*upversion;
+static const char*upversion2;
 static uint64_t range_start=0;
 static uint64_t range_end=NO_LIMIT;
+static struct sockaddr_in forced_address;
+static const char*tlsoption;
+static uint64_t progress_amount=0;
+static const char*outfilename;
 
 static void base64encode(FILE*f,...) {
   static const char e[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -147,6 +153,7 @@ typedef struct {
   uint64_t total;
   const char*type;
   const char*version;
+  const char*nversion;
   int(*header)(void*obj,const char*data);
   int(*read)(void*obj,char*data,size_t length);
 } Sender;
@@ -173,13 +180,23 @@ static int dial(const char*host,uint16_t port) {
   struct addrinfo h={.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM,.ai_flags=AI_ADDRCONFIG};
   struct addrinfo*ai=0;
   int i,f;
-  snprintf(b,8,"%u",port);
-  if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
-  f=socket(AF_INET,SOCK_STREAM,0);
-  if(f==-1) err(ERR_MEMORY,"Cannot open socket");
-  i=connect(f,ai->ai_addr,sizeof(struct sockaddr_in));
-  if(i<0) err(ERR_NET,"Cannot connect to '%s:%u'",host,port);
-  freeaddrinfo(ai);
+  if(option&0x0040) fputs("\rc ; ",stderr);
+  if(option&0x0020) {
+    f=socket(AF_INET,SOCK_STREAM,0);
+    if(f==-1) err(ERR_MEMORY,"Cannot open socket");
+    i=connect(f,(void*)&forced_address,sizeof(struct sockaddr_in));
+    if(i<0) err(ERR_NET,"Cannot connect to '%s:%u'",host,port);
+  } else {
+    snprintf(b,8,"%u",port);
+    if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
+    if(option&0x0040) fputs("\rx ; ",stderr);
+    f=socket(AF_INET,SOCK_STREAM,0);
+    if(f==-1) err(ERR_MEMORY,"Cannot open socket");
+    i=connect(f,ai->ai_addr,sizeof(struct sockaddr_in));
+    if(i<0) err(ERR_NET,"Cannot connect to '%s:%u'",host,port);
+    freeaddrinfo(ai);
+  }
+  if(option&0x0040) fputs("\rC ; ",stderr);
   return f;
 }
 
@@ -188,11 +205,18 @@ static int dial_secure(const char*host,int16_t port,const Certificate*cert) {
   struct addrinfo h={.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM,.ai_flags=AI_ADDRCONFIG};
   struct addrinfo*ai=0;
   int i,f;
-  snprintf(b,8,"%u",port);
-  if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
-  f=secure_socket(ai->ai_addr,host,0,cert);
-  if(f==-1) errx(ERR_MEMORY,"Cannot open secure socket");
-  freeaddrinfo(ai);
+  if(option&0x0040) fputs("\rcs; ",stderr);
+  if(option&0x0020) {
+    f=secure_socket((void*)&forced_address,host,tlsoption,cert);
+    if(f==-1) errx(ERR_MEMORY,"Cannot open secure socket");
+  } else {
+    snprintf(b,8,"%u",port);
+    if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
+    f=secure_socket(ai->ai_addr,host,tlsoption,cert);
+    if(f==-1) errx(ERR_MEMORY,"Cannot open secure socket");
+    freeaddrinfo(ai);
+  }
+  if(option&0x0040) fputs("\rCs; ",stderr);
   return f;
 }
 
@@ -1159,6 +1183,7 @@ static int s_scorpion(const Scogem_URL*u,Sender*z) {
   fputc('S',memfile);
   if(z->version) fputs(z->version,memfile);
   fputc(' ',memfile);
+  fwrite(u->url,1,u->resource_end,memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
   f=(u->url[8]=='s'?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber));
@@ -1188,7 +1213,7 @@ static int s_scorpion(const Scogem_URL*u,Sender*z) {
     fputs("51 DELETE\r\n",memfile);
     send_mem(f);
   } else {
-    fprintf(memfile,"20 %llu %s%s%s\r\n",(unsigned long long)z->total,z->type?:":",z->version?" ":"",z->version?:"");
+    fprintf(memfile,"20 %llu %s%s%s\r\n",(unsigned long long)z->total,z->type?:":",z->nversion?" ":"",z->nversion?:"");
     send_mem(f);
     raw_upload_to(f,z);
   }
@@ -1318,14 +1343,49 @@ static const ProtocolInfo*find_protocol(const Scogem_URL*u) {
   return bsearch(&key,protocol_info,sizeof(protocol_info)/sizeof(ProtocolInfo),sizeof(ProtocolInfo),compare_protocol);
 }
 
+static void show_progress_number(uint64_t n) {
+  char k=0;
+  if(n<100000) {
+    fprintf(stderr,"%5llu",(unsigned long long)n);
+    return;
+  }
+  while(n>9999) k++,n/=1024;
+  fprintf(stderr,"%4llu%c",(unsigned long long)n," KMGTPEZY"[k]);
+}
+
+static void show_progress(void) {
+  static char q=0;
+  fprintf(stderr,"\r%c ","/-\\|"[q=(q+1)&3]);
+  if(range_end==NO_LIMIT) fputs("???% ",stderr); else fprintf(stderr,"%3d%% ",(int)((100.0f*progress_amount)/range_end));
+  show_progress_number(progress_amount);
+  fputc('/',stderr);
+  if(range_end==NO_LIMIT) fputs("?????",stderr); else show_progress_number(range_end);
+  fputc(' ',stderr);
+}
+
+static void check_size(const char*text) {
+  if(!text[1] || text[2]!=' ') return;
+  if(text[1]=='1') {
+    progress_amount=range_start;
+    option|=0x8000;
+  } else if(text[3]!='?') {
+    progress_amount=0;
+    range_end=strtoll(text+3,0,10);
+    option|=0x8000;
+  }
+  show_progress();
+}
+
 static int out_header(void*obj,const char*text) {
   printf("%s\r\n",text);
   if(*text=='7' && text[1]!='0' && !(option&0x0008)) errx(ERR_EXISTS,"Remote file already exists");
+  if(*text=='2' && (option&0x0040)) check_size(text);
   return 0;
 }
 
 static int main_header(void*obj,const char*text) {
   if(*text!='2') errx(*text,"Server returned status: %s",text);
+  if(option&0x0040) check_size(text);
   return 0;
 }
 
@@ -1336,7 +1396,11 @@ static int main_up_header(void*obj,const char*text) {
 }
 
 static ssize_t out_write(void*obj,const char*data,size_t length) {
-  return fwrite(data,1,length,stdout);
+  if(option&0x0040) {
+    progress_amount+=length;
+    show_progress();
+  }
+  return fwrite(data,1,length,obj);
 }
 
 static int up_read(void*obj,char*data,size_t length) {
@@ -1350,15 +1414,27 @@ static int do_download(void) {
   if(!pi) errx(ERR_NOT_IMPLEMENTED,"Protocol '%s' not implemented",urlinfo.scheme);
   z.header=(option&0x0002?out_header:main_header);
   z.write=out_write;
+  z.obj=stdout;
+  if(outfilename) {
+    z.obj=fopen(outfilename,"wx");
+    if(!z.obj) {
+      option|=0x0004;
+      z.obj=fopen(outfilename,"r+");
+      fseek(z.obj,0,SEEK_END);
+      range_start=ftell(z.obj);
+      rewind(z.obj);
+    }
+  }
   if(option&0x0004) {
+    if(!pi->receive_range) errx(ERR_NOT_IMPLEMENTED,"Range requests from protocol '%s' not implemented",urlinfo.scheme);
     z.start=range_start;
     z.end=range_end;
-    if(!pi->receive_range) errx(ERR_NOT_IMPLEMENTED,"Range requests from protocol '%s' not implemented",urlinfo.scheme);
     pi->receive_range(&urlinfo,&z);
   } else {
     if(!pi->receive) errx(ERR_NOT_IMPLEMENTED,"Receiving from protocol '%s' not implemented",urlinfo.scheme);
     pi->receive(&urlinfo,&z);
   }
+  if(option&0x0040) fputc('\n',stderr);
   return 0;
 }
 
@@ -1367,7 +1443,12 @@ static int do_upload(void) {
   Sender z={};
   if(!pi) errx(ERR_NOT_IMPLEMENTED,"Protocol '%s' not implemented",urlinfo.scheme);
   if(!pi->send) errx(ERR_NOT_IMPLEMENTED,"Sending to protocol '%s' not implemented",urlinfo.scheme);
-  if(option&0x0010) {
+  z.version=upversion;
+  if(option&0x0080) {
+    z.total=range_end;
+    z.obj=upfile;
+    z.type=uptype;
+  } else if(option&0x0010) {
     z.delete=1;
     z.total=0;
   } else {
@@ -1384,21 +1465,41 @@ static int do_upload(void) {
   return 0;
 }
 
+static void make_forced_address(const char*a) {
+  char buf[32];
+  char*p;
+  snprintf(buf,32,"%s",a);
+  p=strchr(buf,':');
+  if(!p) errx(ERR_ARGUMENT,"Missing port number");
+  *p++=0;
+  if(!inet_aton(buf,&forced_address.sin_addr)) errx(ERR_ARGUMENT,"Not valid internet address");
+  forced_address.sin_family=AF_INET;
+  forced_address.sin_port=htons(strtol(p,0,0));
+}
+
 int main(int argc,char**argv) {
   const ProtocolInfo*pi;
   int c;
   memfile=open_memstream(&membuf,&membufsize);
   if(!memfile) err(ERR_MEMORY,"Cannot open stream");
-  while((c=getopt(argc,argv,"+B:DOQY:hr:t:u:"))>=0) switch(c) {
+  while((c=getopt(argc,argv,"+A:B:DOQT:V:Y:hi:npr:t:u:v:"))>=0) switch(c) {
+    case 'A': option|=0x0020; make_forced_address(optarg); break;
     case 'B': baseurl=optarg; break;
     case 'D': upfile=stderr; option|=0x0018; break;
     case 'O': option|=0x0008; break;
     case 'Q': option|=0x0001; break;
+    case 'T': tlsoption=optarg; break;
+    case 'V': upversion2=optarg; break;
     case 'Y': return do_ulfi(optarg); break;
     case 'h': option|=0x0002; break;
+    case 'i': option|=0x0080; upfile=stdin; range_end=strtol(optarg,0,10); break;
+    case 'n': setbuf(stdin,0); setbuf(stdout,0); break;
+    case 'o': outfilename=optarg; break;
+    case 'p': option|=0x0040; setbuf(stderr,0); break;
     case 'r': option|=0x0004; range_start=strtol(optarg,&optarg,10); if(*optarg=='-' && optarg[1]) range_end=strtol(optarg+1,0,10); break;
     case 't': uptype=optarg; break;
     case 'u': upfile=fopen(optarg,"r"); if(!upfile) err(ERR_IO_ERROR,"Cannot open file to be sent"); break;
+    case 'v': upversion=optarg; break;
     default: return ERR_ARGUMENT;
   }
   if(argc==optind) errx(ERR_ARGUMENT,"Too few arguments");

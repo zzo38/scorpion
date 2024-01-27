@@ -1,0 +1,69 @@
+
+-A #
+  Specify a IP address and port number (with a colon in between) to use
+  instead of resolving the host name in the URL.
+
+-B #
+  Specify base URL to be relative to. If not specified, then the URL will
+  be relative to the current directory.
+
+-D
+  Delete a remote file. (Not valid for all protocols.)
+
+-O
+  Allow a remote file to be overwritten. (Some protocols cannot distinguish
+  overwriting an existing file vs creating a new file; in that case, this
+  switch is meaningless.)
+
+-Q
+  Only display the components of the parsed URL and terminate; do not try
+  to download or upload anything, and do not make any network accesses.
+
+-T #
+  TLS options.
+
+-V #
+  For Scorpion, set new version code for uploaded file.
+
+-Y #
+  ULFI testing mode.
+
+-h
+  Write headers (in Scorpion format) to stdout. If not specified, then
+  status codes other than 2x, 7x, and 8x are errors. (If -O is not
+  specified, then 71 is also an error, even if -h is specified.)
+
+-i #
+  Upload the specified number of bytes from stdin.
+
+-n
+  Disable buffering.
+
+-o #
+  Set output file. If not specified, it will be written to stdout. If the
+  file already exists, it will continue from where it left off; this is
+  only possible for protocols that allow range requests.
+
+-p
+  Display progress indicator on stderr. (It will write a carriage return
+  before each progress display.)
+
+-r #
+  Make a range request. The value must be two numbers with - in between,
+  being zero-based byte offsets; it includes the beginning and excludes
+  the ending offset. The ending offset can be omitted if you want to
+  download everything up to the end of the file.
+
+-t #
+  Set MIME or ULFI type for uploaded file. The default value depends on
+  the protocol, and some protocols have other restrictions, or do not
+  allow this at all (e.g. NNTP only allows "message/rfc822").
+
+-u #
+  Specify file to upload. This must be a seekable file, so that it can
+  measure the size of the input file.
+
+-v #
+  For Scorpion, set version of remote file to replace. For Gemini, set
+  the value of the security token for uploads using Titan.
+
