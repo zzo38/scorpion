@@ -530,6 +530,11 @@ attribute SHOULD be blank; see below for its meaning (although a client is
 allowed to ignore the attribute). The client MUST display this text with a
 fixpitch font.
 
+* 0x0F = This block is used for optional metadata such as a digital
+signature of the rest of the document. Clients that do not understand it
+will ignore this block. (The format is currently not defined. Also, this
+block might be removed or changed in future.)
+
 The possible character encodings are:
 
 * 0x00 = TRON-8 (left to right)
@@ -601,6 +606,19 @@ MAY display the attribute text of preformatted blocks.
 
 (If data tables are required, you can link to a separate file that
 contains the data; you cannot have inline data tables.)
+
+
+=== Extended link attributes ===
+
+Extended link attributes are optional, both to specify by the author
+and to implement by the client.
+
+* 0x20 = The file size (if known; it can be ? if not known) and file format
+of the file that the link refers to, in the same format as the 2x response
+code. This is not valid for block type 0x0A.
+
+* 0x49 = A hint for the capability string to use with interactive mode.
+This is only valid for block type 0x0A.
 
 
 === Database file format ===
@@ -851,17 +869,19 @@ Conversion between file formats is possible, and can be specified by the
 file called "/.special/conversion". Clients MUST NOT try to download this
 file unless the user explicitly commands the computer to do so; it is not
 supposed to do so merely by finding a file that is not known how to handle.
-(Client software also MUST allow the user to override them and remove any
-such files that have already been downloaded.)
+(Client software also MUST allow the user to override them, and to remove
+any such files that have already been downloaded.)
 
 Furthermore, any client that is able to understand it MUST NOT require that
 it comes from the same server as the file; it can also be a local file
 which has been written by the end user, a file from another server (or the
 same server but a different path) etc, and once a conversion has been
 enabled by the user then the same conversion might be used with other
-servers too if apporopriate (not all kinds of conversions are appropriate
+servers too if appropriate (not all kinds of conversions are appropriate
 for using with other servers (e.g. if file name rewriting is used then it
-is not appropriate for arbitrary servers), but some can).
+is not appropriate for arbitrary servers), but some can). If it does use
+it with other servers, the user MUST be able to configure this feature,
+e.g. so that it does not work with other servers.
 
 Clients might also have their own mechanisms for conversion beyond what are
 written here, e.g. allowing to use local programs with pipes (which is a
@@ -897,6 +917,10 @@ field is the recommended capability.
 * 0x04 = Use a program to display the file. The third field is the URL of
 the program. The fourth field is described below. The second field should
 be blank.
+
+* 0x05 = The third field is the URL of a document which explains the file
+format. The file format of the document is either Scorpion format or plain
+ASCII text format. The second and fourth fields are not used.
 
 For record type 0x02, the fourth field has the first byte specifying the
 program format and the rest as the parameters:
@@ -1066,21 +1090,32 @@ This section discusses security issues. Note that many security issues
 with WWW are not applicable to Scorpion and related protocols, since
 they do not have the complexity of WWW.
 
+See RFC 5246 and RFC 8446 for the specifications of TLS, which also have
+some further information about security issues of TLS.
+
+Security is important as well as simplicity and interoperability.
+Therefore, servers and clients are required to support the non-TLS
+protocol, while TLS is optional (but is recommended). There is no
+requirement of which versions, ciphers, extensions, etc of TLS will be
+implemented; an implementation can do whatever it is able to do.
+
 The recommended way to handle TLS cipher suites, TLS validation, etc, is
 whatever way the client software uses for any protocols that it already
 implements (e.g. Gemini client can use TOFU, curl can validate them in the
-usual way but allow bypassing by the -k switch). However, a client should
+usual way but allow bypassing by the -k switch). However, a client MUST
 include the possibility for the user to change the options, and for the
 user to manually add and remove certificates. It should also be possible
 for the user to specify the security levels when manually adding
 certificates (in order to prevent downgrading attacks). Regardless of
-the default settings, the user should be allowed to override them.
+the default settings, the user MUST be allowed to override them.
 
 TLS session tickets can also be used for tracking, although they can speed
-up transfers. By default, clients should not use them, unless explicitly
-enabled. A client might have a setting (default or not) to use TLS session
-tickets if client certificates are used, but it should be possible to be
-disabled even in that case too.
+up transfers. By default, clients SHOULD NOT reuse tickets for multiple
+connections; see section C.4 of RFC 8446.
+
+If a client certificate has been specified, then clients and servers SHOULD
+both remember the TLS options in order to prevent downgrade attacks. (This
+may be configurable.)
 
 (TODO)
 
