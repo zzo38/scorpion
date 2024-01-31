@@ -651,6 +651,7 @@ relational (high nybble 3), or end of file (high nybble 0).
 value is arbitrary byte sequence indicating the sort key to use for that
 data cell. The user is allowed to disable the use of sort keys if they wish
 to use only the actual data in the cells instead. The subtype must be zero.
+(This command might be removed in future)
 
 The meaning of the high nybble of the flag byte depends on both the command
 and on the schema. In the case of data cells, this is called the "subtype".
