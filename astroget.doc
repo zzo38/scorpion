@@ -7,8 +7,14 @@
   Specify base URL to be relative to. If not specified, then the URL will
   be relative to the current directory.
 
+-C #
+  Specify file name for client certificate (PEM format).
+
 -D
   Delete a remote file. (Not valid for all protocols.)
+
+-K #
+  Specify file name for private key of client certificate (PEM format).
 
 -O
   Allow a remote file to be overwritten. (Some protocols cannot distinguish

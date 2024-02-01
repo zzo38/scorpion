@@ -81,10 +81,16 @@ int secure_socket(struct sockaddr*addr,const char*hostname,const char*options,co
         }
       }
     }
+    if(oo&0x0002) SSL_load_error_strings();
     if(options && *options==',') SSL_CTX_set_cipher_list(ctx,options+1);
     SSL_CTX_set_mode(ctx,SSL_MODE_AUTO_RETRY);
     ssl=SSL_new(ctx);
     if(!ssl) _exit(1);
+    if(cert && cert->type>0 && cert->type<3) {
+      if(cert->cert_file) SSL_use_certificate_file(ssl,cert->cert_file,cert->type==1?SSL_FILETYPE_ASN1:SSL_FILETYPE_PEM);
+      if(cert->key_file) SSL_use_PrivateKey_file(ssl,cert->key_file,cert->type==1?SSL_FILETYPE_ASN1:SSL_FILETYPE_PEM);
+      if(oo&0x0002) ERR_print_errors_fp(stderr),fflush(stderr);
+    }
     net=socket(AF_INET,SOCK_STREAM,0);
     if(net==-1) _exit(1);
     if(connect(net,addr,sizeof(struct sockaddr_in))<0) _exit(1);

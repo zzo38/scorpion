@@ -48,6 +48,7 @@ static struct sockaddr_in forced_address;
 static const char*tlsoption;
 static uint64_t progress_amount=0;
 static const char*outfilename;
+static Certificate certificate;
 
 static void base64encode(FILE*f,...) {
   static const char e[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -465,7 +466,7 @@ static int r_gemini(const Scogem_URL*u,Receiver*z) {
   fwrite(u->url,1,u->resource_end,memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=dial_secure(u->host,u->portnumber,0);
+  f=dial_secure(u->host,u->portnumber,&certificate);
   send_mem(f);
   for(i=0;;) {
     c=recv_byte(f);
@@ -515,7 +516,7 @@ static int s_gemini(const Scogem_URL*u,Sender*z) {
   }
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=dial_secure(u->host,u->portnumber,0);
+  f=dial_secure(u->host,u->portnumber,&certificate);
   send_mem(f);
   if(i=z->header(z->obj,"70 Ready to receive")) return i;
   if(!z->delete) raw_upload_to(f,z);
@@ -785,7 +786,7 @@ static int r_http_1(const Scogem_URL*u,Receiver*z,int isr,int tls) {
     fputs("\r\n",memfile);
   }
   fputs("\r\n",memfile); // end of request headers
-  f=tls?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber);
+  f=tls?dial_secure(u->host,u->portnumber,&certificate):dial(u->host,u->portnumber);
   send_mem(f);
   p=rh=response_headers(f);
   if(p[0]<'0' || p[0]>'9' || p[1]<'0' || p[1]>'9' || p[2]<'0' || p[2]>'9') p=strchrnul(p,' ');
@@ -1144,7 +1145,7 @@ static int r_scorpion_1(const Scogem_URL*u,Receiver*z,char isr,char tls) {
   fwrite(u->url,1,u->resource_end,memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=(tls?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber));
+  f=(tls?dial_secure(u->host,u->portnumber,&certificate):dial(u->host,u->portnumber));
   send_mem(f);
   for(i=0;;) {
     c=recv_byte(f);
@@ -1186,7 +1187,7 @@ static int s_scorpion(const Scogem_URL*u,Sender*z) {
   fwrite(u->url,1,u->resource_end,memfile);
   fputc('\r',memfile);
   fputc('\n',memfile);
-  f=(u->url[8]=='s'?dial_secure(u->host,u->portnumber,0):dial(u->host,u->portnumber));
+  f=(u->url[8]=='s'?dial_secure(u->host,u->portnumber,&certificate):dial(u->host,u->portnumber));
   send_mem(f);
   for(r=i=0;;) {
     c=recv_byte(f);
@@ -1482,10 +1483,12 @@ int main(int argc,char**argv) {
   int c;
   memfile=open_memstream(&membuf,&membufsize);
   if(!memfile) err(ERR_MEMORY,"Cannot open stream");
-  while((c=getopt(argc,argv,"+A:B:DOQT:V:Y:hi:npr:t:u:v:"))>=0) switch(c) {
+  while((c=getopt(argc,argv,"+A:B:C:DK:OQT:V:Y:hi:no:pr:t:u:v:"))>=0) switch(c) {
     case 'A': option|=0x0020; make_forced_address(optarg); break;
     case 'B': baseurl=optarg; break;
+    case 'C': certificate.cert_file=optarg; certificate.type=2; break;
     case 'D': upfile=stderr; option|=0x0018; break;
+    case 'K': certificate.key_file=optarg; break;
     case 'O': option|=0x0008; break;
     case 'Q': option|=0x0001; break;
     case 'T': tlsoption=optarg; break;
