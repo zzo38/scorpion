@@ -77,8 +77,9 @@ parameter is optional and is the capability codes if it is not blank.
 display to the user, and then the user enters any text, and the client
 redirects to the same as the current URL but with ? added and then the text
 entered by the user, which should be percent-encoded if necessary. If the
-existing URL already has a query string, then the result is unspecified;
-servers MUST NOT use this code in that case.
+existing URL already has a query string, then the result is unspecified
+(it is probably best to delete the existing query string, due to how
+relative URLs are working); servers MUST NOT use this code in that case.
 
 2x = The response is OK and the contents of the file will follow; after
 this line is the data of the file. The parameters are:
