@@ -276,6 +276,9 @@ int main(int argc,char**argv) {
 #endif
           if(*req!='R') goto badsub;
           if(c=='/') goto notfound;
+#ifdef CONFIG_DEFAULT_FILENAME
+          if(!n) { s=strchr(CONFIG_DEFAULT_FILENAME,'.'); s=s?s+1:""; }
+#endif
           normal(s);
           return 0;
         } else {
