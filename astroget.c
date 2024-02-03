@@ -14,6 +14,7 @@ exit
 #define ERR_NET 10
 #define ERR_PROTOCOL 11
 #define ERR_EXISTS 12
+#define ERR_RESTRICTED 13
 
 #include "scogem.h"
 #include <arpa/inet.h>
@@ -49,6 +50,10 @@ static const char*tlsoption;
 static uint64_t progress_amount=0;
 static const char*outfilename;
 static Certificate certificate;
+static uint8_t address_restrict=0;
+static uint8_t redirectlimit=0;
+static uint8_t redirectflag=0;
+static char*redirecturl;
 
 static void base64encode(FILE*f,...) {
   static const char e[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -176,6 +181,23 @@ static void status_ok(Receiver*z,char k,uint64_t total,const char*mime) {
   }
 }
 
+static void check_address_restriction(const struct sockaddr_in*a) {
+  const uint8_t*b=(const void*)&a->sin_addr.s_addr;
+  static uint32_t s=0;
+  if(address_restrict&1) {
+    if(b[0]==255 && b[1]==255 && b[2]==255 && b[3]==255) errx(ERR_RESTRICTED,"Broadcast address is restricted");
+    if(!b[0] && !b[1] && !b[2] && !b[3]) errx(ERR_RESTRICTED,"Broadcast address is restricted");
+    if(b[0]==127) errx(ERR_RESTRICTED,"Loopback address is restricted");
+  }
+  if((address_restrict&2) && b[0]==10) errx(ERR_RESTRICTED,"Private address is restricted");
+  if((address_restrict&4) && b[0]==172 && b[1]>=16 && b[1]<32) errx(ERR_RESTRICTED,"Private address is restricted");
+  if((address_restrict&8) && b[0]==192 && b[1]==168) errx(ERR_RESTRICTED,"Private address is restricted");
+  if(address_restrict&128) {
+    if(s && s!=a->sin_addr.s_addr) errx(ERR_RESTRICTED,"Redirect to a different IP address");
+    s=a->sin_addr.s_addr;
+  }
+}
+
 static int dial(const char*host,uint16_t port) {
   char b[8];
   struct addrinfo h={.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM,.ai_flags=AI_ADDRCONFIG};
@@ -190,6 +212,7 @@ static int dial(const char*host,uint16_t port) {
   } else {
     snprintf(b,8,"%u",port);
     if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
+    if(address_restrict) check_address_restriction((void*)ai->ai_addr);
     if(option&0x0040) fputs("\rx ; ",stderr);
     f=socket(AF_INET,SOCK_STREAM,0);
     if(f==-1) err(ERR_MEMORY,"Cannot open socket");
@@ -213,6 +236,7 @@ static int dial_secure(const char*host,int16_t port,const Certificate*cert) {
   } else {
     snprintf(b,8,"%u",port);
     if(i=getaddrinfo(host,b,&h,&ai)) errx(ERR_NET,"%s",gai_strerror(i));
+    if(address_restrict) check_address_restriction((void*)ai->ai_addr);
     f=secure_socket(ai->ai_addr,host,tlsoption,cert);
     if(f==-1) errx(ERR_MEMORY,"Cannot open secure socket");
     freeaddrinfo(ai);
@@ -383,6 +407,7 @@ static int r_file_1(const Scogem_URL*u,Receiver*z,int isr) {
   int f,e;
   char buf[0x4000];
   const char*p;
+  if(address_restrict&1) errx(ERR_RESTRICTED,"Cannot use file: with -q");
   if(u->host && u->host[0] && strcmp(u->host,"localhost")) {
     if(z->header) z->header(z->obj,"53 Incorrect host name for local files");
     return 0;
@@ -1379,12 +1404,21 @@ static void check_size(const char*text) {
 
 static int out_header(void*obj,const char*text) {
   printf("%s\r\n",text);
+  if(*text=='3' && text[2]==' ' && redirectlimit--) {
+    redirecturl=strdup(text+3);
+    if(!redirecturl) err(ERR_MEMORY,"Memory error");
+  }
   if(*text=='7' && text[1]!='0' && !(option&0x0008)) errx(ERR_EXISTS,"Remote file already exists");
   if(*text=='2' && (option&0x0040)) check_size(text);
   return 0;
 }
 
 static int main_header(void*obj,const char*text) {
+  if(*text=='3' && text[2]==' ' && redirectlimit--) {
+    redirecturl=strdup(text+3);
+    if(!redirecturl) err(ERR_MEMORY,"Memory error");
+    return 0;
+  }
   if(*text!='2') errx(*text,"Server returned status: %s",text);
   if(option&0x0040) check_size(text);
   return 0;
@@ -1409,6 +1443,26 @@ static int up_read(void*obj,char*data,size_t length) {
   return 0;
 }
 
+static int do_redirect(void) {
+  Scogem_URL urlinfo2;
+  baseurl=url;
+  url=relative_to_absolute(redirecturl);
+  redirecturl=0;
+  if(scogem_parse_url(&urlinfo2,url,0)) errx(ERR_URL,"Failure to parse redirection target URL");
+  if(redirectflag&0x01) certificate.type=0;
+  if((redirectflag&0x02) && urlinfo.host && urlinfo2.host && (urlinfo.portnumber!=urlinfo2.portnumber || strcmp(urlinfo.host,urlinfo2.host))) certificate.type=0;
+  if(!(redirectflag&0x04) && urlinfo.host && urlinfo2.host && strcmp(urlinfo.host,urlinfo2.host)) goto bad;
+  if(!(redirectflag&0x08) && urlinfo.portnumber!=urlinfo2.portnumber && strcmp(urlinfo2.scheme,"data")) goto bad;
+  if(!(redirectflag&0x10) && !strcmp(urlinfo2.scheme,"file")) goto bad;
+  if(!(redirectflag&0x30) && strcmp(urlinfo.scheme,urlinfo2.scheme)) goto bad;
+  scogem_free_url(&urlinfo);
+  urlinfo=urlinfo2;
+  return 1;
+  bad:
+  if(option&0x0040) return 0;
+  errx(ERR_RESTRICTED,"Restricted redirect: %s",url);
+}
+
 static int do_download(void) {
   const ProtocolInfo*pi=find_protocol(&urlinfo);
   Receiver z={};
@@ -1426,6 +1480,7 @@ static int do_download(void) {
       rewind(z.obj);
     }
   }
+  retry:
   if(option&0x0004) {
     if(!pi->receive_range) errx(ERR_NOT_IMPLEMENTED,"Range requests from protocol '%s' not implemented",urlinfo.scheme);
     z.start=range_start;
@@ -1435,6 +1490,7 @@ static int do_download(void) {
     if(!pi->receive) errx(ERR_NOT_IMPLEMENTED,"Receiving from protocol '%s' not implemented",urlinfo.scheme);
     pi->receive(&urlinfo,&z);
   }
+  if(redirecturl && do_redirect()) goto retry;
   if(option&0x0040) fputc('\n',stderr);
   return 0;
 }
@@ -1478,19 +1534,40 @@ static void make_forced_address(const char*a) {
   forced_address.sin_port=htons(strtol(p,0,0));
 }
 
+static void set_redirect_limit(const char*s) {
+  while(*s) switch(*s++) {
+    case '0' ... '9':
+      if(10*redirectlimit+s[-1]-'0'>255) errx(ERR_ARGUMENT,"Too high redirect limit");
+      redirectlimit=10*redirectlimit+s[-1]-'0';
+      break;
+    case 'A': address_restrict|=128; break;
+    case 'd': redirectflag|=0x01; break;
+    case 'D': redirectflag|=0x02; break;
+    case 'h': redirectflag|=0x04; break;
+    case 'p': redirectflag|=0x08; break;
+    case 's': redirectflag|=0x10; break;
+    case 'S': redirectflag|=0x20; break;
+    case 'x': redirectflag|=0x1C; break;
+    case 'X': redirectflag|=0x3C; break;
+    default: errx(ERR_ARGUMENT,"Improper redirect mode");
+  }
+}
+
 int main(int argc,char**argv) {
   const ProtocolInfo*pi;
   int c;
   memfile=open_memstream(&membuf,&membufsize);
   if(!memfile) err(ERR_MEMORY,"Cannot open stream");
-  while((c=getopt(argc,argv,"+A:B:C:DK:OQT:V:Y:hi:no:pr:t:u:v:"))>=0) switch(c) {
+  while((c=getopt(argc,argv,"+A:B:C:DK:L:OQR:T:V:Y:hi:no:pr:t:u:v:"))>=0) switch(c) {
     case 'A': option|=0x0020; make_forced_address(optarg); break;
     case 'B': baseurl=optarg; break;
     case 'C': certificate.cert_file=optarg; certificate.type=2; break;
     case 'D': upfile=stderr; option|=0x0018; break;
     case 'K': certificate.key_file=optarg; break;
+    case 'L': set_redirect_limit(optarg); break;
     case 'O': option|=0x0008; break;
     case 'Q': option|=0x0001; break;
+    case 'R': address_restrict=1; for(c=0;optarg[c];c++) address_restrict|=1<<(optarg[c]&7); break;
     case 'T': tlsoption=optarg; break;
     case 'V': upversion2=optarg; break;
     case 'Y': return do_ulfi(optarg); break;

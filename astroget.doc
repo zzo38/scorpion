@@ -1,4 +1,6 @@
 
+=== Switches ===
+
 -A #
   Specify a IP address and port number (with a colon in between) to use
   instead of resolving the host name in the URL.
@@ -15,6 +17,10 @@
 
 -K #
   Specify file name for private key of client certificate (PEM format).
+
+-L #
+  Follow redirects. Specify maximum number of redirects, and optionally any
+  further redirect options.
 
 -O
   Allow a remote file to be overwritten. (Some protocols cannot distinguish
@@ -54,6 +60,14 @@
   Display progress indicator on stderr. (It will write a carriage return
   before each progress display.)
 
+-R #
+  Define address restriction. Use letters A B C to restrict access to
+  the specified ranges LAN addresses (A for 10.x.x.x, B for 172.16.x.x,
+  and C for 192.168.x.x). If this switch is used, then addresses with
+  127.x.x.x are always blocked, and local files are also always blocked.
+  You can specify -R0 if you only want to block loopback and files. (If
+  used with -A then the only effect of -R is to block local files.)
+
 -r #
   Make a range request. The value must be two numbers with - in between,
   being zero-based byte offsets; it includes the beginning and excludes
@@ -72,4 +86,53 @@
 -v #
   For Scorpion, set version of remote file to replace. For Gemini, set
   the value of the security token for uploads using Titan.
+
+
+=== Redirect options ===
+
+A = Disallow redirects to different IP addresses than the first one.
+
+d = Discard client certificates after a redirect.
+
+D = Discard client certificates after a redirect if the scheme, host,
+and/or port are different from the original.
+
+h = Allow other host names.
+
+p = Allow other port numbers.
+
+s = Allow other schemes, except "file" scheme.
+
+S = Allow other schemes, including "file" scheme.
+
+x = Same as "shp".
+
+X = Same as "Shp".
+
+
+=== TLS options ===
+
+TLS options have + or - followed by the OpenSSL options and/or any
+private options (described below), each of which is a single character.
+If you start with = then it is like + but clears existing options first.
+See OpenSSL documentation for the meaning of the OpenSSL options.
+
+0 = Disable SNI
+1 = SSL_OP_NO_TLSv1
+2 = SSL_OP_NO_SSLv2
+3 = SSL_OP_NO_SSLv3
+A = SSL_OP_ALL
+C = SSL_OP_CIPHER_SERVER_PREFERENCE
+E = Write error messages to stderr
+L = SSL_OP_LEGACY_SERVER_CONNECT
+S = SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
+T = SSL_OP_NO_TICKET
+U = SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+c = SSL_OP_NO_COMPRESSION
+r = SSL_OP_TLS_ROLLBACK_BUG
+s = SSL_OP_SINGLE_DH_USE
+x = Follow by a hexadecimal number to use a numbered OpenSSL option.
+
+After the options above you may optionally have a comma and then the
+cipher list (according to SSL_CTX_set_cipher_list function).
 
