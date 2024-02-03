@@ -1,0 +1,116 @@
+This program will accept a ASCII file (or it can use PC character encoding
+or EUC character encoding, if declared in the file; both are supersets of
+ASCII) from stdin, and write the Scorpion document file to stdout.
+
+
+=== Syntax ===
+
+<name> means a command (similar than <name> in HTML or <name/> in XML).
+
+<name| and |name> are also commands but are the beginning and ending
+commands (similar than <name> ... </name> in HTML or XML).
+
+|name| or || is a middle command, to separate parts of a <x| |x> block.
+
+<hex> represents a single graphic character by the character code. If the
+current encoding is PC then it is always two hex digits (and zero is not
+allowed; use FF or 20 instead), otherwise it is a TRON character code.
+
+A blank line is a delimiter between blocks. Multiple blank lines between
+blocks are redundant.
+
+<$charset> sets the input and output character encoding. Valid encodings
+are: PC, JP, CN, and KR. PC cannot be mixed with the other encodings in the
+same block, but you can mix the other encodings with each other.
+
+A line break is treated as a space in most contexts. Leading and trailing
+spaces, and multiple consecutive spaces, are treated as a single space in
+most contexts.
+
+|= can be followed by a line break to suppress the extra space.
+
+You can use <{ and }> or |{ and }| to surround text which should not be
+interpreted as commands; they are interpreted as raw characters. They
+must fit within a single line, though.
+
+You can also use << and some other text on the same line, to mean a heredoc
+which means that the rest of the text is interpreted as araw characters,
+until a line that has the same text that followed << on the first line.
+This is only useful in preformatted blocks, because in such a block it will
+treat tabs as the <TAB> command and line breaks as the <BR> command.
+
+<! command !> will execute an external program and use its output as the
+source text that is accepted by this program. That output is not allowed to
+itself include any <! !> block.
+
+
+=== Commands ===
+
+In the below list, ** means it is only allowed at the beginning of a block,
+and it defines the block type. If no block type is specified, then it is a
+normal paragraph block.
+
+<1> or <1| name |1> **
+  Make a level 1 heading (the outermost level). You can optionally specify
+  a name which is used after the # in a URL to refer to that heading.
+  There are also more heading levels 2 to 6.
+
+<ALT| url |ALT> **
+  Make a alternate service link, for mirrors, etc.
+
+<ASK> or <ASK| url |ASK> **
+  Make a link that requests input. If you use <ASK> without the URL, then
+  it means to use the current URL.
+
+<BR>
+  Line break; only valid inside of a preformatted block.
+
+<E> or <E| text |E>
+  Set style to emphasis. (The second syntax will revert the style to the
+  most recent one that uses the first syntax, afterward. Nesting is not
+  allowed and will not work.)
+
+<F> or <F| text |F>
+  Set style to fixpitch.
+
+<FUR| base || furigana |FUR>
+  Make furigana text. You can use || or |FUR| to mean the same thing.
+
+<INC| file name |INC> **
+  Include the contents of another binary Scorpion document file. (It will
+  validate that the data is correct.)
+
+<INT> or <INT| url |INT> **
+  Make a link to an interactive session.
+
+<L> or <L| url |L> **
+  Make a plain link. (The URL can be absolute or relative.)
+
+<N> or <N| text |N>
+  Set style to normal.
+
+<PIPE| command |PIPE> **
+  Like <INC> but uses the output of an external program instead.
+
+<Q> **
+  Begin a block quotation.
+
+<R| text |R>
+  The text will use the reverse text direction from that of the paragraph.
+  The normal text direction of the paragraph is restored by |R>.
+
+<RGR>
+  Reset graphic rendition.
+
+<S> or <S| text |S>
+  Set style to strong.
+
+<SGR| numbers |SGR>
+  Set graphic rendition. Put the numbers with semicolons in between.
+
+<TAB>
+  Tab; only valid inside of a preformatted block.
+
+<X> or <X| attribute |X> **
+  Make a preformatted block.
+
