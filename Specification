@@ -398,12 +398,29 @@ this subprotocol.)
 
 Possible capability codes:
 
+* a = The client uses this if it wishes to send command-line arguments
+and/or environment variables to the server. If so, the server will send
+back the same capability code, possibly with different numbers, and then
+the client sends the command-line arguments and environment variables,
+each of which is null-terminated. The numbers are first the number of
+command-line arguments, and then optionally a semicolon and then the
+number of environment variables. Each environment variable name is not
+allowed to contain a equal sign, since the equal sign is used to sepaate
+the name from the value. The server will not send back this capability
+code if the requested file cannot use this capability; if it does send
+it back, then the numbers might be different than those that the client
+requested; the number of arguments/variables that the client sends must
+match those specified by the server. The server MUST NOT send this
+capability code if the client did not request it.
+
 * L = Line mode. The value is 0 for not local line editing (and not local
 echo), or 1 for local line editing so that the text is not sent until an
 entire line is entered and the user pushes send. Even in line mode it is
 still possible for the server to send data to the client while the user
 has partially entered a line of text; the client should handle that by
 displaying the user's text entry separately.
+
+* T = Terminal type (not currently defined).
 
 * x = Screen size. The value is two numbers being the number of columns
 and the number of rows; in both cases zero can mean unlimited. Optionally
@@ -652,7 +669,6 @@ relational (high nybble 3), or end of file (high nybble 0).
 value is arbitrary byte sequence indicating the sort key to use for that
 data cell. The user is allowed to disable the use of sort keys if they wish
 to use only the actual data in the cells instead. The subtype must be zero.
-(This command might be removed in future)
 
 The meaning of the high nybble of the flag byte depends on both the command
 and on the schema. In the case of data cells, this is called the "subtype".
