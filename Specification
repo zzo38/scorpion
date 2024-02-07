@@ -1159,6 +1159,8 @@ document. They are:
 * TLS is rather complicated, and has some other problems. Is there a
 better simpler way to do secure internet?
 
+* A way to be working with transports other than internet.
+
 (It is also possible that other changes may be made in future, than
 the above, including changes to existing things, and possibly also
 removing things if they are unnecessary.)

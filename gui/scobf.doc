@@ -1,0 +1,31 @@
+SCOBF binary bitmap font format
+
+Header:
+  FF 01 73 63 6F 62 66 00  xb yb xa ya cl ch ax dx
+  nl nh tp tv 00 00 00 00  00 00 00 00 00 00 00 00
+
+xb = X size
+yb = Y size
+xa = X adjustment + 128
+ya = Y adjustment + 128
+cl = Default character code, low byte
+ch = Default character code, high byte
+ax = Ascent
+dx = Descent
+nl = Number of characters - 1, low byte
+nh = Number of characters - 1, high byte
+tp = TRON plane (zero if not specified or not TRON)
+tv = TRON volume
+
+Glyph definition:
+  00 xx zl zh xb yb xa ya  <raster>
+
+xx = Advancement + 128
+zl = Low byte of character code
+zh = High byte of character code
+
+Raster data of a glyph is like the PBM binary format.
+
+End of file:
+  FF
+
