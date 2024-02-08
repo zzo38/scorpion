@@ -559,6 +559,8 @@ The possible character encodings are:
 
 * 0x10 = PC (left to right)
 
+* 0x20 = DITROFF Base Compatibility PC-like Latin-1
+
 * 0x80 = TRON-8 (right to left)
 
 The control codes are:
@@ -1077,7 +1079,7 @@ does not specify a secure connection, then it should not encrypt any data
 sent through the proxy even if the scheme for the file being accessed is
 "scorpions:" or "gemini:" or another protocol that uses TLS. This is useful
 if the end user has set up their own intercepting proxy on their own
-computer, since it allows 
+computer, since it would avoid needing to encrypt the data twice.
 
 
 === Dynamic files ===
@@ -1137,6 +1139,9 @@ connections; see section C.4 of RFC 8446.
 If a client certificate has been specified, then clients and servers SHOULD
 both remember the TLS options in order to prevent downgrade attacks. (This
 may be configurable.)
+
+See also gemini://gemini.ctrl-c.club/~stack/gemlog/2022-02-13.notls.gmi for
+some notes against use of TLS.
 
 (TODO)
 
