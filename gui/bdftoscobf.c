@@ -8,12 +8,14 @@ exit
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static char*linebuf;
 static size_t linesize;
 static unsigned char head[24];
 static int nchars;
 static unsigned char chhead[8];
+static unsigned char prhead[8];
 
 static inline void nextline(void) {
   if(getline(&linebuf,&linesize,stdin)<=0) errx(1,"Input past end of file");
@@ -23,6 +25,10 @@ static inline void nextline(void) {
 int main(int argc,char**argv) {
   unsigned char c;
   int n;
+  while((n=getopt(argc,argv,"+p:"))>0) switch(n) {
+    case 'p': n=strtol(optarg,0,16); head[10]=n; head[11]=n>>8; break;
+    default: errx(1,"Improper switch");
+  }
   fwrite("\xFF\x01" "scobf",1,8,stdout);
   nextline();
   if(strncmp(linebuf,"STARTFONT ",10)) errx(1,"Bad format");
@@ -48,6 +54,8 @@ int main(int argc,char**argv) {
     }
   }
   fwrite(head,1,24,stdout);
+  prhead[1]=head[0]+0x80;
+  memcpy(prhead+4,head,4);
   while(nchars--) {
     do nextline(); while(strncmp(linebuf,"STARTCHAR",9));
     for(;;) {
@@ -65,7 +73,13 @@ int main(int argc,char**argv) {
         break;
       }
     }
-    fwrite(chhead,1,8,stdout);
+    if(prhead[1]==chhead[1] && !memcmp(prhead+4,chhead+4,4)) {
+      putchar(0x01);
+      fwrite(chhead+2,1,2,stdout);
+    } else {
+      fwrite(chhead,1,8,stdout);
+    }
+    memcpy(prhead,chhead,8);
     for(;;) {
       nextline();
       if(!strncmp(linebuf,"ENDCHAR",7)) break;
@@ -75,6 +89,6 @@ int main(int argc,char**argv) {
       }
     }
   }
-  putchar(0xFF);
+  putchar(0xF0);
   return 0;
 }

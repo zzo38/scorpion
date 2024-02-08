@@ -26,6 +26,29 @@ zh = High byte of character code
 
 Raster data of a glyph is like the PBM binary format.
 
+Short glyph definition:
+  01 zl zh <raster>
+
+For the short definition, the omitted fields are copied from the previous
+glyph definition; if there is no previous glyph definition then they are
+the values from the header, with the X advancement equal to the X size.
+
+Kerning definition:
+  85 1l 1h 2l 2h xx
+
+Define the kerning between two character codes; xx is the advancement in
+between + 128. Some programs will not implement kerning.
+
+Ligature definition:
+  86 1l 1h 2l 2h zl zh
+
+Define a ligature between (1h,1l) and (2h,2l) changing it to (zh,zl). Some
+programs will not implement ligatures.
+
 End of file:
-  FF
+  F0
+
+Comments: First byte is 0xF1 to 0xFF, and then one to fifteen bytes of the
+comment text (you can have multiple comment blocks which can then be put
+together afterward). Use line feeds in between multiple comment lines.
 
