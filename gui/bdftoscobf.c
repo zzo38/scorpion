@@ -16,6 +16,9 @@ static unsigned char head[24];
 static int nchars;
 static unsigned char chhead[8];
 static unsigned char prhead[8];
+static FILE*comments;
+static char*comments_mem;
+static size_t comments_size;
 
 static inline void nextline(void) {
   if(getline(&linebuf,&linesize,stdin)<=0) errx(1,"Input past end of file");
@@ -25,7 +28,8 @@ static inline void nextline(void) {
 int main(int argc,char**argv) {
   unsigned char c;
   int n;
-  while((n=getopt(argc,argv,"+p:"))>0) switch(n) {
+  while((n=getopt(argc,argv,"+c:p:"))>0) switch(n) {
+    case 'c': if(!comments && !(comments=open_memstream(&comments_mem,&comments_size))) err(1,0); fprintf(comments,"%s\n",optarg); break;
     case 'p': n=strtol(optarg,0,16); head[10]=n; head[11]=n>>8; break;
     default: errx(1,"Improper switch");
   }
@@ -87,6 +91,16 @@ int main(int argc,char**argv) {
         sscanf(linebuf+n,"%2hhX",&c);
         putchar(c);
       }
+    }
+  }
+  if(comments) {
+    fflush(comments);
+    if(!comments_mem) err(1,"Memory error");
+    for(n=0;n<comments_size;) {
+      c=comments_size-n; c=(c>15?15:c);
+      putchar(c|0xF0);
+      fwrite(comments_mem+n,1,c,stdout);
+      n+=c;
     }
   }
   putchar(0xF0);
