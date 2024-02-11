@@ -559,8 +559,6 @@ The possible character encodings are:
 
 * 0x10 = PC (left to right)
 
-* 0x20 = DITROFF Base Compatibility PC-like Latin-1
-
 * 0x80 = TRON-8 (right to left)
 
 The control codes are:
@@ -987,6 +985,20 @@ XPM2 (indexed colours, which also allows specifying symbolic colours which
 can be specified by user preferences). In the XPM2 format, you should not
 use X11 colour names; only hex, "black", "white", "None", and symbolic
 names (with the "s" colour type) should be used.
+
+
+=== X.509 extensions ===
+
+The use of these extensions is optional. Clients and servers are not
+required to read them, and whoever sets up the certificates are not
+required to set these extensions.
+
+* 2.25.327847519394146920218914781995694576662.1.6 = The data type is a
+set of integers. The values are the port numbers for use with TCP. This
+extension is for use with server certificates.
+
+* 2.25.327847519394146920218914781995694576662.2 = The data type is a
+octet string, and is a comment encoded as TRON-8 encoding.
 
 
 === Recommendations and other notes ===
