@@ -42,13 +42,13 @@ int main(int argc,char**argv) {
         break;
       case 0xF0: printf("End of file\n"); return 0;
       case 0xF1 ... 0xFF:
-        fread(misc,1,c&0x0F,stdin);
         printf("Comment: ");
         n=c&0x0F;
         while(n--) {
           c=getchar();
           if(c>=0x20 && c<0x7F) putchar(c); else printf("<%02X>",c);
         }
+        putchar('\n');
         break;
       case EOF: errx(1,"Unexpected end of file");
       default:
