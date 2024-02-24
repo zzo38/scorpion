@@ -469,14 +469,16 @@ The hash algorithms are specified as hexadecimal numbers without a leading
 zero, which are multicodec numbers (but not encoded as varint). The hash
 values are specified as an even number of hexadecimal digits, which will
 include leading zeros if any. List of hash algorithms:
-  11  SHA-1
-  12  SHA2-256
-  13  SHA2-512
-  14  SHA3-512
-  15  SHA3-384
-  16  SHA3-256
-  17  SHA3-224
-  d5  MD5
+  11    SHA-1
+  12    SHA2-256
+  13    SHA2-512
+  14    SHA3-512
+  15    SHA3-384
+  16    SHA3-256
+  17    SHA3-224
+  d5    MD5
+  b250  BLAKE2s (128-bits)
+  b260  BLAKE2s (256-bits)
 
 (Note that some hash algorithms are deprecated because they are insecure.)
 
