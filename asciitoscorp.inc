@@ -10,6 +10,8 @@ X(ASK) // link requiring input
 X(BR) // line break
 X(E) // emphasis
 X(F) // fixpitch
+X(FI) // file info
+X(FIS) // file info including size
 X(FUR) // furigana
 X(INC) // include file
 X(INT) // interactive link

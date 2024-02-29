@@ -978,7 +978,9 @@ be set if the record type is 0x04, since there is no output file.)
 * bit3 = Set if the first command-line argument is the picture size, in the
 decimal ASCII format (only digits 0 to 9) with "x" in between (where the
 horizontal size is first, and then the vertical size). (This is meant for
-scalable vector diagrams.)
+scalable vector diagrams.) (This bit should not be set for record type
+0x04; in that case, the preset screen size that can be read back from the
+screen device is the suggested picture size (which can be changed).)
 
 Note that it is OK if there are multiple records which match the same file.
 
@@ -986,7 +988,8 @@ Recommended output formats for pictures are farbfeld (true colours) and
 XPM2 (indexed colours, which also allows specifying symbolic colours which
 can be specified by user preferences). In the XPM2 format, you should not
 use X11 colour names; only hex, "black", "white", "None", and symbolic
-names (with the "s" colour type) should be used.
+names (with the "s" colour type) should be used (although monochrome and
+grey scales are usable too, in addition to full colours and symbolic).
 
 
 === X.509 extensions ===

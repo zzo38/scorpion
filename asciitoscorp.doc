@@ -73,6 +73,19 @@ normal paragraph block.
 <F> or <F| text |F>
   Set style to fixpitch.
 
+<FI| size type |FI>
+  Set file info in extended link attributes. Only valid in the body of a
+  <L> or <ASK> block. (The type is optional and may be omitted. If the size
+  is unknown, a question mark may be substituted in place of the size.)
+
+<FIS> or <FIS| type |FIS>
+  Set file info in extended link attributes; only valid in the body of a
+  <L> block (not valid for <ASK>). The file size will be determined
+  automatically, by attempting to read the file; if the file cannot be
+  found, then it is an error. (Be careful with using this, that you do not
+  end up reading a file whose size changes later, or a file in the wrong
+  directory, etc.)
+
 <FUR| base || furigana |FUR>
   Make furigana text. You can use || or |FUR| to mean the same thing.
 

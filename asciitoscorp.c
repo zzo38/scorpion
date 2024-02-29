@@ -9,6 +9,9 @@ exit
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 enum {
   TOK_EOF,
@@ -367,6 +370,15 @@ static int do_include(char p) {
   return 1;
 }
 
+static void set_size_attribute(void) {
+  struct stat s;
+  fflush(attrf);
+  if(!attrbuf) errx(1,"Memory error");
+  if(stat(attrbuf,&s)) err(1,"Cannot stat");
+  if(!S_ISREG(s.st_mode)) Error("Stat is not regular file");
+  fprintf(attrf,"%llu ",(long long)s.st_size);
+}
+
 static int do_block(void) {
   int bt=0;
   uint32_t tt,tv,as,bs;
@@ -374,6 +386,7 @@ static int do_block(void) {
   uint16_t splane=0;
   uint8_t sty=0x11;
   int mode=0;
+  int mode2=0;
   int i;
   do nexttok(); while(tokent==TOK_BLANK_LINE || (tokent==TOK_CHAR && tokenv==' '));
   if(tokent==TOK_EOF) return 0;
@@ -434,6 +447,10 @@ static int do_block(void) {
       if(mode=='S') {
         if(tokent==TOK_TRON_CHAR || tokenv<0x30 || tokenv>0x3B || tokenv==0x3A) Error("Improper character in SGR code");
         fputc(tokenv,bodyf);
+      } else if(mode=='I') {
+        if(tokent==TOK_TRON_CHAR || tokenv<' ' || tokenv>'~') Error("Improper character in file info attribute");
+        if(tokenv!=' ' || mode2==1) fputc(tokenv,attrf);
+        if(tokenv==' ' && mode2==1) mode2=2; else if(tokenv!=' ' && !mode2) mode2=1;
       } else if(curchset&0x70) {
         if(tokenv>=0x20) {
           fputc(tokenv,bodyf);
@@ -459,6 +476,7 @@ static int do_block(void) {
         case CMD_BR: if(bt!=0x0D || mode) goto bad; fputc(0x0A,bodyf); break;
         case CMD_E: if(bt==0x0D || mode) goto bad; fputc(sty=0x13,bodyf); break;
         case CMD_F: if(bt==0x0D || mode) goto bad; fputc(sty=0x14,bodyf); break;
+        case CMD_FIS: if(bt!=0x08 || mode) goto bad; fputc(0,attrf); fputc(0x20,attrf); set_size_attribute(); as=ftell(attrf); break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(sty=0x11,bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(sty=0x12,bodyf); break;
         case CMD_TAB: if(bt!=0x0D || mode) goto bad; fputc(0x09,bodyf); break;
@@ -469,6 +487,8 @@ static int do_block(void) {
       switch(tokenv) {
         case CMD_E: if(bt==0x0D || mode) goto bad; fputc(0x13,bodyf); break;
         case CMD_F: if(bt==0x0D || mode) goto bad; fputc(0x14,bodyf); break;
+        case CMD_FI: if(bt<0x08 || bt>0x09 || mode) goto bad; mode='I'; mode2=0; fputc(0,attrf); fputc(0x20,attrf); break;
+        case CMD_FIS: if(bt!=0x08 || mode) goto bad; mode='I'; mode2=2; fputc(0,attrf); fputc(0x20,attrf); set_size_attribute(); break;
         case CMD_FUR: if(bt==0x0D || mode) goto bad; fputc(0x17,bodyf); mode='F'; splane=plane; break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(0x11,bodyf); break;
         case CMD_R: if(bt==0x0D || mode) goto bad; fputc(0x16,bodyf); break;
@@ -480,6 +500,8 @@ static int do_block(void) {
       switch(tokenv) {
         case CMD_E: if(bt==0x0D || mode) goto bad; fputc(sty,bodyf); break;
         case CMD_F: if(bt==0x0D || mode) goto bad; fputc(sty,bodyf); break;
+        case CMD_FI: if(mode!='I') goto bad; fflush(attrf); as=ftell(attrf); mode=0; break;
+        case CMD_FIS: if(mode!='I') goto bad; fflush(attrf); as=ftell(attrf); mode=0; break;
         case CMD_FUR: if(mode!='f') goto bad; fputc(0x19,bodyf); mode=0; if(splane!=plane) plane=0; break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(sty,bodyf); break;
         case CMD_R: if(bt==0x0D || mode) goto bad; fputc(0x15,bodyf); break;
