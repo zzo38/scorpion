@@ -1,5 +1,7 @@
 T=0021
 D=2121
+a=14
+d=2
 1| zcat ~/fonts/jis/izmg16-2004-1.bdf.gz | bdftoscobf # JIS X 0213 plane 1
 2| zcat ~/fonts/jis/izmg16-2004-2.bdf.gz | bdftoscobf # JIS X 0213 plane 2
 3| zcat ~/fonts/jis/jisksp16-1990.bdf.Z | bdftoscobf # JIS X 0212
