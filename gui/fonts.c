@@ -233,11 +233,15 @@ void font_gc_set_box(FontGC*gc,SDL_Rect box) {
   gc->box=box;
 }
 
+void font_gc_set_scale(FontGC*gc,Uint8 xs,Uint8 ys) {
+  gc->xscale=xs?:1;
+  gc->yscale=ys?:1;
+}
+
 void font_draw_glyph(const Font*d,Uint16 c,Sint32*x,Sint32 y,FontGC*gc) {
   Uint8*pp;
-  Uint8*p;
   const Uint8*dd;
-  int xx,yy;
+  int xx,yy,zz;
   int x0=gc->box.x;
   int y0=gc->box.y;
   int x1=gc->box.x+gc->box.w-1;
@@ -246,21 +250,34 @@ void font_draw_glyph(const Font*d,Uint16 c,Sint32*x,Sint32 y,FontGC*gc) {
   if(c<d->min_code || c>d->max_code || !d->ref[c-d->min_code]) c=d->def_code;
   if(c<d->min_code || c>d->max_code) return;
   dd=d->data+d->ref[c-d->min_code];
-  xx=*x+dd[3]-128; yy=y+dd[4]-dd[2]-128;
-  *x+=*dd-128;
-  u=(dd[1]+7)>>3; v=dd[2]; w=dd[1];
-  dd+=5;
-  if(yy<y0) {
-    dd+=u*(y0-yy);
-    v-=(y0-yy);
-    yy=y0;
-  }
-  pp=gc->pixels+gc->pitch*yy+gc->bytes*xx;
-  while(v-- && yy<=y1) {
-    p=pp;
-    for(z=0;z<w;z++) if(xx+z>=x0 && xx+z<=x1 && (dd[z>>3]&(0x80>>(z&7)))) memcpy(pp+z*gc->bytes,gc->color,gc->bytes);
-    pp+=gc->pitch;
-    dd+=u;
+  if(gc->xscale<2 && gc->yscale<2) {
+    xx=*x+dd[3]-128; yy=y+dd[4]-dd[2]-128;
+    *x+=*dd-128;
+    u=(dd[1]+7)>>3; v=dd[2]; w=dd[1];
+    dd+=5;
+    if(yy<y0) {
+      dd+=u*(y0-yy);
+      v-=(y0-yy);
+      yy=y0;
+    }
+    pp=gc->pixels+gc->pitch*yy+gc->bytes*xx;
+    while(v-- && yy<=y1) {
+      for(z=0;z<w;z++) if(xx+z>=x0 && xx+z<=x1 && (dd[z>>3]&(0x80>>(z&7)))) memcpy(pp+z*gc->bytes,gc->color,gc->bytes);
+      pp+=gc->pitch;
+      dd+=u;
+    }
+  } else {
+    xx=*x+(dd[3]-128)*gc->xscale; yy=y+(dd[4]-dd[2]-128)*gc->yscale;
+    *x+=(*dd-128)*gc->xscale;
+    u=(dd[1]+7)>>3; v=dd[2]*gc->yscale; w=dd[1];
+    dd+=5;
+    if(yy<y0) return;
+    pp=gc->pixels+gc->pitch*yy+gc->bytes*xx;
+    while(v-- && yy<=y1) {
+      for(z=0;z<w;z++) if(dd[z>>3]&(0x80>>(z&7))) for(zz=0;zz<gc->xscale;zz++) if(xx+zz+z*gc->xscale>=x0 && xx+zz+z*gc->xscale<=x1) memcpy(pp+(zz+z*gc->xscale)*gc->bytes,gc->color,gc->bytes);
+      pp+=gc->pitch;
+      if(!(v%gc->yscale)) dd+=u;
+    }
   }
 }
 
