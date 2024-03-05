@@ -74,6 +74,17 @@ CONFIG_FILEMODE_EXECUTE *
   execute the file, otherwise it will send the contents of the file to
   the client. (This is only required if CONFIG_ALLOW_CGI is defined.)
 
+CONFIG_USER_DIR
+  The name of a subdirectory of user directories which contains files for
+  making available by internet.
+
+CONFIG_ALLOW_USER_CGI
+  If CONFIG_USER_DIR, CONFIG_ALLOW_USER_CGI, and CONFIG_ALLOW_CGI are all
+  defined, then it is also allowed to execute CGI programs from user
+  directories; otherwise, CGI programs cannot be executed from user
+  directories (attempting to do so always results in a 50 error if
+  CONFIG_ALLOW_CGI is defined but not CONFIG_ALLOW_USER_CGI).
+
 mimetypes *
   An array of the file types. Each element is a structure of two elements,
   the first being the last part of the file name after the "." (which it

@@ -20,6 +20,9 @@ typedef struct {
   const char*type;
 } MimeDef;
 #include "scorpiond.config"
+#ifdef CONFIG_USER_DIR
+#include <pwd.h>
+#endif
 
 #ifdef CONFIG_SAFE_FILENAMES
 static const char safech[128]={
@@ -35,6 +38,9 @@ static char name[CONFIG_MAX_NAME+4];
 static unsigned int reqn=0;
 static char*url;
 static struct stat stats;
+#ifdef CONFIG_USER_DIR
+static struct passwd*userinfo;
+#endif
 
 static int percent_decode(const char*p) {
   int r;
@@ -243,6 +249,13 @@ int main(int argc,char**argv) {
         } else {
           if(name[0]=='.' && (name[1]=='.' || name[1]=='_' || name[1]=='-' || !name[1])) goto bad;
         }
+#ifdef CONFIG_USER_DIR
+        if(*name=='~') {
+          userinfo=getpwnam(name+1);
+          if(!userinfo || chdir(userinfo->pw_dir)) goto notfound;
+          strcpy(name,CONFIG_USER_DIR);
+        }
+#endif
         if(stat(name,&stats)) {
 #ifdef CONFIG_DEFAULT_FILENAME
           if(!n && errno==ENOENT) {
@@ -266,10 +279,16 @@ int main(int argc,char**argv) {
         } else if(S_ISREG(stats.st_mode)) {
 #ifdef CONFIG_ALLOW_CGI
           if((stats.st_mode&(CONFIG_FILEMODE_EXECUTE))==(CONFIG_FILEMODE_EXECUTE)) {
+#ifdef CONFIG_USER_DIR
+#ifndef CONFIG_ALLOW_USER_CGI
+            if(userinfo) goto noexec;
+#endif
+#endif
 #ifdef CONFIG_CANCEL_ALARM
             alarm(0);
 #endif
             execl(name,name,req,p,(char*)0);
+            noexec:
             printf("50 File cannot be executed\r\n");
             return 0;
           }
@@ -294,6 +313,14 @@ int main(int argc,char**argv) {
         if(c=='/') goto bad;
         // fall through
       default:
+#ifdef CONFIG_USER_DIR
+        if(c=='~' && !n) {
+          if(stats.st_mode) goto bad;
+          name[n++]='~';
+          p++;
+          break;
+        }
+#endif
         if(n==CONFIG_MAX_NAME) goto toolong;
 #ifdef CONFIG_SAFE_FILENAMES
         if((c&~127) || !safech[c]) goto bad;
