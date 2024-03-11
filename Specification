@@ -1160,6 +1160,16 @@ may be configurable.)
 See also gemini://gemini.ctrl-c.club/~stack/gemlog/2022-02-13.notls.gmi for
 some notes against use of TLS.
 
+The username and password in the URL can be used for tracking, as mentioned
+in the mailing list of Gemini. Therefore, it is recommended that if a URL
+from a link or redirect contains a username and/or a password, then the
+client should ignore it, and instead use those specified by the user; or it
+may display a prompt with the username and/or password already filled in
+and allow the user to adjust them before sending the request (in this case,
+the existing password should not be hidden in the prompt, but if a new
+password is entered then it should normally be hidden (unless the user sets
+an option to not hide passwords)). (This paragraph is advisory only.)
+
 (TODO)
 
 
