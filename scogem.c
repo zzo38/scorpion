@@ -367,7 +367,7 @@ int scogem_relative(FILE*out,const char*base,const char*url) {
   // Is the target URL absolute?
   for(n=0;;) {
     if((url[n]>='A' && url[n]<='Z') || (url[n]>='a' && url[n]<='z') || (url[n]>='0' && url[n]<='9') || url[n]=='-' || url[n]=='+' || url[n]=='.') {
-      if(n==15) return -1;
+      if(n==15) break;
       if(url[n]>='A' && url[n]<='Z') scheme[n]=url[n]+'a'-'A'; else scheme[n]=url[n];
       n++;
     } else if(url[n]==':') {
