@@ -1005,7 +1005,9 @@ grey scales are usable too, in addition to full colours and symbolic).
 
 The use of these extensions is optional. Clients and servers are not
 required to read them, and whoever sets up the certificates are not
-required to set these extensions.
+required to set these extensions. Most of these extensions are independent
+of the protocol; they are not only for use with Scorpion protocol, and
+they may be used with any protocol.
 
 * 2.25.327847519394146920218914781995694576662.1.6 = The data type is a
 set of integers. The values are the port numbers for use with TCP. This
