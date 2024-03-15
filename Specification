@@ -20,6 +20,15 @@ then a carriage return and a line feed. (See the below sections about the
 definitions of the send and receive subprotocols. "Subprotocols" is similar
 than the different methods of HTTP, such as GET and PUT.)
 
+The URL is supposed to have a slash after the host name (or after the port
+number if present); the client MUST NOT send a URL that follows the host
+name or port number immediately by # or ? or a carriage return. If it does
+anyways, te server MUST either treat it as though the slash is present or
+issue a redirect to / or to the full URL with / added on the end or to a
+URL that those URLs would redirect to; this SHOULD be a permanent redirect.
+(The client also should add / if it is missing according to the above in
+the case of a link or a redirect to such a URL, too.)
+
 The server then sends the status line, which consists of a two-digit status
 code, followed by a space and then the parameters (which may be empty), and
 then another carriage return and line feed. Parameters are separated by
