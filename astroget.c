@@ -983,6 +983,20 @@ static int s_https(const Scogem_URL*u,Sender*z) {
   return s_http_1(u,z,1);
 }
 
+static int r_nex(const Scogem_URL*u,Receiver*z) {
+  int f;
+  if(u->resource_end>u->resource_start) scogem_decode_m(0,memfile,u->url+u->resource_start+1,u->resource_end-u->resource_start-1);
+  fputc('\n',memfile);
+  f=dial(u->host,u->portnumber);
+  send_mem(f);
+  // TODO: decide file format by suffix
+  if(z->header) z->header(z->obj,"20 ? :");
+  raw_download_from(f,z);
+  shutdown(f,SHUT_RDWR);
+  close(f);
+  return 0;
+}
+
 static void rs_nntp_readline(char*buf,int f) {
   int i=0;
   int c;
@@ -1352,6 +1366,7 @@ static const ProtocolInfo protocol_info[]={
   {"hashed",r_hashed,rr_hashed,0},
   {"http",r_http,rr_http,s_http},
   {"https",r_https,rr_https,s_https},
+  {"nex",r_nex,0,0},
   {"nntp",r_nntp,0,s_nntp},
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
   {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
