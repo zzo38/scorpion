@@ -1150,6 +1150,12 @@ protocol, while TLS is optional (but is recommended). There is no
 requirement of which versions, ciphers, extensions, etc of TLS will be
 implemented; an implementation can do whatever it is able to do.
 
+In cases where improved security is required, users might be able to
+determine the required public keys ahead of time before connecting to
+the server, and may install those keys in the computer. (The method for
+acquiring those keys is deliberately not specified in this document; it
+is something that each user will have ti figure out by themself.)
+
 The recommended way to handle TLS cipher suites, TLS validation, etc, is
 whatever way the client software uses for any protocols that it already
 implements (e.g. Gemini client can use TOFU, curl can validate them in the
@@ -1180,6 +1186,19 @@ and allow the user to adjust them before sending the request (in this case,
 the existing password should not be hidden in the prompt, but if a new
 password is entered then it should normally be hidden (unless the user sets
 an option to not hide passwords)). (This paragraph is advisory only.)
+
+The username and password can be spied on if TLS is not used. If you
+consider this significant, then a client MAY wish to warn a user about
+logging in when using an insecure connection. If the client software knows
+that this server allows secure connections, then it may also have an option
+to automatically redirect to the secure connection (it MUST NOT do such a
+thing automatically unless the end user can easily disable this feature).
+An alternative, which is only suitable for uploading and which does not
+hide the data being transferred, is to use HMAC for security.
+
+(It is also possible for HMAC, client certificates, and username/password
+to be combined, although it is not usually useful to combine the use of
+client certificates with the other methods.)
 
 (TODO)
 
