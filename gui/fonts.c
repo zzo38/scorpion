@@ -166,6 +166,16 @@ const char*load_font_into_set(FILE*f,FontSet*s,const char*(*ext)(Font*,Uint8,Uin
   return 0;
 }
 
+int font_has_glyph(const Font*f,Uint16 c) {
+  return (c>=f->min_code && c<=f->max_code && f->ref[c-f->min_code]);
+}
+
+int font_set_has_glyph(const FontSet*s,Uint32 c) {
+  const Font*f=font_in_set(s,c>>16);
+  c&=0xFFFF;
+  return (f && c>=f->min_code && c<=f->max_code && f->ref[c-f->min_code]);
+}
+
 Sint32 font_measure_glyph(const Font*d,Uint16 c) {
   if(c<d->min_code || c>d->max_code || !d->ref[c-d->min_code]) c=d->def_code;
   if(c<d->min_code || c>d->max_code) return 0;

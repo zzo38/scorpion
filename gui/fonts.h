@@ -26,6 +26,8 @@ void unload_font(Font*d);
 Font*font_in_set(const FontSet*s,Uint16 p);
 Font*font_in_set_add(FontSet*s,Uint16 p);
 const char*load_font_into_set(FILE*f,FontSet*s,const char*(*ext)(Font*,Uint8,Uint8*),int ov);
+int font_has_glyph(const Font*d,Uint16 c);
+int font_set_has_glyph(const FontSet*s,Uint32 c);
 Sint32 font_measure_glyph(const Font*d,Uint16 c);
 void font_measure_ascii(const Font*d,const Uint8*t,Sint32*r);
 void font_measure_tron32(const FontSet*s,Uint32**t,Sint32*r);
