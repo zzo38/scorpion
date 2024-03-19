@@ -1128,11 +1128,7 @@ requires it) and for client certificates (if any have been provided):
 
 * REMOTE_HOST = The IP address of the client.
 
-* SSL_CLIENT_DN = Distinguished name of verified client certificates.
-
-* SSL_CLIENT_I_DN = Issuer DN of client certificates.
-
-(TODO: Keys of client certificates.)
+(TODO: Some way to read the contents of client certificates.)
 
 
 === Security issues ===
