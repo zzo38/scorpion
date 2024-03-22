@@ -574,6 +574,9 @@ The possible character encodings are:
 
 The control codes are:
 
+* 0x02 = Whatever comes before it is some kind of section number or item
+number or a bullet indicating a list item.
+
 * 0x09 = Tab; only in a preformatted block. This should not be used if
 exact spacing is requred, since the way that it is displayed is
 implementation-dependent (and possibly configurable by the user).
@@ -605,9 +608,14 @@ the text and then 0x18 and then the other text and then the 0x19.
 * 0x18 = Begin the furigana text of the furigana. If furigana is not
 implemented (or if the user disabled it), then it should display the
 main text of a furigana block but should not display the furigana text.
+(Alternatively, it might have an option which causes the furigana text
+to be displayed in parentheses or some other kind of delimiters, which
+would effectively make 0x18 and 0x19 aliases for graphic characters.)
 
 * 0x19 = End of the furigana. You are not supposed to nest any other
-control codes inside of the furigana blocks.
+control codes inside of the furigana blocks (although 0x10 is allowed,
+if this block uses the PC character code; however, furigana probably
+would not be common when using PC character codes).
 
 * 0x1B = Used for SGR codes. The next byte MUST be 0x5B, and then zero
 or more bytes in range 0x30 to 0x3B except 0x3A, and then one byte
@@ -695,7 +703,7 @@ A table specification consists of:
 * The specifications for each field; see below.
 
 A matrix specification is similar, but there is only one field, and instead
-of one byte indicating how many fields, you will have two big-endian 24-bit
+of one byte indicating how many fields, you will have two big-endian 32-bit
 numbers being how many rows and how many columns.
 
 A field specification consists of:
@@ -1128,7 +1136,11 @@ requires it) and for client certificates (if any have been provided):
 
 * REMOTE_HOST = The IP address of the client.
 
-(TODO: Some way to read the contents of client certificates.)
+* CLIENT_CERTIFICATE_HASH
+
+* CLIENT_CERTIFICATE_KEY
+
+(TODO: Some way to read the full contents of client certificates.)
 
 
 === Security issues ===
