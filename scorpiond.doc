@@ -110,8 +110,6 @@ to the Scorpion protocol.
 
 So far, the following features are not implemented yet:
 
-* User directories (if URL path starts with /~ and a user name)
-
 * TLS and client certificates
 
 * MIME/ULFI overrides per file or directory

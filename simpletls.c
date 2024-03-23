@@ -148,7 +148,6 @@ int secure_socket(struct sockaddr*addr,const char*hostname,const char*options,co
 
 /*
   TODO:
-  - Implement client certificates
   - Ensure all options work properly
   - If anything else is wrong, fix that too
 */
