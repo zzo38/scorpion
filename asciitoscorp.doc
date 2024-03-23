@@ -50,6 +50,11 @@ In the below list, ** means it is only allowed at the beginning of a block,
 and it defines the block type. If no block type is specified, then it is a
 normal paragraph block.
 
+||
+  Outside of any other command that expects multiple parts, this command is
+  used to separate the section number or item number (or bullet) from the
+  rest of the text in the same heading or paragraph.
+
 <1> or <1| name |1> **
   Make a level 1 heading (the outermost level). You can optionally specify
   a name which is used after the # in a URL to refer to that heading.

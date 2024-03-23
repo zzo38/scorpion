@@ -511,9 +511,10 @@ static int do_block(void) {
       }
     } else if(tokent==TOK_COMMAND_MID) {
       switch(tokenv) {
-        case CMD_0: if(mode=='F') goto mid_fur; goto bad;
+        case CMD_0: if(mode=='F') goto mid_fur; if(!mode) goto mid_0; goto bad;
         case CMD_FUR: mid_fur: if(mode!='F') goto bad; fputc(0x18,bodyf); mode='f'; if(splane!=plane) plane=0; break;
         default: goto bad;
+        mid_0: fputc(0x02,bodyf); break;
       }
     } else if(tokent==TOK_EOF || tokent==TOK_BLANK_LINE) {
       if(mode) Error("Unterminated subcommand");
