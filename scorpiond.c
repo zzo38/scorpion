@@ -10,9 +10,13 @@ exit
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/select.h>
 #include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 typedef struct {
@@ -147,6 +151,59 @@ static void normal(const char*suffix) {
   close(fd);
   exit(0);
 }
+
+#ifdef CONFIG_ALLOW_SOCKET
+static int send_counted_string(int fd,long len,const void*data) {
+  unsigned char buf[4]={len>>24,len>>16,len>>8,len};
+  if(send(fd,buf,4,0)==-1 || send(fd,data,len,0)==-1) return -1;
+  return 0;
+}
+
+static int do_socket(const char*req2) {
+  unsigned char buf[CONFIG_BUF_SIZE];
+  ssize_t x,y,z;
+  fd_set set;
+  const char*p;
+  int fd=socket(AF_UNIX,SOCK_STREAM,0);
+  struct sockaddr_un sa={};
+  if(fd==-1) return -1;
+  sa.sun_family=AF_UNIX;
+  strncpy(sa.sun_path,name,sizeof(sa.sun_path)-1);
+  if(connect(fd,(void*)(&sa),sizeof(sa))) return -1;
+  send_counted_string(fd,req2-req,req);
+  send_counted_string(fd,strlen(req2),req2);
+  if(p=getenv("REMOTE_HOST")) send_counted_string(fd,strlen(p),p); else send_counted_string(fd,0,"");
+  send_counted_string(fd,0,""); // reserved for client certificate
+#ifdef CONFIG_CANCEL_ALARM
+  alarm(0);
+#endif
+  for(;;) {
+    FD_ZERO(&set);
+    FD_SET(0,&set);
+    FD_SET(fd,&set);
+    if(select(fd+1,&set,0,0,0)<=0) break;
+    if(FD_ISSET(0,&set)) {
+      z=read(0,buf,CONFIG_BUF_SIZE);
+      if(z<=0) break;
+      for(y=0;y<z;) {
+        x=write(fd,buf+y,z);
+        if(x<0) break;
+        y+=x;
+      }
+    }
+    if(FD_ISSET(fd,&set)) {
+      z=read(fd,buf,CONFIG_BUF_SIZE);
+      if(z<=0) break;
+      for(y=0;y<z;) {
+        x=write(1,buf+y,z);
+        if(x<0) break;
+        y+=x;
+      }
+    }
+  }
+  return 0;
+}
+#endif
 
 int main(int argc,char**argv) {
   char*p;
@@ -300,6 +357,14 @@ int main(int argc,char**argv) {
 #endif
           normal(s);
           return 0;
+#ifdef CONFIG_ALLOW_SOCKET
+        } else if(S_ISSOCK(stats.st_mode)) {
+#ifndef CONFIG_ALLOW_USER_SOCKET
+          if(userinfo) goto noexec;
+#endif
+          if(do_socket(p)) goto internal;
+          return 0;
+#endif
         } else {
           goto forbid;
         }

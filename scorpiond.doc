@@ -85,6 +85,22 @@ CONFIG_ALLOW_USER_CGI
   directories (attempting to do so always results in a 50 error if
   CONFIG_ALLOW_CGI is defined but not CONFIG_ALLOW_USER_CGI).
 
+CONFIG_ALLOW_SOCKET
+  If the requested file is a socket, then defining this allows the Scorpion
+  server to connect to the socket if it is requested. That socket must
+  already be listening, otherwise the connection will fail.
+
+CONFIG_ALLOW_USER_SOCKET
+  If CONFIG_USER_DIR, CONFIG_ALLOW_USER_SOCKET, and CONFIG_ALLOW_SOCKET
+  are all defined, then it is also allowed to connect to sockets in user
+  directories. This might be safer than allowing CGI in user directories
+  since it will not run the user program with the same privileges as the
+  rest of the Scorpion server, although it requires that the user is able
+  to run background programs.
+
+CONFIG_BUF_SIZE
+  Maximum buffer size (in bytes) for transfering data between sockets.
+
 mimetypes *
   An array of the file types. Each element is a structure of two elements,
   the first being the last part of the file name after the "." (which it
@@ -101,9 +117,16 @@ These directories can then contain any files. If the file name begins with
 .. then it cannot be accessed.
 
 If a file is executable then it will be executed, with the full request as
-its first argument, and only the pat after the file name as its second
+its first argument, and only the part after the file name as its second
 argument; it must write the header line and all data to stdout, according
 to the Scorpion protocol.
+
+If the requested file is a socket, then it connects to the socket, and
+sends four counted strings, each of which is prefixed by a big-endian
+32-bit length: the part of the request up to and including the file name,
+the part of the request after the file name, the client IP address, and the
+client certificate (which will be empty if there is no client certificate).
+After that, it communicates directly with the service, both ways.
 
 
 === Not implemented ===
