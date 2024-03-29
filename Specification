@@ -1140,7 +1140,22 @@ requires it) and for client certificates (if any have been provided):
 
 * CLIENT_CERTIFICATE_KEY
 
-(TODO: Some way to read the full contents of client certificates.)
+Also on POSIX systems, if the file is actually a UNIX socket rather than
+a executable file or a non-executable regular file, then it can work by
+connecting to the socket and sending four strings each preceded by the
+big-endian 32-bit length, and then communication (always unencrypted) will
+go both ways. These four strings are:
+
+* The part of the request up to and including the file name.
+
+* The part of the request after the file name (same as what would be
+argv[2] if it was an executable file).
+
+* The client's IP address (what would be the REMOTE_HOST environment
+variable if it was an executable file).
+
+* The client certificate (this will be empty (but still present) if no
+client certificate has been provided or if the connection is non-TLS).
 
 
 === Security issues ===
