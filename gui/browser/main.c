@@ -20,7 +20,7 @@ FILE*fopenat(int fd,const char*name,const char*mode) {
   if(strchr(mode,'x')) m|=O_EXCL;
   if(strchr(mode,'e')) m|=O_CLOEXEC;
   if(*mode=='w') m|=O_TRUNC;
-  fd=openat(fd,name,m);
+  fd=openat(fd,name,m,0666);
   f=fdopen(fd,mode);
   if(fd!=-1 && !f) close(fd);
   return f;
@@ -57,11 +57,6 @@ static void load_configuration(void) {
   if(!f) err(1,"Cannot open configuration file");
   if(xrm_load(xrm,f,0)) errx(1,"Cannot load configuration file");
   fclose(f);
-  // Font configuration
-  f=fopenat(config_dir,"fontconfig","r");
-  if(!f) err(1,"Cannot open font configuration file");
-  load_fontconfig(f);
-  fclose(f);
   
 }
 
@@ -79,5 +74,6 @@ int main(int argc,char**argv) {
   if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) errx(1,"Cannot initialize SDL: %s",SDL_GetError());
   atexit(SDL_Quit);
   init_video();
+  load_fontconfig();
   
 }

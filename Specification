@@ -107,7 +107,10 @@ and servers are not required to verify that the version code uses this
 restricted character set.)
 
 3x = Redirect. The parameter is another URL which it should redirect to,
-which can be temporary or permanent.
+which can be temporary or permanent. If the original URL contains a
+fragment part and the target URL does not, then the client SHOULD add the
+fragment part of the original URL to the target URL, too (unless the client
+somehow knows that the fragment part is not useful).
 
 4x = Temporary error. Has two parameters:
 
@@ -493,7 +496,9 @@ include leading zeros if any. List of hash algorithms:
 
 (A request of the Scorpion protocol that sends a URL using the hashed:
 scheme is considered to be a proxied request (even if it is a URL of a file
-on that server), and may be refused.)
+on that server), and may be refused. Clients MUST NOT send such requests,
+unless the user configured it to be a proxy for the hashed: scheme (the
+ability to do so is not required to be implemented, though).)
 
 
 === Document file format ===
@@ -575,7 +580,8 @@ The possible character encodings are:
 The control codes are:
 
 * 0x02 = Whatever comes before it is some kind of section number or item
-number or a bullet indicating a list item.
+number or a bullet indicating a list item. (This may also be used to
+separate the word from the definition in a definition list.)
 
 * 0x09 = Tab; only in a preformatted block. This should not be used if
 exact spacing is requred, since the way that it is displayed is
