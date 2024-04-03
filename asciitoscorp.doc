@@ -3,6 +3,35 @@ or EUC character encoding, if declared in the file; both are supersets of
 ASCII) from stdin, and write the Scorpion document file to stdout.
 
 
+=== Switches ===
+
+Normally, no switches are needed. However, switches can be used to make it
+work in different modes.
+
+-I
+  Enable internal mode. The output will be in a format which will be used
+  by asciitoscorp invoking itself in multi mode. You should not use this
+  option by yourself unless you really know what you are doing, since this
+  option is rarely useful.
+
+-a
+  Always regenerate all output files, regardless of modification times.
+  This also skips reading the control file (it will still write to the
+  control file in multi mode, though). This switch is not meaningful unless
+  combined with the -m switch.
+
+-c #
+  Set the name of the control file. If not specified, then the name of the
+  control file will be read from the command file. This switch is not
+  meaningful unless combined with the -m switch.
+
+-m #
+  Enable multi mode. It will read a command file from the specified file
+  name. If it is - or an empty string then it reads the command file from
+  stdin instead. This will produce multiple output files, according to the
+  specifications in the command file, instead of writing to stdout.
+
+
 === Syntax ===
 
 <name> means a command (similar than <name> in HTML or <name/> in XML).
@@ -27,7 +56,8 @@ A line break is treated as a space in most contexts. Leading and trailing
 spaces, and multiple consecutive spaces, are treated as a single space in
 most contexts.
 
-|= can be followed by a line break to suppress the extra space.
+|= can be followed by a line break to suppress the extra space. You can
+also add extra stuff on the same line after |= which will be ignored.
 
 You can use <{ and }> or |{ and }| to surround text which should not be
 interpreted as commands; they are interpreted as raw characters. They
@@ -131,4 +161,105 @@ normal paragraph block.
 
 <X> or <X| attribute |X> **
   Make a preformatted block.
+
+
+=== Command file ===
+
+The command file in multi mode consists of a sequence of the commands
+listed below. Any blank line and any line starting with # is a comment and
+is ignored. (Not all features are implemented yet, although all of the
+commands listed below are accepted, even if they are not currently useful.)
+
+ALL
+  Follow by a number 0 or 1. If it is 0 (which is the default setting)
+  then it will skip any files that have not changed, but if it is 1 then
+  it will always regenerate all output files. The -a switch overrides this
+  command and causes it to always regenerate all output files.
+
+CD
+  Change directory. It will automatically change directory to the directory
+  containing the command file, if you specify the name of the command file
+  by the -m switch; this will change directory relative to that one.
+
+CNV
+  Convert one or more files. Give two file names with a space in between;
+  first the input file and then the output file. Optionally you can have *
+  in both file names, in which case it matches all input files that match
+  the pattern, and substitute whatever * matches in the input file name
+  for the * in the output file name.
+
+CTR
+  Specify the name of the control file, which contains internal data which
+  can be restored later to avoid repeating unnecessary work. If the file
+  does not already exist, it will be created. The -c switch overrides this
+  command, if it is specified. If this command is used, then it should be
+  specified before any commands which read or write any other files.
+
+DATA
+  Data entry. The data can be arbitrary text.
+
+NOWJ
+  Set an environment variable, like SET, but the value will instead be the
+  date/time format according to strftime function.
+
+NOWZ
+  Same as NOWJ but using UTC instead of local time.
+
+PR
+  Define a property.
+
+REW
+  Rewind the data entry and discard all existing data entry.
+
+SEND
+  Follow by an external shell command; it is executed and the data entry
+  is provided as stdin. Each data item is null-terminated.
+
+SEQ
+  Reset the sequence number. The next sequence number will be one more
+  than the specified number. (See the section about special environment
+  variables for details.)
+
+SET
+  Set an environment variable. Put = between the name and value.
+
+SYS
+  Execute an external program. If the exit code is nonzero, it is an error.
+
+Note: The control file and the -a switch and ALL command is not currently
+implemented; it will always do all of the files in all cases. (It will
+accept -a and ALL but they currently have no meaning.)
+
+
+=== Special environment variables ===
+
+In the multi mode and internal mode, environment variables whose name
+starts with _ are special and have the meanings described below. In most
+cases, you should treat them as read-only; although writing to them is not
+disallowed, it probably won't work properly if you do. (These environment
+variables cannot be used in the single file mode.)
+
+_ctim
+  The ctime of the current input file.
+
+_glo
+  Number of files that the glob pattern of the most recent CNV command
+  matched. (If there is no glob pattern, then this variable is not used.)
+
+_in
+  Name of input file.
+
+_mtim
+  The mtime of the current input file.
+
+_name
+  The part of the file name that the * matched in the CNV command.
+
+_out
+  Name of output file.
+
+_seq
+  The sequence number. This is 1 for the first file converted, 2 for the
+  next file, etc. It is not automatically reset between CNV commands; you
+  must use the SEQ command to reset it.
 

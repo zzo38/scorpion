@@ -5,13 +5,23 @@ exit
 
 #define _GNU_SOURCE
 #include <err.h>
+#include <glob.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
+
+enum {
+  IM_UNKNOWN,
+  IM_NORMAL,
+  IM_DATA,
+  IM_PROPERTY,
+};
 
 enum {
   TOK_EOF,
@@ -47,6 +57,12 @@ static FILE*bodyf;
 static uint8_t curchset=0x10;
 static uint32_t tokent,tokenv;
 static FILE*infile;
+static char internalmode;
+static char multimode;
+static char regen_flag;
+static FILE*controlfile;
+static char controlfile_done;
+static unsigned int seqnum;
 
 #define InvalidTC(xxx,yyy) ((((xxx)>>yyy)&0xFF)==0x7F || (((xxx)>>yyy)&0xFF)<0x21 || (((xxx)>>yyy)&0xFF)>0xFD)
 
@@ -247,6 +263,7 @@ static void nexttok(void) {
   c=inp();
   tokenv=0;
   if(c==EOF) {
+    eof:
     tokent=TOK_EOF;
   } else if(c=='<' || c=='|') {
     linestate=1;
@@ -259,7 +276,12 @@ static void nexttok(void) {
         curchset=i;
         goto restart;
       } else if(c=='=' && !i && tokent==TOK_COMMAND_END) {
-        linestate=2;
+        linestate=0;
+        for(;;) {
+          c=inp();
+          if(c=='\n') goto restart;
+          if(c==EOF) goto eof;
+        }
         goto restart;
       } else if(c=='{' && !i) {
         linestate=(tokent==TOK_COMMAND?3:4);
@@ -349,6 +371,7 @@ static int do_include(char p) {
     putchar(c);
     s=fgetc(f)<<8; s|=fgetc(f);
     if(feof(f)) errx(2,"Unexpected EOF in include file");
+    if(internalmode) putchar(IM_NORMAL);
     putchar(s>>8); putchar(s);
     while(s) {
       t=fread(m,1,s>0x2000?0x2000:s,f);
@@ -373,7 +396,7 @@ static int do_include(char p) {
 static void set_size_attribute(void) {
   struct stat s;
   fflush(attrf);
-  if(!attrbuf) errx(1,"Memory error");
+  if(!attrbuf) errx(2,"Memory error");
   if(stat(attrbuf,&s)) err(1,"Cannot stat");
   if(!S_ISREG(s.st_mode)) Error("Stat is not regular file");
   fprintf(attrf,"%llu ",(long long)s.st_size);
@@ -403,6 +426,7 @@ static int do_block(void) {
       case CMD_6: bt=0x06; break;
       case CMD_ALT: bt=0x0B; if(tt==TOK_COMMAND) Error("Attribute is required for <ALT>"); break;
       case CMD_ASK: bt=0x09; break;
+      case CMD_DATA: if(tt==TOK_COMMAND_BEGIN) Error("Attribute not allowed for <DATA>"); if(!internalmode) Error("<DATA> not allowed in single file mode"); break;
       case CMD_INC: if(tt==TOK_COMMAND) Error("Attribute is required for <INC>"); break;
       case CMD_INT: bt=0x0A; break;
       case CMD_L: bt=0x08; break;
@@ -532,6 +556,7 @@ static int do_block(void) {
   }
   done:
   if(!as && !bs) return 1;
+  if(internalmode) putchar(tv==CMD_DATA?IM_DATA:IM_NORMAL);
   putchar(bt|(curchset&0xF0));
   putchar(as>>8); putchar(as);
   if(as) fwrite(attrbuf,1,as,stdout);
@@ -541,10 +566,239 @@ static int do_block(void) {
   return 1;
 }
 
+static void define_property(char*p) {
+  errx(1,"Not implemented"); //TODO
+}
+
+static void open_controlfile(const char*name) {
+  if(controlfile_done) return;
+  if(!controlfile) controlfile=fopen(name,"r+")?:fopen(name,"w+x");
+  if(!controlfile) err(1,"Cannot open control file");
+  if(regen_flag==1) return;
+  //TODO: read control file
+}
+
+static void im_normal(FILE*f,FILE*o) {
+  uint32_t s,t;
+  char m[0x2000];
+  fputc(fgetc(f),o);
+  s=fgetc(f)<<8; s|=fgetc(f);
+  if(feof(f)) errx(2,"Unexpected error");
+  fputc(s>>8,o); fputc(s,o);
+  while(s) {
+    t=fread(m,1,s>0x2000?0x2000:s,f);
+    if(!t || t>s) err(2,"Unexpected error");
+    fwrite(m,1,t,o);
+    s-=t;
+  }
+  s=fgetc(f)<<16; s|=fgetc(f)<<8; s|=fgetc(f);
+  if(feof(f)) errx(2,"Unexpected error");
+  fputc(s>>16,o); fputc(s>>8,o); fputc(s,o);
+  while(s) {
+    t=fread(m,1,s>0x2000?0x2000:s,f);
+    if(!t || t>s) err(2,"Unexpected error");
+    fwrite(m,1,t,o);
+    s-=t;
+  }
+}
+
+static void im_data(FILE*f) {
+  uint32_t s,t;
+  char m[0x2000];
+  fgetc(f); // unused
+  if(fgetc(f) || fgetc(f)) errx(2,"Unexpected error");
+  s=fgetc(f)<<16; s|=fgetc(f)<<8; s|=fgetc(f);
+  if(feof(f)) errx(2,"Unexpected error");
+  while(s) {
+    t=fread(m,1,s>0x2000?0x2000:s,f);
+    if(!t || t>s) err(2,"Unexpected error");
+    fwrite(m,1,t,bodyf);
+    s-=t;
+  }
+  fputc(0,bodyf);
+}
+
+static void do_one_conversion(const char*in,const char*out,int m,const char*tem) {
+  FILE*fi=fopen(in,"r");
+  FILE*fo=fopen(out,"w");
+  FILE*f;
+  pid_t x;
+  int d[2];
+  char b[64];
+  struct stat s;
+  int c;
+  if(!fi || !fo) err(1,"Cannot open file");
+  snprintf(b,32,"%u",++seqnum);
+  if(setenv("_seq",b,1) || setenv("_in",in,1) || setenv("_out",out,1)) err(2,"Cannot set environment variable");
+  if(stat(in,&s)) err(2,"Cannot stat file '%s'",in);
+  snprintf(b,64,"%llu",(long long)s.st_mtime);
+  setenv("_mtim",b,1);
+  snprintf(b,64,"%llu",(long long)s.st_ctime);
+  setenv("_ctim",b,1);
+  if(pipe(d)) err(2,"Cannot create pipe");
+  x=fork();
+  if(x==-1) err(2,"Cannot fork");
+  if(x) {
+    // Parent
+    close(d[1]);
+    f=fdopen(d[0],"r");
+    for(;;) switch(c=fgetc(f)) {
+      case EOF: goto eof;
+      case IM_NORMAL: im_normal(f,fo); break;
+      case IM_DATA: im_data(f); break;
+      default: errx(3,"Unknown error");
+    }
+    eof: fclose(f);
+    waitpid(x,&c,0);
+    if(!WIFEXITED(c) || WEXITSTATUS(c)) errx(3,"External program exit code %d",WEXITSTATUS(c));
+  } else {
+    // Child
+    close(d[0]);
+    dup2(fileno(fi),0);
+    dup2(d[1],1);
+    execl("/proc/self/exe",in,"-I",(void*)0);
+    warn("Cannot execute self");
+    _exit(3);
+  }
+  fclose(fi);
+  fclose(fo);
+}
+
+static void do_conversions(char*p,int m) {
+  char b[512];
+  glob_t g={0,0,0};
+  int i,j,n;
+  char*q=strchr(p,' ');
+  char*pa;
+  char*qa;
+  char*s;
+  char*t=0;
+  if(!q) errx(1,"Improper command in multi mode: CNV%c %s"," TX"[m],p);
+  *q++=0;
+  if(m) {
+    t=strchr(q,' ');
+    if(!t) errx(1,"Improper command in multi mode");
+    *t++=0;
+  }
+  if(pa=strchr(p,'*')) {
+    qa=strchr(q,'*');
+    if(!qa) errx(1,"Improper CNV command");
+    i=glob(p,GLOB_ERR|GLOB_NOESCAPE|GLOB_NOSORT|GLOB_MARK,0,&g);
+    if(i==GLOB_NOMATCH) {
+      warnx("No match for pattern '%s'",p);
+      return;
+    } else if(i) {
+      errx(2,"Glob error (%d)",i);
+    }
+    snprintf(b,512,"%u",(int)g.gl_pathc);
+    setenv("_glo",b,1);
+    n=strlen(p);
+    for(i=0;i<g.gl_pathc;i++) {
+      s=g.gl_pathv[i];
+      if(!s || !*s || s[(j=strlen(s))-1]=='/') continue;
+      snprintf(b,512,"%.*s",j-n+1,s+(pa-p));
+      setenv("_name",b,1);
+      snprintf(b,512,"%.*s%.*s%s",(int)(qa-q),q,j-n+1,s+(pa-p),qa+1);
+      do_one_conversion(s,b,m,t);
+    }
+    globfree(&g);
+  } else {
+    do_one_conversion(p,q,m,t);
+  }
+}
+
+static int do_time_env(char*p,int m) {
+  char*q=strchr(p,'=');
+  struct tm tm;
+  time_t ti=time(0);
+  char buf[256];
+  if(!q) return 1;
+  *q++=0;
+  if(m) gmtime_r(&ti,&tm); else localtime_r(&ti,&tm);
+  if(!strftime(buf,255,q,&tm)) errx(1,"Cannot convert date/time");
+  if(setenv(p,buf,1)) err(2,"Cannot set environment variable '%s'",p);
+  return 0;
+}
+
+static void do_send_data(char*p) {
+  FILE*f;
+  uint32_t s;
+  fflush(bodyf);
+  s=ftell(bodyf);
+  if(!bodybuf) err(2,"Memory error");
+  f=popen(p,"w");
+  if(!p) err(2,"Cannot open pipe");
+  fwrite(bodybuf,1,s,f);
+  pclose(f);
+}
+
+static int do_multi(void) {
+  static const int mu[4]={'\1\0\0\0','\0\1\0\0','\0\0\1\0','\0\0\0\1'};
+  static const int ms[5]={'____','\0___','\0\0__','\0\0\0_','\0\0\0\0'};
+  char*line=0;
+  size_t line_size=0;
+  char*p;
+  char*q;
+  int c,i,m;
+  while(getline(&line,&line_size,stdin)>0) {
+    p=line+strlen(line);
+    while(p>line && (p[-1]==' ' || p[-1]=='\t' || p[-1]=='\n' || p[-1]=='\r')) *--p=0;
+    if(*line=='#' || !*line) continue;
+    for(p=line,m=i=0;i<4;i++) {
+      if(p[i]==' ' || p[i]=='=' || !p[i]) break;
+      if(p[i]>='a' && p[i]<='z') p[i]+='A'-'a';
+      m+=mu[i]*p[i];
+    }
+    m+=ms[i];
+    if(p[i]!=' ' && p[i]!='=' && p[i]) goto bad;
+    p+=i+(p[i]?1:0);
+    switch(m) {
+      case 'ALL_': if(regen_flag!=1) regen_flag=strtol(p,0,10)?2:0; break;
+      case 'CD__': if(chdir(p)) err(1,"Cannot change directory"); break;
+      case 'CNV_': do_conversions(p,0); break;
+      case 'CNVT': do_conversions(p,1); break;
+      case 'CNVX': do_conversions(p,2); break;
+      case 'CTR_': open_controlfile(p); break;
+      case 'DATA': fwrite(p,1,strlen(p)+1,bodyf); break;
+      case 'NOWJ': if(do_time_env(p,0)) goto bad; break;
+      case 'NOWZ': if(do_time_env(p,1)) goto bad; break;
+      case 'PR__': define_property(p); break;
+      case 'REW_': rewind(bodyf); break;
+      case 'SEND': do_send_data(p); break;
+      case 'SEQ_': seqnum=strtol(p,0,10); break;
+      case 'SET_': q=strchr(p,'='); if(!q) goto bad; *q++=0; if(setenv(p,q,1)) err(2,"Cannot set environment variable '%s'",p); break;
+      case 'SYS_': i=system(p); if(i==-1) err(1,"Cannot execute external program"); if(i=WEXITSTATUS(i)) errx(1,"External program exit code %d",i); break;
+      default: bad: errx(1,"Improper command in multi mode: %s",line);
+    }
+  }
+  return 0;
+}
+
+static void chmod_auto(char*s) {
+  char*p=strrchr(s,'/');
+  int c;
+  if(p) {
+    c=p[1];
+    p[1]=0;
+    if(chdir(s)) err(1,"Cannot change directory");
+    p[1]=c;
+  }
+}
+
 int main(int argc,char**argv) {
+  int c;
+  while((c=getopt(argc,argv,"+Iac:m:"))>0) switch(c) {
+    case 'I': internalmode=1; break;
+    case 'a': regen_flag=1; break;
+    case 'c': open_controlfile(optarg); break;
+    case 'm': multimode=1; if(*optarg && (*optarg!='-' || optarg[1]) && !freopen(optarg,"r",stdin)) err(1,"Cannot open command file"); chmod_auto(optarg); break;
+    default: return 1;
+  }
+  if(argc!=optind) errx(1,"Too many arguments");
   attrf=open_memstream(&attrbuf,&attrlen);
   bodyf=open_memstream(&bodybuf,&bodylen);
-  if(!attrf || !bodyf) err(1,"Allocation failed");
+  if(!attrf || !bodyf) err(2,"Allocation failed");
+  if(multimode) return do_multi();
   infile=stdin;
   while(do_block());
   return 0;

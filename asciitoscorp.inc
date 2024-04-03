@@ -8,6 +8,7 @@ X(6)
 X(ALT) // alternate service link
 X(ASK) // link requiring input
 X(BR) // line break
+X(DATA) // send data to multi mode
 X(E) // emphasis
 X(F) // fixpitch
 X(FI) // file info
@@ -18,6 +19,7 @@ X(INT) // interactive link
 X(L) // link
 X(N) // normal
 X(PIPE) // include pipe
+X(PR) // set property value
 X(Q) // block quote
 X(R) // reverse text direction
 X(RGR) // reset graphic rendition
