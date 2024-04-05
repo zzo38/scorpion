@@ -10,9 +10,12 @@ work in different modes.
 
 -I
   Enable internal mode. The output will be in a format which will be used
-  by asciitoscorp invoking itself in multi mode. You should not use this
-  option by yourself unless you really know what you are doing, since this
-  option is rarely useful.
+  by asciitoscorp invoking itself in multi mode. You should not normally
+  use this option by yourself; an exception is mentioned below.
+
+-J #
+  Enable internal mode, as with -I, but also specify a template file. This
+  is used internally by CNVT and has no use to be used for your own use.
 
 -a
   Always regenerate all output files, regardless of modification times.
@@ -30,6 +33,9 @@ work in different modes.
   name. If it is - or an empty string then it reads the command file from
   stdin instead. This will produce multiple output files, according to the
   specifications in the command file, instead of writing to stdout.
+
+-v
+  Enable verbose mode.
 
 
 === Syntax ===
@@ -97,13 +103,25 @@ normal paragraph block.
   Make a link that requests input. If you use <ASK> without the URL, then
   it means to use the current URL.
 
+<BODY> **
+  Only valid in a template; includes the result from the input file at this
+  point in the output file. This command must occur exactly once in a
+  template file and is not allowed in any other file.
+
 <BR>
   Line break; only valid inside of a preformatted block.
+
+<DATA> **
+  In internal mode and multi mode, this command can be used to add data to
+  the data stream; see the section about the command file for details.
 
 <E> or <E| text |E>
   Set style to emphasis. (The second syntax will revert the style to the
   most recent one that uses the first syntax, afterward. Nesting is not
   allowed and will not work.)
+
+<ENV| name |ENV>
+  Include the contents of an environment variable.
 
 <F> or <F| text |F>
   Set style to fixpitch.
@@ -147,11 +165,24 @@ normal paragraph block.
   The text will use the reverse text direction from that of the paragraph.
   The normal text direction of the paragraph is restored by |R>.
 
+<RAW| command |RAW>
+  Like <PIPE> but does not begin a new block; the output of the command is
+  entered into the body (and is not necessarily the only text in the body).
+  Note that the output might not necessarily be valid for the current kind
+  of block; if that is the case, then it will result in an invalid block.
+  (This is useful to include the contents of a plain text file (in UNIX
+  format) in a preformatted block.)
+
 <RGR>
   Reset graphic rendition.
 
 <S> or <S| text |S>
   Set style to strong.
+
+<SET| name |SET> or <SET>name=value or <SET| name=value |SET> **
+  Set an environment variable. If it is set in an input file which is to
+  be included in a template, then the environment variable will also be
+  available to be used within the template file.
 
 <SGR| numbers |SGR>
   Set graphic rendition. Put the numbers with semicolons in between.
@@ -174,7 +205,8 @@ ALL
   Follow by a number 0 or 1. If it is 0 (which is the default setting)
   then it will skip any files that have not changed, but if it is 1 then
   it will always regenerate all output files. The -a switch overrides this
-  command and causes it to always regenerate all output files.
+  command and causes it to always regenerate all output files. (This
+  feature is not fully implemented yet.)
 
 CD
   Change directory. It will automatically change directory to the directory
@@ -188,15 +220,46 @@ CNV
   the pattern, and substitute whatever * matches in the input file name
   for the * in the output file name.
 
+CNVE
+  Like CNV but requires a third argument which is a shell command which is
+  used instead. This will receive the contents of the input file on stdin
+  and produces the output on stdout. This is the only case where it is
+  useful to use the -I switch yourself, since the output that is produced
+  must be in the format used by asciitoscorp's internal mode.
+
+CNVT
+  Like CNV but requires a third argument which is the name of the template
+  file, which has the same format as the usual asciitoscorp input file. The
+  output file is made from the template file instead of the input file, but
+  you can use the <BODY> command to include the input file.
+
+CNVX
+  Line CNV but the second argument is a shell command to execute instead of
+  an output file name. It must read the input file itself, which you can
+  find by the _in environment variable. It also must produce any desired
+  output files itself. The program should not read from stdin. If it
+  produces any output on stdout, then the output is treated as additional
+  commands to be interpreted as though they are in the command file.
+
 CTR
   Specify the name of the control file, which contains internal data which
   can be restored later to avoid repeating unnecessary work. If the file
   does not already exist, it will be created. The -c switch overrides this
   command, if it is specified. If this command is used, then it should be
-  specified before any commands which read or write any other files.
+  specified before any commands which read or write any other files. (The
+  control file is not currently meaningful; it will not read nor write it
+  and will not be able to avoid repeating unnecessary work.)
 
 DATA
   Data entry. The data can be arbitrary text.
+
+DIV
+  Divert the output from data entry to an external program instead of to
+  an internal buffer. The external program will receive EOF when the next
+  DIV or END command is reached.
+
+END
+  End the diversion from the DIV command.
 
 NOWJ
   Set an environment variable, like SET, but the value will instead be the
@@ -205,15 +268,13 @@ NOWJ
 NOWZ
   Same as NOWJ but using UTC instead of local time.
 
-PR
-  Define a property.
-
 REW
   Rewind the data entry and discard all existing data entry.
 
 SEND
   Follow by an external shell command; it is executed and the data entry
-  is provided as stdin. Each data item is null-terminated.
+  is provided as stdin. Each data item is null-terminated (unless TERM is
+  used to change the termination code).
 
 SEQ
   Reset the sequence number. The next sequence number will be one more
@@ -223,8 +284,15 @@ SEQ
 SET
   Set an environment variable. Put = between the name and value.
 
+SIZE
+  Set an environment variable to the total size of the data entry so far.
+
 SYS
   Execute an external program. If the exit code is nonzero, it is an error.
+
+TERM
+  Define the terminator code for data items, as a 8-bit hexadecimal number.
+  The default value is zero.
 
 Note: The control file and the -a switch and ALL command is not currently
 implemented; it will always do all of the files in all cases. (It will

@@ -20,7 +20,8 @@ enum {
   IM_UNKNOWN,
   IM_NORMAL,
   IM_DATA,
-  IM_PROPERTY,
+  IM_BODY,
+  IM_TEMPLATE,
 };
 
 enum {
@@ -63,8 +64,14 @@ static char regen_flag;
 static FILE*controlfile;
 static char controlfile_done;
 static unsigned int seqnum;
+static FILE*dataf;
+static uint8_t data_code=0;
+static char*template;
+static char verbose;
 
 #define InvalidTC(xxx,yyy) ((((xxx)>>yyy)&0xFF)==0x7F || (((xxx)>>yyy)&0xFF)<0x21 || (((xxx)>>yyy)&0xFF)>0xFD)
+
+static int do_multi(FILE*f);
 
 static inline int inp(void) {
   int c;
@@ -402,7 +409,50 @@ static void set_size_attribute(void) {
   fprintf(attrf,"%llu ",(long long)s.st_size);
 }
 
+static void raw_entry(FILE*f) {
+  uint32_t t;
+  FILE*p;
+  char m[0x2000];
+  int i=0;
+  for(;;) {
+    nexttok();
+    if(tokent==TOK_CHAR) {
+      if(i>=0x1FFF) Error("Too long command in <RAW>");
+      m[i++]=tokenv;
+    } else if(tokent==TOK_COMMAND_END && tokenv==CMD_RAW) {
+      break;
+    } else {
+      Error("Improper token in <RAW>");
+    }
+  }
+  m[i]=0;
+  p=popen(m,"r");
+  if(!p) err(2,"Cannot open pipe");
+  while(t=fread(m,1,0x2000,p)) fwrite(m,1,t,f);
+  pclose(p);
+}
+
+static void env_entry(FILE*f) {
+  char*s;
+  char m[256];
+  int i=0;
+  for(;;) {
+    nexttok();
+    if(tokent==TOK_CHAR && tokenv!='=') {
+      if(tokenv==' ') continue;
+      if(i>=255) Error("Too long command in <ENV>");
+      m[i++]=tokenv;
+    } else if(tokent==TOK_COMMAND_END && tokenv==CMD_ENV) {
+      break;
+    } else {
+      Error("Improper token in <ENV>");
+    }
+  }
+  if(s=getenv(m)) fputs(s,f);
+}
+
 static int do_block(void) {
+  char*q;
   int bt=0;
   uint32_t tt,tv,as,bs;
   uint16_t plane=0;
@@ -413,6 +463,7 @@ static int do_block(void) {
   int i;
   do nexttok(); while(tokent==TOK_BLANK_LINE || (tokent==TOK_CHAR && tokenv==' '));
   if(tokent==TOK_EOF) return 0;
+  as=0;
   rewind(attrf);
   rewind(bodyf);
   tt=tokent;
@@ -426,11 +477,13 @@ static int do_block(void) {
       case CMD_6: bt=0x06; break;
       case CMD_ALT: bt=0x0B; if(tt==TOK_COMMAND) Error("Attribute is required for <ALT>"); break;
       case CMD_ASK: bt=0x09; break;
-      case CMD_DATA: if(tt==TOK_COMMAND_BEGIN) Error("Attribute not allowed for <DATA>"); if(!internalmode) Error("<DATA> not allowed in single file mode"); break;
+      case CMD_BODY: if(tt==TOK_COMMAND_BEGIN) Error("Attribute not allowed for <BODY>"); if(!internalmode) Error("Not allowed in single mode"); goto tbody;
+      case CMD_DATA: if(tt==TOK_COMMAND_BEGIN) Error("Attribute not allowed for <DATA>"); if(!internalmode) Error("Not allowed in single mode"); break;
       case CMD_INC: if(tt==TOK_COMMAND) Error("Attribute is required for <INC>"); break;
       case CMD_INT: bt=0x0A; break;
       case CMD_L: bt=0x08; break;
       case CMD_PIPE: if(tt==TOK_COMMAND) Error("Attribute is required for <PIPE>"); break;
+      case CMD_SET: /* nothing to do in this case */ break;
       case CMD_Q: bt=0x0C; if(tt==TOK_COMMAND_BEGIN) Error("Attribute not allowed for <Q>"); break;
       case CMD_X: bt=0x0D; break;
       default: goto body;
@@ -439,7 +492,7 @@ static int do_block(void) {
   } else if(tt==TOK_CHAR || tt==TOK_TRON_CHAR) {
     goto body;
   } else {
-    Error("Improper token at beginning of block");
+    Error("Improper token at beginning of block (%d;%d)",tokent,tokenv);
   }
   if(tt!=TOK_COMMAND_BEGIN) goto body;
   attribute:
@@ -459,6 +512,10 @@ static int do_block(void) {
       if(tv==CMD_PIPE) return do_include(1);
       nexttok();
       goto body;
+    } else if(tokent==TOK_COMMAND_BEGIN && tokenv==CMD_RAW) {
+      raw_entry(attrf);
+    } else if(tokent==TOK_COMMAND_BEGIN && tokenv==CMD_ENV) {
+      env_entry(attrf);
     } else {
       Error("Improper token in attribute");
     }
@@ -503,19 +560,21 @@ static int do_block(void) {
         case CMD_FIS: if(bt!=0x08 || mode) goto bad; fputc(0,attrf); fputc(0x20,attrf); set_size_attribute(); as=ftell(attrf); break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(sty=0x11,bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(sty=0x12,bodyf); break;
-        case CMD_TAB: if(bt!=0x0D || mode) goto bad; fputc(0x09,bodyf); break;
+        case CMD_TAB: if((bt!=0x0D && tv!=CMD_SET) || mode) goto bad; fputc(0x09,bodyf); break;
         case CMD_RGR: if(mode) goto bad; fputs("\e[m",bodyf); break;
-        default: bad: Error("Improper command in body");
+        default: bad: Error("Improper command in body (%d;%d)",tokent,tokenv);
       }
     } else if(tokent==TOK_COMMAND_BEGIN) {
       switch(tokenv) {
         case CMD_E: if(bt==0x0D || mode) goto bad; fputc(0x13,bodyf); break;
+        case CMD_ENV: env_entry(bodyf); break;
         case CMD_F: if(bt==0x0D || mode) goto bad; fputc(0x14,bodyf); break;
         case CMD_FI: if(bt<0x08 || bt>0x09 || mode) goto bad; mode='I'; mode2=0; fputc(0,attrf); fputc(0x20,attrf); break;
         case CMD_FIS: if(bt!=0x08 || mode) goto bad; mode='I'; mode2=2; fputc(0,attrf); fputc(0x20,attrf); set_size_attribute(); break;
         case CMD_FUR: if(bt==0x0D || mode) goto bad; fputc(0x17,bodyf); mode='F'; splane=plane; break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(0x11,bodyf); break;
         case CMD_R: if(bt==0x0D || mode) goto bad; fputc(0x16,bodyf); break;
+        case CMD_RAW: if(mode) goto bad; raw_entry(bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(0x12,bodyf); break;
         case CMD_SGR: if(mode) goto bad; fputc(0x1B,bodyf); fputc(0x5B,bodyf); mode='S'; break;
         default: goto bad;
@@ -556,18 +615,33 @@ static int do_block(void) {
   }
   done:
   if(!as && !bs) return 1;
-  if(internalmode) putchar(tv==CMD_DATA?IM_DATA:IM_NORMAL);
-  putchar(bt|(curchset&0xF0));
-  putchar(as>>8); putchar(as);
-  if(as) fwrite(attrbuf,1,as,stdout);
-  putchar(bs>>16); putchar(bs>>8); putchar(bs);
-  if(bs) fwrite(bodybuf,1,bs,stdout);
+  if(tv!=CMD_SET) {
+    if(internalmode) putchar(tv==CMD_DATA?IM_DATA:IM_NORMAL);
+    putchar(bt|(curchset&0xF0));
+    putchar(as>>8); putchar(as);
+    if(as) fwrite(attrbuf,1,as,stdout);
+    putchar(bs>>16); putchar(bs>>8); putchar(bs);
+    if(bs) fwrite(bodybuf,1,bs,stdout);
+  } else {
+    if(as+bs>=0x1FFF) Error("Improper <SET>");
+    if(!as) {
+      q=memchr(bodybuf,'=',bs);
+      if(!q) Error("Improper <SET>");
+      *q++=0;
+      setenv(bodybuf,q,1);
+    } else if(q=memchr(attrbuf,'=',as)) {
+      if(bs) Error("Improper <SET>");
+      *q++=0;
+      setenv(attrbuf,q,1);
+    } else {
+      attrbuf[as]=0;
+      bodybuf[bs]=0;
+      setenv(attrbuf,bodybuf,1);
+    }
+  }
   rewind(bodyf);
   return 1;
-}
-
-static void define_property(char*p) {
-  errx(1,"Not implemented"); //TODO
+  tbody: putchar(IM_BODY); return 1;
 }
 
 static void open_controlfile(const char*name) {
@@ -612,10 +686,19 @@ static void im_data(FILE*f) {
   while(s) {
     t=fread(m,1,s>0x2000?0x2000:s,f);
     if(!t || t>s) err(2,"Unexpected error");
-    fwrite(m,1,t,bodyf);
+    fwrite(m,1,t,dataf);
     s-=t;
   }
-  fputc(0,bodyf);
+  fputc(data_code,dataf);
+}
+
+static void copy_body(FILE*f) {
+  uint32_t s;
+  fflush(bodyf);
+  s=ftell(bodyf);
+  if(!bodybuf) errx(2,"Memory error");
+  fwrite(bodybuf,1,s,f);
+  rewind(bodyf);
 }
 
 static void do_one_conversion(const char*in,const char*out,int m,const char*tem) {
@@ -627,7 +710,9 @@ static void do_one_conversion(const char*in,const char*out,int m,const char*tem)
   char b[64];
   struct stat s;
   int c;
+  if(verbose) fprintf(stderr,"Conversion: %s -> %s [%c] %s\n",in?:".",out?:".",m?:'-',tem?:".");
   if(!fi || !fo) err(1,"Cannot open file");
+  if(m=='T') rewind(bodyf);
   snprintf(b,32,"%u",++seqnum);
   if(setenv("_seq",b,1) || setenv("_in",in,1) || setenv("_out",out,1)) err(2,"Cannot set environment variable");
   if(stat(in,&s)) err(2,"Cannot stat file '%s'",in);
@@ -644,8 +729,10 @@ static void do_one_conversion(const char*in,const char*out,int m,const char*tem)
     f=fdopen(d[0],"r");
     for(;;) switch(c=fgetc(f)) {
       case EOF: goto eof;
-      case IM_NORMAL: im_normal(f,fo); break;
+      case IM_NORMAL: im_normal(f,m=='T'?bodyf:fo); break;
       case IM_DATA: im_data(f); break;
+      case IM_BODY: if(m!='t') errx(1,"Cannot use <BODY> here"); copy_body(fo); break;
+      case IM_TEMPLATE: m='t'; break;
       default: errx(3,"Unknown error");
     }
     eof: fclose(f);
@@ -656,12 +743,50 @@ static void do_one_conversion(const char*in,const char*out,int m,const char*tem)
     close(d[0]);
     dup2(fileno(fi),0);
     dup2(d[1],1);
-    execl("/proc/self/exe",in,"-I",(void*)0);
+    if(m=='T') execl("/proc/self/exe",in,"-J",tem,(void*)0);
+    else if(m=='E') execl("/bin/sh","/bin/sh","-c",tem,(void*)0);
+    else execl("/proc/self/exe",in,"-I",(void*)0);
     warn("Cannot execute self");
     _exit(3);
   }
   fclose(fi);
   fclose(fo);
+}
+
+static void do_one_conversion_x(const char*in,const char*c) {
+  FILE*f;
+  pid_t x;
+  int d[2];
+  char b[64];
+  struct stat s;
+  int i;
+  snprintf(b,32,"%u",++seqnum);
+  if(setenv("_seq",b,1) || setenv("_in",in,1)) err(2,"Cannot set environment variable");
+  if(stat(in,&s)) err(2,"Cannot stat file '%s'",in);
+  snprintf(b,64,"%llu",(long long)s.st_mtime);
+  setenv("_mtim",b,1);
+  snprintf(b,64,"%llu",(long long)s.st_ctime);
+  setenv("_ctim",b,1);
+  if(pipe(d)) err(2,"Cannot create pipe");
+  x=fork();
+  if(x==-1) err(2,"Cannot fork");
+  if(x) {
+    // Parent
+    close(d[1]);
+    f=fdopen(d[0],"r");
+    if(!f) err(2,"Cannot open");
+    if(i=do_multi(f)) exit(i);
+    fclose(f);
+    waitpid(x,&i,0);
+    if(!WIFEXITED(i) || WEXITSTATUS(i)) errx(3,"External program exit code %d",WEXITSTATUS(i));
+  } else {
+    // Child
+    close(d[0]);
+    dup2(d[1],1);
+    execl("/bin/sh","/bin/sh","-c",c,(void*)0);
+    warn("Cannot execute self");
+    _exit(3);
+  }
 }
 
 static void do_conversions(char*p,int m) {
@@ -673,16 +798,18 @@ static void do_conversions(char*p,int m) {
   char*qa;
   char*s;
   char*t=0;
-  if(!q) errx(1,"Improper command in multi mode: CNV%c %s"," TX"[m],p);
+  if(!q) errx(1,"Improper command in multi mode: CNV%c %s",m?:' ',p);
   *q++=0;
-  if(m) {
+  if(m=='E' || m=='T') {
     t=strchr(q,' ');
     if(!t) errx(1,"Improper command in multi mode");
     *t++=0;
   }
   if(pa=strchr(p,'*')) {
-    qa=strchr(q,'*');
-    if(!qa) errx(1,"Improper CNV command");
+    if(m!='X') {
+      qa=strchr(q,'*');
+      if(!qa) errx(1,"Improper CNV command");
+    }
     i=glob(p,GLOB_ERR|GLOB_NOESCAPE|GLOB_NOSORT|GLOB_MARK,0,&g);
     if(i==GLOB_NOMATCH) {
       warnx("No match for pattern '%s'",p);
@@ -698,12 +825,16 @@ static void do_conversions(char*p,int m) {
       if(!s || !*s || s[(j=strlen(s))-1]=='/') continue;
       snprintf(b,512,"%.*s",j-n+1,s+(pa-p));
       setenv("_name",b,1);
-      snprintf(b,512,"%.*s%.*s%s",(int)(qa-q),q,j-n+1,s+(pa-p),qa+1);
-      do_one_conversion(s,b,m,t);
+      if(m!='X') {
+        snprintf(b,512,"%.*s%.*s%s",(int)(qa-q),q,j-n+1,s+(pa-p),qa+1);
+        do_one_conversion(s,b,m,t);
+      } else {
+        do_one_conversion_x(s,q);
+      }
     }
     globfree(&g);
   } else {
-    do_one_conversion(p,q,m,t);
+    if(m=='X') do_one_conversion_x(p,q); else do_one_conversion(p,q,m,t);
   }
 }
 
@@ -720,19 +851,26 @@ static int do_time_env(char*p,int m) {
   return 0;
 }
 
+static void do_size_env(char*p) {
+  char buf[32];
+  fflush(attrf);
+  snprintf(buf,32,"%lu",(long)ftell(attrf));
+  if(setenv(p,buf,1)) err(2,"Cannot set environment variable '%s'",p);
+}
+
 static void do_send_data(char*p) {
   FILE*f;
   uint32_t s;
-  fflush(bodyf);
-  s=ftell(bodyf);
-  if(!bodybuf) err(2,"Memory error");
+  fflush(attrf);
+  s=ftell(attrf);
+  if(!attrbuf) err(2,"Memory error");
   f=popen(p,"w");
   if(!p) err(2,"Cannot open pipe");
-  fwrite(bodybuf,1,s,f);
+  fwrite(attrbuf,1,s,f);
   pclose(f);
 }
 
-static int do_multi(void) {
+static int do_multi(FILE*f) {
   static const int mu[4]={'\1\0\0\0','\0\1\0\0','\0\0\1\0','\0\0\0\1'};
   static const int ms[5]={'____','\0___','\0\0__','\0\0\0_','\0\0\0\0'};
   char*line=0;
@@ -740,9 +878,10 @@ static int do_multi(void) {
   char*p;
   char*q;
   int c,i,m;
-  while(getline(&line,&line_size,stdin)>0) {
+  while(getline(&line,&line_size,f)>0) {
     p=line+strlen(line);
     while(p>line && (p[-1]==' ' || p[-1]=='\t' || p[-1]=='\n' || p[-1]=='\r')) *--p=0;
+    if(verbose) fprintf(stderr,"** %s\n",line);
     if(*line=='#' || !*line) continue;
     for(p=line,m=i=0;i<4;i++) {
       if(p[i]==' ' || p[i]=='=' || !p[i]) break;
@@ -756,21 +895,26 @@ static int do_multi(void) {
       case 'ALL_': if(regen_flag!=1) regen_flag=strtol(p,0,10)?2:0; break;
       case 'CD__': if(chdir(p)) err(1,"Cannot change directory"); break;
       case 'CNV_': do_conversions(p,0); break;
-      case 'CNVT': do_conversions(p,1); break;
-      case 'CNVX': do_conversions(p,2); break;
+      case 'CNVE': do_conversions(p,'E'); break;
+      case 'CNVT': do_conversions(p,'T'); break;
+      case 'CNVX': do_conversions(p,'X'); break;
       case 'CTR_': open_controlfile(p); break;
-      case 'DATA': fwrite(p,1,strlen(p)+1,bodyf); break;
+      case 'DATA': fwrite(p,1,strlen(p),dataf); fputc(data_code,dataf); break;
+      case 'DIV_': if(dataf!=attrf) pclose(dataf); dataf=popen(p,"w"); if(!dataf) err(2,"Cannot open pipe"); break;
+      case 'END_': if(dataf!=attrf) pclose(dataf); dataf=attrf; break;
       case 'NOWJ': if(do_time_env(p,0)) goto bad; break;
       case 'NOWZ': if(do_time_env(p,1)) goto bad; break;
-      case 'PR__': define_property(p); break;
-      case 'REW_': rewind(bodyf); break;
+      case 'REW_': rewind(attrf); break;
       case 'SEND': do_send_data(p); break;
       case 'SEQ_': seqnum=strtol(p,0,10); break;
       case 'SET_': q=strchr(p,'='); if(!q) goto bad; *q++=0; if(setenv(p,q,1)) err(2,"Cannot set environment variable '%s'",p); break;
+      case 'SIZE': do_size_env(p); break;
       case 'SYS_': i=system(p); if(i==-1) err(1,"Cannot execute external program"); if(i=WEXITSTATUS(i)) errx(1,"External program exit code %d",i); break;
+      case 'TERM': data_code=strtol(p,0,16); break;
       default: bad: errx(1,"Improper command in multi mode: %s",line);
     }
   }
+  free(line);
   return 0;
 }
 
@@ -780,6 +924,7 @@ static void chmod_auto(char*s) {
   if(p) {
     c=p[1];
     p[1]=0;
+    if(verbose) fprintf(stderr,"Changing directory to: %s\n",s);
     if(chdir(s)) err(1,"Cannot change directory");
     p[1]=c;
   }
@@ -787,20 +932,33 @@ static void chmod_auto(char*s) {
 
 int main(int argc,char**argv) {
   int c;
-  while((c=getopt(argc,argv,"+Iac:m:"))>0) switch(c) {
+  while((c=getopt(argc,argv,"+IJ:ac:m:v"))>0) switch(c) {
     case 'I': internalmode=1; break;
+    case 'J': internalmode=1; template=optarg; break;
     case 'a': regen_flag=1; break;
     case 'c': open_controlfile(optarg); break;
     case 'm': multimode=1; if(*optarg && (*optarg!='-' || optarg[1]) && !freopen(optarg,"r",stdin)) err(1,"Cannot open command file"); chmod_auto(optarg); break;
+    case 'v': verbose=1; break;
     default: return 1;
   }
   if(argc!=optind) errx(1,"Too many arguments");
   attrf=open_memstream(&attrbuf,&attrlen);
   bodyf=open_memstream(&bodybuf,&bodylen);
   if(!attrf || !bodyf) err(2,"Allocation failed");
-  if(multimode) return do_multi();
+  if(multimode) {
+    dataf=attrf;
+    return do_multi(stdin);
+  }
   infile=stdin;
   while(do_block());
+  if(template) {
+    linenum=1;
+    argv[0]=template;
+    stdin=freopen(template,"r",stdin);
+    if(!stdin) err(2,"Cannot open template file");
+    putchar(IM_TEMPLATE);
+    while(do_block());
+  }
   return 0;
 }
 
