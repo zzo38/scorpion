@@ -17,6 +17,7 @@ exit
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef struct {
@@ -205,6 +206,20 @@ static int do_socket(const char*req2) {
 }
 #endif
 
+#ifdef CONFIG_LOG_FILE
+static void write_to_log_file(void) {
+  char buf[256];
+  int f=open(CONFIG_LOG_FILE,O_WRONLY|O_APPEND|O_CREAT,0666);
+  if(f==-1) return;
+  flock(f,LOCK_EX);
+  write(f,buf,snprintf(buf,256,"%lld (%s) ",(long long)time(0),getenv("REMOTE_HOST")?:""));
+  write(f,req,reqn);
+  write(f,"\n",1);
+  flock(f,LOCK_UN);
+  close(f);
+}
+#endif
+
 int main(int argc,char**argv) {
   char*p;
   char*s;
@@ -233,6 +248,9 @@ int main(int argc,char**argv) {
     req[reqn++]=c;
   }
   if(n!=1) goto bad;
+#ifdef CONFIG_LOG_FILE
+  write_to_log_file();
+#endif
   url=strchr(req,' ');
   if(!url || !url[1]) goto bad;
   p=++url;

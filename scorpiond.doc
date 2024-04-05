@@ -101,6 +101,10 @@ CONFIG_ALLOW_USER_SOCKET
 CONFIG_BUF_SIZE
   Maximum buffer size (in bytes) for transfering data between sockets.
 
+CONFIG_LOG_FILE
+  If defined, enable logging to the specified file. This must be a file
+  that scorpiond has permission to write to.
+
 mimetypes *
   An array of the file types. Each element is a structure of two elements,
   the first being the last part of the file name after the "." (which it
@@ -142,8 +146,6 @@ So far, the following features are not implemented yet:
 * Uploading files to the server, and versioned files
 
 * Rate limiting
-
-* Logs
 
 * Version 6 IP addresses in URLs
 
