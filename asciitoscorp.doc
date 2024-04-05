@@ -173,6 +173,12 @@ normal paragraph block.
   (This is useful to include the contents of a plain text file (in UNIX
   format) in a preformatted block.)
 
+<RAWI>
+  Include raw inline delimited data. This is like <RAW> except that the
+  data is inline instead of from an external program; it is immediately
+  followed by a delimiter character, which is also used to terminate it.
+  All normal processing of tokens is suppressed within the raw data.
+
 <RGR>
   Reset graphic rendition.
 

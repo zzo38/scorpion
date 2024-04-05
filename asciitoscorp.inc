@@ -24,6 +24,7 @@ X(PIPE) // include pipe
 X(Q) // block quote
 X(R) // reverse text direction
 X(RAW) // include raw data from pipe
+X(RAWI) // include raw inline delimited data
 X(RGR) // reset graphic rendition
 X(S) // strong
 X(SET) // set environment variable

@@ -432,6 +432,12 @@ static void raw_entry(FILE*f) {
   pclose(p);
 }
 
+static void raw_inline_entry(FILE*f) {
+  int t=fgetc(infile);
+  int c;
+  while((c=fgetc(infile))!=t && c!=EOF) fputc(c,f);
+}
+
 static void env_entry(FILE*f) {
   char*s;
   char m[256];
@@ -516,6 +522,8 @@ static int do_block(void) {
       raw_entry(attrf);
     } else if(tokent==TOK_COMMAND_BEGIN && tokenv==CMD_ENV) {
       env_entry(attrf);
+    } else if(tokent==TOK_COMMAND && tokenv==CMD_RAWI) {
+      raw_inline_entry(attrf);
     } else {
       Error("Improper token in attribute");
     }
@@ -559,6 +567,7 @@ static int do_block(void) {
         case CMD_F: if(bt==0x0D || mode) goto bad; fputc(sty=0x14,bodyf); break;
         case CMD_FIS: if(bt!=0x08 || mode) goto bad; fputc(0,attrf); fputc(0x20,attrf); set_size_attribute(); as=ftell(attrf); break;
         case CMD_N: if(bt==0x0D || mode) goto bad; fputc(sty=0x11,bodyf); break;
+        case CMD_RAWI: raw_inline_entry(bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(sty=0x12,bodyf); break;
         case CMD_TAB: if((bt!=0x0D && tv!=CMD_SET) || mode) goto bad; fputc(0x09,bodyf); break;
         case CMD_RGR: if(mode) goto bad; fputs("\e[m",bodyf); break;
