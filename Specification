@@ -70,7 +70,12 @@ address for some reason, but this should be avoided if possible.)
 
 * If possible, clients SHOULD allow to use the system's DNS services to
 implement encrypted Client Hello; if implemented, there MUST be an option
-to disable this feature.
+to disable this feature (although, depending on the implementation, this
+option might be a part of a different component of the operating system).
+
+* A server is not required to present a valid certificate if an incorrect
+SNI (or no SNI) is provided by the client. Clients that wish to verify the
+server's certificate should avoid using incorrect SNI.
 
 
 === Status codes ===
@@ -110,14 +115,17 @@ restricted character set.)
 which can be temporary or permanent. If the original URL contains a
 fragment part and the target URL does not, then the client SHOULD add the
 fragment part of the original URL to the target URL, too (unless the client
-somehow knows that the fragment part is not useful).
+somehow knows that the fragment part is not useful). If the number of
+consecutive redirects exceed the limit (which MUST be not more than five by
+default, although it may be configurable by the user), then the client MUST
+NOT automatically follow any further redirects.
 
 4x = Temporary error. Has two parameters:
 
 * The number of seconds which is recommended to wait before trying again;
 it must be a unsigned 31-bit number (encoded as decimal in ASCII, not as
 binary), or it can be ? if it is unable to estimate the required time
-before trying again.
+before trying again. (TODO: Possibly remove this; maybe it is not useful.)
 
 * The error message text (optional).
 
@@ -407,6 +415,15 @@ can use the same subroutines to parse them if they do terminal emulation):
 (Note that the protocol before the actual data will be ASCII only, so that
 ait is possible to use even with terminal emulators that do not implement
 this subprotocol.)
+
+The ABNF of the capability codes is:
+
+  = *capability
+  capability = prefix parameters middle suffix
+  prefix = %x3C-3F / ""
+  parameters = *(DIGIT / ";")
+  middle = %x21-2F / ""
+  suffix = %x40-7E / ""
 
 Possible capability codes:
 
@@ -783,7 +800,7 @@ that manually download files or that only download a single list of files
 once, nor does it apply to proxies, gateway services, etc (but see below
 about proxies that are themself available to be crawled).
 
-Note that this does not probhit anyone from making links to any files
+Note that this does not prohibit anyone from making links to any files
 regardless of whether or not crawling is allowed.
 
 It should first try to download the file named "/.special/crawl" to find
@@ -1015,6 +1032,43 @@ names (with the "s" colour type) should be used (although monochrome and
 grey scales are usable too, in addition to full colours and symbolic).
 
 
+=== Unordered Labels File Identification ===
+
+ULFI works according to the rules:
+
+* The valid characters are printable ASCII characters other than spaces,
+slashes, backslashes, quotation marks, and apostrophes.
+
+* A name consists of letters, digits, hyphens, dots, and underscores,
+and must start with a letter or underscore, and cannot end with a dot
+nor have two consecutive dots.
+
+* The ULFI string consists of a set of parts with colons in between. The
+order of the parts doesn't matter; it is equivalent even if the parts are
+in a different order.
+
+* Duplicate parts are improper and redundant.
+
+* A part consists of a name, followed by an optional parameter block or
+inner block. The name may also contain plus signs, as explained below.
+
+* A part name with a plus sign is a shortcut for the full part name before
+the plus sign, as well as the part name that substitutes a dot in place of
+the plus sign. There may be multiple plus signs, in which case e.g. "a+b+c"
+is the same as "a:a.b:a.b.c".
+
+* A parameter block consists of [ and ] with zero or more characters in
+between other than "[", "]", "<", ">", "{", "}", "(", and ")".
+
+* A inner block consists of < and > with another ULFI in between; this
+other ULFI cannot itself have a inner block. (This can be used for
+indicating such things as a compressed file, e.g. "gzip<text>".)
+
+Example 1: The ULFI "a.b:c" and "c:a.b" are equivalent to each other.
+
+Example 2: The ULFI "a:b+c:d" and "a:b:b.c:d" are equivalent to each other.
+
+
 === X.509 extensions ===
 
 The use of these extensions is optional. Clients and servers are not
@@ -1029,6 +1083,20 @@ extension is for use with server certificates.
 
 * 2.25.327847519394146920218914781995694576662.2 = The data type is a
 octet string, and is a comment encoded as TRON-8 encoding.
+
+* 2.25.327847519394146920218914781995694576662.3 = Favicons (clients MUST
+allow favicons to be disabled, and MAY be disabled by default). The data
+type is a sequence; each element of the sequence represents one icon. An
+implementation might support none, some, or all of the formats. See the
+section below about the formats.
+
+
+=== Favicon formats ===
+
+If the data type is a UTF-8 string, then it is interpreted as specified by:
+  gemini://mozz.us/files/rfc_gemini_favicon.gmi
+
+(TODO: other formats)
 
 
 === Recommendations and other notes ===
@@ -1053,8 +1121,8 @@ or a similar problem, and such fallbacks should be avoided if possible.
 
 Redirects should not be overused.
 
-A client should have a redirect limit; the default redirect limit should
-not exceed five. If a redirect would occur beyond the limit (which may be
+A client SHOULD have a redirect limit; the default redirect limit MUST NOT
+exceed five. If a redirect would occur beyond the limit (which may be
 configurable by the user), or if a TLS connection redirects to a non-TLS,
 or to specific other protocols (e.g. HTTPS), or a connection to the
 internet tries to redirect or link to a LAN or localhost address (it
@@ -1229,6 +1297,13 @@ hide the data being transferred, is to use HMAC for security.
 to be combined, although it is not usually useful to combine the use of
 client certificates with the other methods.)
 
+If favicons are implemented (which is not mandatory), then it MUST offer
+an option to disable favicons (which might or might not be the default),
+and MUST display them separately from any other icons (if any). The client
+MUST NOT make separate requests to download favicons automatically. An
+implementation MAY allow the user to specify their own favicons, and MAY
+have an option to auto-generate favicons.
+
 (TODO)
 
 
@@ -1247,10 +1322,11 @@ document. They are:
 
 * A reference implementation. (This is partially written.)
 
-* TLS is rather complicated, and has some other problems. Is there a
-better simpler way to do secure internet?
-
 * A way to be working with transports other than internet.
+
+* Possibly remove the recommended waiting time for 4x responses. I am
+not so sure that it was a good idea to add it (some people have also
+thought it is not such a good idea in Gemini either, anyways).
 
 (It is also possible that other changes may be made in future, than
 the above, including changes to existing things, and possibly also
@@ -1329,6 +1405,46 @@ For some details, see:
 
 Note that the Unicode planes are deprecated in the Extended TRON Code.
 
+*** Which URL specification is applicable? RFC 3986, RFC 3987, WHATWG, etc?
+
+RFC 3986. However, note that the "hashed:" scheme has its own rules.
+
+*** TLS is complicated; why don't you use a simpler mechanism (e.g. Noise)?
+
+I had considered that, but it is too difficult to know what to do.
+
+See section 4.5.3 of gemini://geminiprotocol.net/docs/faq-section-4.gmi
+for some other possible answers.
+
+It is possible that someone may be able to define a way to specify the use
+of some other transport mechanism by the host name part of the URL. In
+this case, that mechanism might have some other security mechanism built-in
+in which case the "scorpions:" scheme is not used with it, since in that
+case the encryption belongs to a different layer.
+
+Also note that the use of the "hashed:" scheme can sometimes mitigate the
+possibility of spies tampering with the data.
+
+*** Why allow non-TLS? An attacker can easily MITM requests to force
+non-TLS requests.
+
+An implementation may allow the user to configure it to not use non-TLS for
+some (or all) servers. (This is similar than "HTTPS-Everywhere", but it is
+not specific to HTTP(S).)
+
+Additionally, the client is supposed to display a warning message if a
+redirect from TLS to non-TLS (or vice-versa) occurs.
+
+I think non-TLS has benefits such as improved simplicity and improved
+energy efficiency. However, sometimes encryption is desirable, so TLS
+is permitted, too.o
+
+*** Isn't it difficult to detect whether or not the first byte is 0x16 and
+have an existing TLS library take over the connection if it is?
+
+My guess is that you can use recv with the MSG_PEEK flag. (However, I have
+not tried this. If you know otherwise, please tell me.)
+
 *** Why is it restricted to ASCII only?
 
 There are a few reasons for this:
@@ -1344,6 +1460,24 @@ specify a different character encoding anyways.
 
 Note that not everything is restricted to ASCII only; specifically, the
 documents are not restricted to ASCII only.
+
+*** Why is it a binary file format? That would make it difficult to use a
+text editor, and besides, you are redefining well-defined control codes.
+
+A text-based format would be much more difficult for the client to parse,
+to have to handle difficult escaping and nesting and other stuff like that.
+A binary format will be simpler, especially a "flat" one such as this one,
+rather than being nested like HTML and XML.
+
+There are a few possibilities for how to write the document, such as using
+a specialized editor, or using a converter or a static site generator.
+
+*** Why is it big-endian? Most computers now use small-endian.
+
+The internet is supposed to big-endian, isn't it? Although I think that
+small-endian is better (independently of what computers use it), I think
+that it isn't that significant that it is worth violating the convention
+of internet in this way. (Also, uxn is big-endian.)
 
 *** Why is there no support for styling?
 
