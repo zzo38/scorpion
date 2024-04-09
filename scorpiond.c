@@ -130,7 +130,7 @@ static void normal(const char*suffix) {
       }
     }
   }
-  key.suffix=suffix;
+  key.suffix=suffix?:"";
   mime=bsearch(&key,mimetypes,sizeof(mimetypes)/sizeof(MimeDef),sizeof(MimeDef),comparemime);
   fd=open(name,O_RDONLY);
   if(fd==-1) {
