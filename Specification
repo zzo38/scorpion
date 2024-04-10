@@ -1068,6 +1068,11 @@ Example 1: The ULFI "a.b:c" and "c:a.b" are equivalent to each other.
 
 Example 2: The ULFI "a:b+c:d" and "a:b:b.c:d" are equivalent to each other.
 
+(Note: It is rarely necessary to compare ULFIs for equality. Usually, a
+program would be looking for one or more labels that it recognizes, and
+only interpret those ones. One way to handle this is to use a bit field
+to remember what has been found so far during parsing.)
+
 
 === X.509 extensions ===
 
@@ -1092,6 +1097,10 @@ section below about the formats.
 
 
 === Favicon formats ===
+
+If the data type is boolean, then true means that it may be added to the
+preload list (in an implementation-dependent way), and false means that it
+is not supposed to be added to the preload list.
 
 If the data type is a UTF-8 string, then it is interpreted as specified by:
   gemini://mozz.us/files/rfc_gemini_favicon.gmi
