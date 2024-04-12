@@ -193,6 +193,32 @@ static void open_pipe_for_input(void) {
   if(!infile) err(3,"Cannot open pipe for input");
 }
 
+static void set_skipping(void) {
+  char com[0x800];
+  int n;
+  int c;
+  restart:
+  for(n=0;;) {
+    c=inp();
+    if(c==EOF || c<' ') Error("Improper character in <? ?> block or unterminated <? ?> block");
+    if(n && c=='>' && com[n-1]=='?') break;
+    if(n>=0x7FF) Error("Too long command in <? ?> block");
+    com[n++]=c;
+  }
+  com[n-1]=0;
+  for(n=c=0;com[n];n++) c|=com[n];
+  if(!c) return;
+  c=system(com);
+  if(WIFSIGNALED(c)) errx(1,"Signaled");
+  if(!WEXITSTATUS(c)) return;
+  // Do skipping
+  for(n=0;;) {
+    c=inp();
+    if(c==EOF) return;
+    if(c=='<') n=1; else if(c=='?' && n==1) goto restart; else n=0;
+  }
+}
+
 static int compare_commands(const void*a,const void*b) {
   return strcmp(*(const char**)a,*(const char**)b);
 }
@@ -310,6 +336,9 @@ static void nexttok(void) {
       } else if(c=='!' && !i && tokent==TOK_COMMAND) {
         if(infile!=stdin) Error("Use if <! !> while <! !> is already active");
         open_pipe_for_input();
+        goto restart;
+      } else if(c=='?' && !i && tokent==TOK_COMMAND) {
+        set_skipping();
         goto restart;
       }
       if(c==EOF) Error("Unexpected end of file");

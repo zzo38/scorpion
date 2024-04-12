@@ -79,6 +79,10 @@ treat tabs as the <TAB> command and line breaks as the <BR> command.
 source text that is accepted by this program. That output is not allowed to
 itself include any <! !> block.
 
+<? command ?> will execute an external program like <! !> but instead of
+using its output as source text, its exit code is used; if it is nonzero
+then it will skip up to the next <? character sequence.
+
 
 === Commands ===
 
