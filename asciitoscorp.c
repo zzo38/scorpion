@@ -762,6 +762,41 @@ static void do_one_conversion(const char*in,const char*out,int m,const char*tem)
   fclose(fo);
 }
 
+static void do_conversions_l(char*p) {
+  char*line=0;
+  size_t line_size=0;
+  char b[512];
+  FILE*f;
+  int i,j,n;
+  char*q=strchr(p,' ');
+  char*qa;
+  char*s;
+  char*t;
+  if(!q) errx(1,"Improper command in multi mode: CNVL %s",p);
+  *q++=0;
+  t=strchr(q,' ');
+  if(!t) errx(1,"Improper command in multi mode");
+  *t++=0;
+  qa=strchr(q,'*');
+  if(!qa) errx(1,"Improper CNV command");
+  f=popen(t,"r");
+  if(!f) err(2,"Cannot open pipe");
+  n=strlen(p);
+  while(getline(&line,&line_size,f)>0) {
+    s=line;
+    while(*s==' ' || *s=='\t') s++;
+    t=s;
+    while((*t&0xFF)>0x20) t++;
+    *t=0;
+    if(!*s) continue;
+    setenv("_name",s,1);
+    snprintf(b,512,"%.*s%s%s",(int)(qa-q),q,s,qa+1);
+    do_one_conversion(p,b,'L',0);
+  }
+  free(line);
+  pclose(f);
+}
+
 static void do_one_conversion_x(const char*in,const char*c) {
   FILE*f;
   pid_t x;
@@ -905,6 +940,7 @@ static int do_multi(FILE*f) {
       case 'CD__': if(chdir(p)) err(1,"Cannot change directory"); break;
       case 'CNV_': do_conversions(p,0); break;
       case 'CNVE': do_conversions(p,'E'); break;
+      case 'CNVL': do_conversions_l(p); break;
       case 'CNVT': do_conversions(p,'T'); break;
       case 'CNVX': do_conversions(p,'X'); break;
       case 'CTR_': open_controlfile(p); break;

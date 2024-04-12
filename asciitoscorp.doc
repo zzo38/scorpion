@@ -233,6 +233,13 @@ CNVE
   useful to use the -I switch yourself, since the output that is produced
   must be in the format used by asciitoscorp's internal mode.
 
+CNVL
+  Like CNV but the first argument is the input file name (which must be a
+  single file), and the second argument is the output file name pattern
+  (with exactly one asterisk), and third is a shell command. Each line of
+  the output of the shell command will be used to substite for the asterisk
+  in the output pattern.
+
 CNVT
   Like CNV but requires a third argument which is the name of the template
   file, which has the same format as the usual asciitoscorp input file. The
