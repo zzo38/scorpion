@@ -1488,6 +1488,20 @@ small-endian is better (independently of what computers use it), I think
 that it isn't that significant that it is worth violating the convention
 of internet in this way. (Also, uxn is big-endian.)
 
+*** Why use ULFI? What problems does it solve compared with MIME?
+
+The main problems with MIME are that you cannot easily specify that a file
+is of multiple formats (each with their own parameters). UTI solves some of
+the problems of MIME too but has its own problems (e.g. additional files
+are needed in order to determine what format another one conforms with),
+but I designed ULFI to avoid some of these problems. or example, UTI can
+specify Markdown conforms with "plain text", but that requires that you
+have the appropriate files to tell you that it conforms with; it can't
+know by itself. With ULFI you can specify something like
+"text:plain:markdown+commonmark" and a program that only understands
+"plain" will still understand it. (MIME also has a way to do something
+like this, but it isn't very good and is just "added on".)
+
 *** Why is there no support for styling?
 
 This is deliberate; the style should be controlled by the user, and not by
