@@ -9,16 +9,14 @@
 #include <unistd.h>
 #include "SDL.h"
 #include "fonts.h"
-#include "smallxrm.h"
-#include "quarks.h"
 #include "scogem.h"
 
 enum {
-  TF_NORMAL,
-  TF_STRONG,
-  TF_EMPHASIS,
-  TF_FIXPITCH,
-  TF_FURIGANA,
+  TF_NORMAL, // 'N'
+  TF_STRONG, // 'S'
+  TF_EMPHASIS, // 'E'
+  TF_FIXPITCH, // 'F'
+  TF_FURIGANA, // 'U'
   NUM_TEXT_FORMATS
 };
 
@@ -47,6 +45,14 @@ enum {
   NUM_BLOCK_TYPES
 };
 
+enum {
+  // Charset kinds
+  CS_UNDEF,
+  CS_NORMAL,
+  CS_TRON,
+  CS_MAPPED,
+};
+
 typedef Uint32 Color;
 
 typedef struct {
@@ -59,8 +65,7 @@ typedef struct {
 
 typedef struct {
   Uint8 kind;
-  char*name;
-  Uint16*map;
+  Uint32*map;
   Uint8 link;
 } CharsetInfo;
 
@@ -68,6 +73,8 @@ typedef struct {
   FontSet tron[NUM_TEXT_FORMATS];
   Font*others;
   Uint8*map;
+  Uint8 xsc,ysc,oxsc,oysc;
+  Uint16 other;
 } FontGroup;
 
 typedef struct {
@@ -81,15 +88,23 @@ typedef struct {
 typedef struct {
   FontGroup*group;
   BlockStyle bstyle[NUM_BLOCK_TYPES];
-  
+  CharsetInfo*charset;
+  Uint8 ngroup,ncharset;
 } FontConfig;
 
+typedef struct {
+#define I(n,t,d) t n;
+#include "config.inc"
+#undef I
+} Config;
+
 extern SDL_Surface*screen;
-extern xrm_db*xrm;
-extern xrm_quark xrmquery[16];
 extern int config_dir;
+extern Config config;
+
 extern FontConfig fontc;
 
+Color parse_color(const char*x);
 FILE*fopenat(int fd,const char*name,const char*mode);
-void load_fontconfig(FILE*);
+void load_fontconfig(void);
 
