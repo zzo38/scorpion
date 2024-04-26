@@ -1,0 +1,191 @@
+The "makescobf" program does not expect any command-line arguments. It
+reads a list of commands from stdin, and writes the font file to stdout.
+
+You can specify the font metrics and either other fonts to be recoded or
+your own glyphs (fix-pitch only) or a combination of both.
+
+Note that, although it is possible to copy kerning/ligatures from other
+fonts, and variable-pitch fonts can also be copied and recoded, it is not
+possible for this program to produce your own variable-pitch fonts by
+rasters, nor to define your own kerning/ligatures; however, later versions
+of this program might allow it.
+
+There are two parts in the command file, each of which ends with a line
+containing a single asterisk. Any blank line and any line starting with #
+is ignored.
+
+
+=== First part ===
+
+The first part specifies the sources to use and specifies details that
+would be put into the header of the output file.
+
+Each line in this section is a source or a parameter. A source consists
+of a number 1 to 63 (in decimal) followed by either | or < and then the
+command or file name. It will automatically update the bounding box with
+the data in the source files, although it is possible to override this by
+adding a bounding box command. (The glyphs and comments are not copied
+automatically; commands in the last part will be used to do this.)
+
+The following parameters are available; each one consists of the single
+character denoting the parameter, followed by a equal sign, and then the
+value (some are decimal and some are hex; these are mentioned below). The
+"N" parameter can optionally use + or - instead of = in order to adjust it
+by a relative amount.
+
+D (hex)
+  Set the default character code for this font.
+
+N (hex)
+  Set or adjust the number of characters in the font. It can be relative;
+  if it is relative then it is added on to the total number of glyphs from
+  the source fonts.
+
+T (hex)
+  Set the TRON plane number for this font.
+
+a (decimal)
+  Set the ascent.
+
+d (decimal)
+  Set the descent.
+
+A bounding box command is optional if any source fonts are present, but is
+mandatory if there are no sources. This consists of four numbers each with
++ or - in front; the first two must both be positive. These numbers are,
+in order, the X size, Y size, X adjustment, and Y adjustment.
+
+
+=== Last part ===
+
+The commands in the last part are used for adding glyphs and comments, and
+for copying data from source fonts (if any). The total number of glyphs
+produced MUST match that specified in the first part; if it does not, then
+it is an error.
+
+The commands according to their first character are:
+
+0 1 2 3 4 5 6 7 8 9
+  Any number 1 to 63 means to copy glyphs from the specified source font.
+  The calculation is used for mapping input character codes into output
+  character codes. The C and K commands can be used to specify whether or
+  not commands and ligatures/kerning are also copied.
+
+:
+  Writes a comment into the output file. Everything else on this line is
+  the text of the comment (including the trailing line break).
+
+;
+  Define a calculation (see the below section for details).
+
+,
+  Add additional operators to the existing calculation. (You can use this
+  to span a calculation across multiple lines.)
+
+=
+  Make a single glyph; follow by the hexadecimal character code of the
+  glyph. The following lines are the raster data of this glyph. Within the
+  raster data, "o" is a marked pixel and "." is an unmarked pixel.
+
+C
+  Follow by + or - to enable or disable copying comments.
+
+K
+  Follow by + or - to enable or disable copying ligatures and kerns.
+
+M
+  Make multiple glyphs. The following lines are the raster data. The
+  calculation is used to map the numbers 0x00 to 0xFF to the output
+  character codes. Within the raster data, the letters "a" to "h" represent
+  the bits of the input character code, and "." is an unmarked pixel.
+
+T
+  Define a table (see the below section for details). This table can be
+  referenced by calculations.
+
+
+=== Calculation ===
+
+The calculation uses RPN syntax. The input character code will be on the
+stack initially; at the end, the output character code is expected on the
+bottom of the stack. If the stack ends up empty by the calculation, then
+the current character will be skipped.
+
+0123456789ABCDEF
+  Any uppercase hexadecimal number of up to 32-bits (eight characters)
+  will push that number to the stack.
+
++ - * / %
+  Arithmetic operations, as in C. Division by zero results in skipping
+  the current character.
+
+& | ^ < >
+  Bitwise operations, as in C. The < and > mean left and right shifts.
+
+H
+  Replaces a 16-bit number with the high 8-bits of the number.
+
+L
+  Replaces a 16-bit number with the low 8-bits of the number.
+
+T
+  Look up in the table.
+
+Y
+  Combines two 8-bit numbers from the stack into a 16-bit number; the
+  top will be used as the low 8-bits and the next as the high 8-bits.
+
+Z
+  Causes the current character to be skipped.
+
+#
+  Duplicate the top value from the stack.
+
+.
+  Discard the top value from the stack. No effect if stack is empty.
+
+$
+  Exchange the top two values from the stack.
+
+@
+  Copy the bottom value from the stack to the top.
+
+( : )
+  A if/else block. The part between (: is executed if the value popped
+  from the stack is nonzero, or the part between :) is executed if the
+  value popped from the stack is zero. If : is not present then it is
+  skipped if zero.
+
+[ : ]
+  A if/else block like (:) but does not remove the value from the stack.
+
+Spaces can be added for clarity (and to separate multiple numbers) but
+have no meaning.
+
+
+=== Tables ===
+
+The table definition can use the commands:
+
+:
+  Clears the table (all data in the table is reset to zero), and resets the
+  next address and next value to zero.
+
+0123456789ABCDEF
+  A uppercase hexadecimal 16-bit number by itself sets the current address.
+
+=
+  Follow by a uppercase hexadecimal 16-bit number, to set the value at
+  the current address, and then advance the address. This also sets the
+  remembered value.
+
+x
+  Follow by a uppercase hexadecimal number; one less than this is how
+  many further table cells copy the current value.
+
+*
+  Works like x but each cell added pre-increments the value.
+
+,
+  Commas and spaces can be added for clarity but have no meaning.
+

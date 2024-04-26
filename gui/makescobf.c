@@ -267,7 +267,7 @@ static void do_font(int fontnum) {
           putchar(0x86);
           putchar(c); putchar(c>>8);
           putchar(n); putchar(n>>8);
-          putchar(n); putchar(n>>8);
+          putchar(m); putchar(m>>8);
         }
         break;
       case 0xF1 ... 0xFF:
