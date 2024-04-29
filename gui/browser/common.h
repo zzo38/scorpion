@@ -73,7 +73,7 @@ typedef struct {
   FontSet tron[NUM_TEXT_FORMATS];
   Font*others;
   Uint8*map;
-  Uint8 xsc,ysc,oxsc,oysc;
+  Uint8 xsc,ysc,oxsc,oysc,numcs;
   Uint16 other;
 } FontGroup;
 

@@ -36,7 +36,7 @@ static const ConfigInfo configinfo[]={
 
 Color parse_color(const char*x) {
   unsigned char r,g,b;
-  if(*x=='#') {
+  if(*x=='#' && strlen(x)==7) {
     if(sscanf(x+1,"%2hhX%2hhX%2hhX",&r,&g,&b)!=3) goto bad;
     return SDL_MapRGB(screen->format,r,g,b);
   } else {
@@ -111,6 +111,7 @@ static void parse_main_config(FILE*f) {
   while(getline(&line,&linesize,f)>0) {
     p=line+strlen(line);
     while(p>line && (p[-1]=='\r' || p[-1]=='\n' || p[-1]==' ' || p[-1]=='\t')) *--p=0;
+    p=line;
     if(!*p || *p=='#' || *p==';') continue;
     set_config(p);
   }
