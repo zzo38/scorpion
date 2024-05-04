@@ -50,7 +50,8 @@ enum {
   CS_UNDEF,
   CS_NORMAL,
   CS_TRON,
-  CS_MAPPED,
+  CS_MAPPED_TRON,
+  CS_ALIAS,
 };
 
 typedef Uint32 Color;
@@ -68,6 +69,11 @@ typedef struct {
   Uint32*map;
   Uint8 link;
 } CharsetInfo;
+
+typedef struct {
+  char*name;
+  Uint8 id;
+} CharsetName;
 
 typedef struct {
   FontSet tron[NUM_TEXT_FORMATS];
@@ -89,12 +95,16 @@ typedef struct {
   FontGroup*group;
   BlockStyle bstyle[NUM_BLOCK_TYPES];
   CharsetInfo*charset;
-  Uint8 ngroup,ncharset;
+  CharsetName*csnames;
+  Uint8 ngroup,ncharset,ncsnames;
+  Uint8 ui1,ui2;
 } FontConfig;
 
 typedef struct {
+#define B(n,t,d) t n;
 #define I(n,t,d) t n;
 #include "config.inc"
+#undef B
 #undef I
 } Config;
 
@@ -107,4 +117,5 @@ extern FontConfig fontc;
 Color parse_color(const char*x);
 FILE*fopenat(int fd,const char*name,const char*mode);
 void load_fontconfig(void);
+int find_charset_by_name(const char*name);
 

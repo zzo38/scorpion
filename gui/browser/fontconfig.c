@@ -9,6 +9,8 @@ exit
 
 FontConfig fontc;
 
+static CharsetInfo csalias={.kind=CS_ALIAS};
+
 typedef struct {
   union {
     void*unknown;
@@ -22,6 +24,12 @@ typedef struct {
 static int compare_key(const void*a,const void*b) {
   const Node*x=a;
   const Node*y=b;
+  return strcmp(x->name,y->name);
+}
+
+static int compare_csname(const void*a,const void*b) {
+  const CharsetName*x=a;
+  const CharsetName*y=b;
   return strcmp(x->name,y->name);
 }
 
@@ -71,6 +79,10 @@ static void grouptree_des(void*nodep) {
   if(!x->group) errx(1,"Font group '%s' mentioned but not defined",x->name);
   fontc.group[x->id]=x->group[0];
   free(x->group);
+  if(x->name[0]=='*') {
+    if(x->name[1]=='*' && !x->name[2]) fontc.ui2=x->id;
+    if(!x->name[1]) fontc.ui1=x->id;
+  }
   free(x->name);
   free(x);
 }
@@ -78,8 +90,13 @@ static void grouptree_des(void*nodep) {
 static void cstree_des(void*nodep) {
   Node*x=(Node*)nodep;
   if(!x->charset) errx(1,"Character set '%s' mentioned but not defined",x->name);
-  fontc.charset[x->id]=x->charset[0];
-  free(x->charset);
+  if(x->charset!=&csalias) {
+    if(x->charset->kind==CS_UNDEF) errx(1,"Character set '%s' does not have a valid kind",x->name);
+    fontc.charset[x->id]=x->charset[0];
+    free(x->charset);
+  }
+  fontc.csnames[fontc.ncsnames].name=x->name;
+  fontc.csnames[fontc.ncsnames++].id=x->id;
   free(x);
 }
 
@@ -124,6 +141,50 @@ static void set_normal_fonts(FontGroup*g,int sty,int id,const char*name) {
   for(i=0;i<NUM_TEXT_FORMATS;i++) if(sty&(1<<i)) g->others[i+id*NUM_TEXT_FORMATS]=y;
 }
 
+static void load_charset_map(Uint32*map,const char*name) {
+  int c;
+  Uint32 n=0;
+  Uint32 s=0;
+  Uint32 u;
+  FILE*f=fopen(name,"r");
+  if(!f) err(1,"Cannot open file '%s'",name);
+  plane:
+  c=fgetc(f);
+  if(c==EOF) errx(1,"Unexpected end of file");
+  if(c==0xFE) {
+    s+=0x100;
+    goto plane;
+  } else if(c==0x7F || c==0xFF || c<0x21) {
+    errx(1,"Improper command in character map file");
+  } else {
+    s+=c;
+  }
+  normal:
+  if(n>0xFF) goto end;
+  c=fgetc(f);
+  if(c==EOF) goto end;
+  if(c==0xFE) {
+    s=0;
+    goto plane;
+  } else if(c<0x21) {
+    u=n?map[n-1]:0;
+    for(c++;c;c--) {
+      if(n>0xFF) errx(1,"Improper command in character map file");
+      map[n++]=u?++u:0;
+    }
+  } else if(c==0x7F || c==0xFF) {
+    map[n++]=0;
+  } else {
+    map[n]=s<<16;
+    map[n]|=c<<8;
+    map[n]|=fgetc(f)&255;
+    n++;
+  }
+  goto normal;
+  end:
+  fclose(f);
+}
+
 void load_fontconfig(void) {
   BlockStyle*bs;
   Node*node;
@@ -133,6 +194,7 @@ void load_fontconfig(void) {
   void*cstree=0;
   int maxgroup=0;
   int maxcs=2;
+  int maxalias=0;
   char*line=0;
   char*p;
   char*q;
@@ -176,11 +238,15 @@ void load_fontconfig(void) {
       if(add_node(&node,line+1,&cstree)) {
         node->charset=calloc(sizeof(CharsetInfo),1);
         if(!node->charset) err(1,"Allocation failed");
-        node->id=maxcs++;
+        node->charset->link=node->id=maxcs++;
       } else if(!node->charset) {
         node->charset=calloc(sizeof(CharsetInfo),1);
         if(!node->charset) err(1,"Allocation failed");
+        node->charset->link=node->id;
+      } else if(node->charset==&csalias) {
+        errx(1,"Character set '%s' is an alias and cannot be redefined",line+1);
       }
+      if(node->charset->kind==CS_UNDEF) node->charset->kind=CS_NORMAL;
       state='C';
     } else if(*line=='[') {
       p=strchr(line,']');
@@ -280,6 +346,34 @@ void load_fontconfig(void) {
         default: goto syntax;
       }
       if(node2->id) set_normal_fonts(node->group,j,node2->id,q); else set_tron_fonts(node->group,j,q);
+    } else if(state=='C') {
+      p=strchr(line,'=');
+      if(!p) goto syntax;
+      *p++=0;
+      switch(*line) {
+        case 'A':
+          if(!strcasecmp(line,"Alias")) {
+            if(!add_node(&node2,p,&cstree)) errx(1,"Character set already defined on line %d of fontconfig",linenum);
+            maxalias++;
+            node2->charset=&csalias;
+            node2->id=node->id;
+          } else if(!strcasecmp(line,"Alternate")) {
+            if(add_node(&node2,p,&cstree)) node2->id=maxcs++;
+            node->charset->link=node2->id;
+          } else {
+            goto syntax;
+          }
+          break;
+        case 'M':
+          if(strcasecmp(line,"Map")) goto syntax;
+          if(node->charset->map) errx(1,"Error on line %d of fontconfig: map is already specified",linenum);
+          node->charset->map=calloc(0x100,sizeof(Uint32));
+          if(!node->charset->map) err(1,"Allocation failed");
+          load_charset_map(node->charset->map,p);
+          node->charset->kind=CS_MAPPED_TRON;
+          break;
+        default: goto syntax;
+      }
     } else {
       syntax: errx(1,"Syntax error on line %d of fontconfig",linenum);
     }
@@ -292,6 +386,40 @@ void load_fontconfig(void) {
   tdestroy(grouptree,grouptree_des);
   fontc.charset=calloc(fontc.ncharset=maxcs,sizeof(CharsetInfo));
   if(!fontc.charset) err(1,"Allocation failed");
+  fontc.csnames=calloc(maxcs+maxalias,sizeof(CharsetName));
+  if(!fontc.csnames) err(1,"Allocation failed");
+  fontc.ncsnames=0;
   tdestroy(cstree,cstree_des);
+  qsort(fontc.csnames,fontc.ncsnames,sizeof(CharsetName),compare_csname);
+  if(config.dumpfontconfig) {
+    printf("[FONTCONFIG]\n");
+    printf(" ngroup=%d ncharset=%d maxalias=%d ncsnames=%d\n",fontc.ngroup,fontc.ncharset,maxalias,fontc.ncsnames);
+    printf(" ui1=%d ui2=%d\n",fontc.ui1,fontc.ui2);
+    for(i=0;i<fontc.ngroup;i++) {
+      printf("group[%d]:\n",i);
+      printf(" sc=%dx%d osc=%dx%d other=%d",fontc.group[i].xsc,fontc.group[i].ysc,fontc.group[i].oxsc,fontc.group[i].oysc,fontc.group[i].other);
+      printf(" numcs=%d\n",fontc.group[i].numcs);
+      for(j=0;j<fontc.group[i].numcs*NUM_TEXT_FORMATS;j++) if(fontc.group[i].others[j].data) printf(" font(%d)\n",j);
+      for(j=0;j<NUM_TEXT_FORMATS;j++) if(fontc.group[i].tron[j].len) printf(" tron(%d)=%d\n",j,fontc.group[i].tron[j].len);
+    }
+    for(i=0;i<fontc.ncharset;i++) {
+      printf("charset[%d]:\n",i);
+      printf(" kind=%d map=%p link=%d\n",fontc.charset[i].kind,fontc.charset[i].map,fontc.charset[i].link);
+    }
+    for(i=0;i<NUM_BLOCK_TYPES;i++) {
+      printf("block[%d]:\n",i);
+      printf(" lmargin=%d rmargin=%d indent=%d leading=%d height=%d depth=%d\n",fontc.bstyle[i].lmargin,fontc.bstyle[i].rmargin,fontc.bstyle[i].indent
+       ,fontc.bstyle[i].leading,fontc.bstyle[i].height,fontc.bstyle[i].depth);
+      printf(" group=%d color=%08lX\n",fontc.bstyle[i].group,(unsigned long)fontc.bstyle[i].color);
+    }
+    printf("csnames:\n");
+    for(i=0;i<fontc.ncsnames;i++) printf(" name=\"%s\" id=%d\n",fontc.csnames[i].name,fontc.csnames[i].id);
+  }
+}
+
+int find_charset_by_name(const char*name) {
+  CharsetName key={(char*)name,0};
+  CharsetName*x=bsearch(&key,fontc.csnames,fontc.ncsnames,sizeof(CharsetName),compare_csname);
+  return x?x->id:-1;
 }
 

@@ -10,8 +10,10 @@ SDL_Surface*screen;
 int config_dir=-1;
 
 Config config={
+#define B(n,t,d) .n=d,
 #define I(n,t,d) .n=d,
 #include "config.inc"
+#undef B
 #undef I
 };
 
@@ -99,7 +101,7 @@ FILE*fopenat(int fd,const char*name,const char*mode) {
 }
 
 static void init_video(void) {
-  screen=SDL_SetVideoMode(config.width,config.height,32,SDL_SWSURFACE|SDL_RESIZABLE|SDL_ANYFORMAT);
+  screen=SDL_SetVideoMode(config.width,config.height,32,SDL_SWSURFACE|(config.resizable?SDL_RESIZABLE:0)|SDL_ANYFORMAT);
   if(!screen) errx(1,"SDL error: %s",SDL_GetError());
   SDL_EnableUNICODE(1);
 }
