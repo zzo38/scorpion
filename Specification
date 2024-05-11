@@ -246,7 +246,8 @@ to be implemented if TLS is implemented.
 
 If a 6x response is received on a non-TLS connection, then it should change
 the scheme from "scorpion:" to "scorpions:" when a client certificate is
-available, before retrying the request.
+available, before retrying the request (it MUST NOT do this automatically
+if no client certificate is available).
 
 The first parameter of a 6x response specifies the suggested set of URLs
 that the client certificate is applicable to. It has one character followed
@@ -293,12 +294,13 @@ If the server requires either a client certificate or a user name (of the
 client's choice), but does not need both, then it should provide a 54
 response if the connection is not using TLS, or 60 if it is using TLS. A
 server SHOULD NOT require both a password and a client certificate at the
-same time.
+same time. (TODO: Possibly change this paragraph.)
 
 A client may have any UI its author wishes, but an example of a GUI which
 might be used to manage client certificates would be:
 
   URL: ________________________________
+  Match:  (*) Exact  (*) File  (*) Path
   [X] Restrict to current username
   Subprotocols:  [X] Receive  [X] Send  [X] Interactive
   Duration:  (*) Session  (*) Permanent  (*) ___ hours  (*) ___ days
@@ -919,7 +921,8 @@ Crawlers that receive a 41 response when downloading any file other than
 the crawling policy file SHOULD try to download the crawling policy file
 again after waiting for the minimum time specified in the response
 (whether or not it has previously downloaded the crawling policy file
-successfully in the past).
+successfully in the past). If it receives such a response too many times,
+then it SHOULD stop for a longer amount of time than specified.
 
 The crawling policy file is not allowed to be retroactive.
 
