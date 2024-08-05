@@ -23,7 +23,7 @@ than the different methods of HTTP, such as GET and PUT.)
 The URL is supposed to have a slash after the host name (or after the port
 number if present); the client MUST NOT send a URL that follows the host
 name or port number immediately by # or ? or a carriage return. If it does
-anyways, te server MUST either treat it as though the slash is present or
+anyways, the server MUST either treat it as though the slash is present or
 issue a redirect to / or to the full URL with / added on the end or to a
 URL that those URLs would redirect to; this SHOULD be a permanent redirect.
 (The client also should add / if it is missing according to the above in
@@ -585,8 +585,7 @@ fixpitch font.
 
 * 0x0F = This block is used for optional metadata such as a digital
 signature of the rest of the document. Clients that do not understand it
-will ignore this block. (The format is currently not defined. Also, this
-block might be removed or changed in future.)
+will ignore this block.
 
 The possible character encodings are:
 
@@ -601,6 +600,22 @@ The control codes are:
 * 0x02 = Whatever comes before it is some kind of section number or item
 number or a bullet indicating a list item. (This may also be used to
 separate the word from the definition in a definition list.)
+
+* 0x05 = Follow by one or more bytes indicating a type of contents (e.g.
+a word or phrase in a foreign language compared with the surrounding text,
+or a measurement of a specific type (length, mass, etc)), and then 0x06
+and then the text and then 0x07. If not implemented (or if this feature is
+disabled by the user; and it SHOULD be disabled by default), then it MUST
+skip up to the next 0x06 byte. You cannot include any other control
+characters in the data part. A data/text sub-block cannot be inside of
+either part of a furigana sub-block.
+
+* 0x06 = Separates the data part (before) and the text part (after) of a
+data/text sub-block. You are not allowed to nest data/text sub-blocks.
+
+* 0x07 = Ends a data/text sub-block. The text part can contain other
+control characters including furigana, but any changes to the formatting
+are required to be reset before this 0x07 code.
 
 * 0x09 = Tab; only in a preformatted block. This should not be used if
 exact spacing is requred, since the way that it is displayed is
@@ -654,9 +669,9 @@ specified above.
 
 Stateful encodings MUST shift the state at the beginning of each block.
 It is also required after 0x18 or 0x19 if the state before such a code
-does not match the state at before the furigana block. Any document
-which does not satisfy this criteria may result in an unreliable display
-on some clients.
+does not match the state at before the furigana block, and similarly also
+for 0x06 and 0x07. Any document which does not satisfy this criteria may
+result in an unreliable display on some clients.
 
 If the attribute of a preformatted block is not empty, then a client
 program MAY be able to use it to implement syntax highlighting, equations,
@@ -681,6 +696,73 @@ code. This is not valid for block type 0x0A.
 
 * 0x49 = A hint for the capability string to use with interactive mode.
 This is only valid for block type 0x0A.
+
+
+=== Metadata blocks ===
+
+The first bytes of the attribute of a type 0x0F block (a metadata block)
+identifies the type of metadata in this block.
+
+* 0x00 to 0x3F = (Reserved)
+
+* 0x40 to 0x7F = (Reserved)
+
+* 0x80 to 0xBF = Applies to everything up to the next metadata block of
+the same type.
+
+* 0xC0 to 0xFF = Applies to the entire document.
+
+The meaning of the rest of the attribute, and of the body, depends on the
+type; their meaning is described below. The character set is used only if
+the body has a meaning and is otherwise usually not meaningful, but
+exceptions will be noted in the below specifications.
+
+The possible metadata types are:
+
+* 0x80 = The language of the text of further blocks. The attribute
+specifies the language. The body may be empty; if it is not empty then
+it contains the name of the language (and should not contain any control
+characters).
+
+* 0x81 = Type of article of further blocks. The rest of the attribute is
+one byte as follows: 0x00=undefined, 0x41=article, 0x4E=navigation.
+
+* 0xC0 = Modification date/time. The rest of the attribute will be the
+big-endian signed 64-bit number of seconds past January 1, 1985, 00:00:00,
+UTC, excluding leap seconds. The body is not used.
+
+Metadata blocks are not supposed to affect the display of the document
+except for the display of the metadata itself (if metadata display is
+enabled). However, there are cases where it may affect features such as
+multilingual search (if the user has specified that an inexact match is
+satisfactory), speech synthesis, etc.
+
+
+=== Data/text sub-blocks ===
+
+The first byte of the data part of a data/text sub-block indicates the
+type, which can be one of:
+
+(TODO)
+
+
+=== Languages ===
+
+The language specifications are made up according to the criteria:
+
+* If one code is a prefix of another then the shorter one is considered
+to be a more general specification that includes the longer one (e.g.
+English vs Canadian English). (This improves simplicity of implementation,
+since an implementation will not need to have complicated rules to figure
+out which language is meant.)
+
+* Both written languages (for e.g. text documents) and spoken languages
+(for e.g. audio files) should be considered. Although in many cases the
+same codes can be used, they should still be considered separately since
+the requirements may be different in each case. Note that some languages
+may be purely written languages (e.g. Blissymbols).
+
+(TODO: Possibly use a variant of ISO 639 or Glottolog or something else.)
 
 
 === Database file format ===
@@ -959,12 +1041,16 @@ this document is not implemented.)
 Each record consists of the 8-bit record type, and then four fields which
 are each the big-endian 16-bit length and then the data.
 
-If the high bit of the record type is clear then the first field specifies
-the input format and the second field specifies the output format. If the
-high bit of the record type is set (currently there are no defined record
-types which use this) then the first field specifies the original URI
-scheme and the second field specifies the target URI scheme. For some
-record types, it is allowed for one or both fields to be empty.
+The high nybble of the record type (which is still a part of the record
+type; it is not considered to be a separate field) defines how the first
+and second field specifications are doing (although some record types
+allow one or both fields to be empty):
+
+* 0x00 = The first field specifies the input format and the second field
+specifies the output format.
+
+* 0x80 = The first field specifies the original URI scheme and the second
+field specifies the target URI scheme.
 
 The record types are:
 
@@ -1449,7 +1535,7 @@ redirect from TLS to non-TLS (or vice-versa) occurs.
 
 I think non-TLS has benefits such as improved simplicity and improved
 energy efficiency. However, sometimes encryption is desirable, so TLS
-is permitted, too.o
+is permitted, too.
 
 *** Isn't it difficult to detect whether or not the first byte is 0x16 and
 have an existing TLS library take over the connection if it is?
