@@ -234,9 +234,13 @@ instead send a response with an appropriate 4x or 5x status code.)
 
 71 = Ready to receive to replace an existing file.
 
+72 = Ready to receive data for a use other than a new or modified file.
+
 80 = Accepted received data and created a new file.
 
 81 = Accepted received data to modify an existing file.
+
+82 = Accepted received data for a use other than a new or modified file.
 
 
 === Client certificates ===
@@ -741,9 +745,12 @@ satisfactory), speech synthesis, etc.
 === Data/text sub-blocks ===
 
 The first byte of the data part of a data/text sub-block indicates the
-type, which can be one of:
+type; the rest of the bytes are the parameter (which may be empty for
+some types). The possible types are:
 
-(TODO)
+(TODO: this should include: languages, pronouncing (which may be combined
+with languages or used independently), date/time, and SI units. Possibly
+also other things, but also possibly not.)
 
 
 === Languages ===

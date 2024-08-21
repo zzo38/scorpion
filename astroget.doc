@@ -31,6 +31,14 @@
   Only display the components of the parsed URL and terminate; do not try
   to download or upload anything, and do not make any network accesses.
 
+-R #
+  Define address restriction. Use letters A B C to restrict access to
+  the specified ranges LAN addresses (A for 10.x.x.x, B for 172.16.x.x,
+  and C for 192.168.x.x). If this switch is used, then addresses with
+  127.x.x.x are always blocked, and local files are also always blocked.
+  You can specify -R0 if you only want to block loopback and files. (If
+  used with -A then the only effect of -R is to block local files.)
+
 -T #
   TLS options.
 
@@ -59,14 +67,6 @@
 -p
   Display progress indicator on stderr. (It will write a carriage return
   before each progress display.)
-
--R #
-  Define address restriction. Use letters A B C to restrict access to
-  the specified ranges LAN addresses (A for 10.x.x.x, B for 172.16.x.x,
-  and C for 192.168.x.x). If this switch is used, then addresses with
-  127.x.x.x are always blocked, and local files are also always blocked.
-  You can specify -R0 if you only want to block loopback and files. (If
-  used with -A then the only effect of -R is to block local files.)
 
 -r #
   Make a range request. The value must be two numbers with - in between,
