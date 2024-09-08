@@ -1191,6 +1191,15 @@ type is a sequence; each element of the sequence represents one icon. An
 implementation might support none, some, or all of the formats. See the
 section below about the formats.
 
+* 2.25.327847519394146920218914781995694576662.4 = A boolean which
+indicates if the client wants the server to publish the certificate or
+not. If true then it means you want the server to publish the certificate,
+and if false then not.
+
+* 2.25.327847519394146920218914781995694576662.5.1 = The time zone in the
+format expected for the TZ environment variable in UNIX systems, e.g.
+"America/Vancouver". The data type is a IA5 string.
+
 
 === Favicon formats ===
 
@@ -1201,7 +1210,7 @@ is not supposed to be added to the preload list.
 If the data type is a UTF-8 string, then it is interpreted as specified by:
   gemini://mozz.us/files/rfc_gemini_favicon.gmi
 
-(TODO: other formats)
+(TODO: other formats, e.g. raster, vector)
 
 
 === Recommendations and other notes ===
@@ -1408,6 +1417,10 @@ and MUST display them separately from any other icons (if any). The client
 MUST NOT make separate requests to download favicons automatically. An
 implementation MAY allow the user to specify their own favicons, and MAY
 have an option to auto-generate favicons.
+
+Client certificates are not encrypted with TLS 1.2, but are encrypted
+with TLS 1.3. Therefore, clients SHOULD warn when using a client
+certificate with a TLS version 1.2 or less.
 
 (TODO)
 
