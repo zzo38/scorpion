@@ -528,8 +528,12 @@ static int r_gemini(const Scogem_URL*u,Receiver*z) {
 static int s_gemini(const Scogem_URL*u,Sender*z) {
   int c,f,i,r;
   char buf[0x1000];
-  fwrite("titan",1,5,memfile);
-  fwrite(u->url+6,1,u->resource_end-6,memfile);
+  if(*u->url=='g') {
+    fwrite("titan",1,5,memfile);
+    fwrite(u->url+6,1,u->resource_end-6,memfile);
+  } else {
+    fwrite(u->url,1,u->resource_end,memfile);
+  }
   if(z->delete) fputs(";size=0",memfile); else fprintf(memfile,";size=%llu",(unsigned long long)z->total);
   if(z->type && !z->delete) {
     fputs(";mime=",memfile);
@@ -1371,6 +1375,7 @@ static const ProtocolInfo protocol_info[]={
   {"scorpion",r_scorpion,rr_scorpion,s_scorpion},
   {"scorpions",r_scorpions,rr_scorpions,s_scorpion},
   {"spartan",r_spartan,0,s_spartan},
+  {"titan",0,0,s_gemini},
 };
 
 static int compare_protocol(const void*a,const void*b) {
@@ -1469,6 +1474,7 @@ static int do_redirect(void) {
   if(!(redirectflag&0x04) && urlinfo.host && urlinfo2.host && strcmp(urlinfo.host,urlinfo2.host)) goto bad;
   if(!(redirectflag&0x08) && urlinfo.portnumber!=urlinfo2.portnumber && strcmp(urlinfo2.scheme,"data")) goto bad;
   if(!(redirectflag&0x10) && !strcmp(urlinfo2.scheme,"file")) goto bad;
+  if(!(redirectflag&0x10) && !strcmp(urlinfo2.scheme,"hashed")) goto bad;
   if(!(redirectflag&0x30) && strcmp(urlinfo.scheme,urlinfo2.scheme)) goto bad;
   scogem_free_url(&urlinfo);
   urlinfo=urlinfo2;

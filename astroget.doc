@@ -1,4 +1,26 @@
 
+=== URI schemes ===
+
+  -  receive
+  =  range
+  +  send
+
+data: -
+file: -=
+finger: - (both "user@host" and "host/user" are supported)
+gemini: -+ (if sending, automatically changes the scheme to "titan")
+gopher: -
+hashed: -=
+http: -= (sending is not implemented yet but may be in future)
+https: -= (sending is not implemented yet but may be in future)
+nex: -
+nntp: -+
+scorpion: -=+
+scorpions: -=+
+spartan: -+
+titan: +
+
+
 === Switches ===
 
 -A #
