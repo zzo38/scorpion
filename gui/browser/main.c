@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -fwrapv -o ~/bin/dschubba main.c fonts.o scogem.o fontconfig.o `sdl-config --cflags --libs`
+gcc -s -O2 -fwrapv -o ~/bin/dschubba main.c fonts.o scogem.o fontconfig.o window.o `sdl-config --cflags --libs`
 exit
 #endif
 

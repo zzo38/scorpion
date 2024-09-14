@@ -57,14 +57,6 @@ enum {
 typedef Uint32 Color;
 
 typedef struct {
-  Uint8*attr_data;
-  Uint8*body_data;
-  Uint32 attr_len,body_len;
-  Uint32 ypos;
-  Uint8 type,charset,flag;
-} Block;
-
-typedef struct {
   Uint8 kind;
   Uint32*map;
   Uint8 link;
@@ -99,6 +91,35 @@ typedef struct {
   Uint8 ngroup,ncharset,ncsnames;
   Uint8 ui1,ui2;
 } FontConfig;
+
+typedef struct {
+  Uint8*attr_data;
+  Uint8*body_data;
+  Uint32 attr_len,body_len;
+  Uint32 ypos;
+  Uint8 type,charset,flag;
+} Block;
+
+typedef struct DocumentClass DocumentClass;
+
+typedef struct Document {
+  DocumentClass*class;
+  void*misc1;
+  void*misc2;
+  Uint32 misc3;
+  Uint8*data;
+  size_t size;
+  Uint8*orig_data;
+  size_t orig_size;
+  Uint32 refcount;
+} Document;
+
+typedef struct DocumentClass {
+  void(*initialize)(Document*doc);
+  void(*finalize)(Document*doc);
+  void(*clone)(Document*src,Document*dest);
+  void(*unclone)(Document*doc);
+} DocumentClass;
 
 typedef struct {
 #define B(n,t,d) t n;

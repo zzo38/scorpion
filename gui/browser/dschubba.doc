@@ -1,0 +1,105 @@
+##### DSCHUBBA #####
+
+
+=== Configuration ===
+
+The .dschubba/config file is the main configuration file.
+
+A blank line or a line starting with ; or # is ignored. Any other line is
+a key=value pair. Types are integer, boolean (0 for false and 1 for true),
+string, and float. The possible keys are:
+
+* dumpfontconfig (boolean) = If true, dump the font configuration to
+stdout. This is mainly useful for testing and debugging.
+
+* height (integer) = The window height in pixels.
+
+* resizable (boolean) = Set to 1 (the default) to tell the window manager
+to allow the window to be resized, or to 0 to tell the window manager that
+it should not allow the window to be resized. (This affects the default
+layout of the window in some tiling window managers.)
+
+* width (integer) = The window width in pixels.
+
+
+=== Font configuration ===
+
+The .dschubba/fontconfig file has the syntax described here.
+
+Any blank line and any line starting with # is a comment.
+
+The possible text formats are N (normal), S (strong), E (emphasis), F
+(fixpitch), U (furigana), and * (applies to all text formats).
+
+A line with a name in () defines a font group (which is a set of fonts and
+font sets of a specific size). There are three kind of commands that can be
+used inside of the definition of a font group:
+
+* Font specification by text formatting: Write one or more of the text
+formatting characters (N, S, E, F, U, *) followed by a colon and then the
+character set name and then another colon and then the file name. If the
+character set is "TRON" then it may include * and/or ? to match multiple
+file names; you can also specify it more than once if it is "TRON" (but
+otherwise you cannot specify multiple files).
+
+* Scaling fonts in this font group: Write the X scale and Y scale amounts
+with "x" in between.
+
+* Scaling fonts from another font group if none in this group match: Write
+the X scale and Y scale amounts with "x" in between, and then a colon and
+the name of the another font group.
+
+A line with a name in [] defines a block style. The name must be one of the
+block types, as follows: NORM, H1, H2, H3, H4, H5, H6, LINK, LINK_ASK,
+LINK_INTER, LINK_ALT, QUOTE, PRE, META, EOF, ERR, INFO, SYS. The commands
+which can be used inside of this section are the parameter name and then =
+and then the value. The possible parameters are:
+
+* Color = The colour of the text.
+
+* Copy = The name of another block style (which must have already been
+defined); copies the parameters of that block style. Any parameters added
+after the Copy command will override them for this block style.
+
+* Depth = Distance below the base line of the last line of text of this
+block before the next block begins.
+
+* Fonts = Specify which font group to use.
+
+* Height = Distance below the end of the previous block before the base
+line of the first character of this block begins.
+
+* Indent = Extra horizontal space at the beginning of the block, on the
+first line only; added to the left margin amount. This number would usually
+be positive or zero, but also may be negative, unlike other parameters.
+
+* Leading = Distance between base lines.
+
+* LeftMargin = Space between the left edge of the window and the text.
+
+* RightMargin = Space between the right edge of the window and the text.
+
+A line with a name in <> defines a character set. Character set names
+"TRON" and "PC" are built-in, although you can still redefine them. Inside
+of this block you can have name=parameter like in the [] block, but the
+set of possible parameters is different:
+
+* Alias = Define an alias. This parameter can occur multiple times; each
+time, the value is another name which is an alias of this character set. It
+is not allowed for the alias to be the same name as a character set which
+is defined as a <> block, nor are "TRON" and "PC" allowed as aliases.
+
+* Alternate = Specify a character set to use if this one is unavailable.
+This can only occur once per character set, although it is OK for multiple
+character sets to have the same alternate.
+
+* Map = Specify a mapping to TRON code. You must specify a file name.
+
+
+=== FAQ ===
+
+** What is the origin of the name?
+
+It is the name of a star in the constellation Scorpius, and it is a Arabic
+word meaning forehead of scorpion.
+
