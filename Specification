@@ -701,8 +701,23 @@ code. This is not valid for block type 0x0A.
 * 0x49 = A hint for the capability string to use with interactive mode.
 This is only valid for block type 0x0A.
 
+* 0x72 = Relation types. The value is any number of bytes; if the bytes are
+0x01 to 0x7F then they are the relation type from this file to the target
+file, and 0x81 to 0xFF are the same relation types but in reverse (from the
+target file to this file). The browser should not prevent the display of
+links or automatically handle links due to the relation types; however, it
+may be e.g. shortcut keys, queries, user-defined styles, etc that might be
+affected by these relation types.
+
+Valid relation types are:
+  0x01 = Next page
+  0x02 = Citation
+  0x03 = Cross-reference
+
 
 === Metadata blocks ===
+
+(These might be changed in future)
 
 The first bytes of the attribute of a type 0x0F block (a metadata block)
 identifies the type of metadata in this block.
@@ -1210,7 +1225,8 @@ is not supposed to be added to the preload list.
 If the data type is a UTF-8 string, then it is interpreted as specified by:
   gemini://mozz.us/files/rfc_gemini_favicon.gmi
 
-(TODO: other formats, e.g. raster, vector)
+If the data type is a implicit type 1 octet string, then it is a Haiku
+vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 
 === Recommendations and other notes ===
