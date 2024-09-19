@@ -1,6 +1,32 @@
 (DRAFT)
 SCORPION PROTOCOL/FILE-FORMAT
 
+Table of contents:
+  Protocol
+  Status codes
+  Detailed status codes
+  Client certificates
+  Receive subprotocol
+  Send subprotocol
+  Interactive subprotocol
+  Hashed URI scheme
+  Document file format
+  Extended link attributes
+  Metadata blocks
+  Data/text sub-blocks
+  Languages
+  Database file format
+  Automated crawling
+  Conversion
+  Unordered Labels File Identification
+  X.509 extensions
+  Favicon formats
+  Recommendations and other notes
+  Dynamic files
+  Security issues
+  Missing details
+  FAQ
+
 
 === Protocol ===
 
@@ -12,7 +38,8 @@ which case it is the subprotocol byte)).
 
 The default port number (for both TLS and non-TLS) is 1517.
 
-Unless otherwise specified, the text in the protocol is ASCII.
+Unless otherwise specified, the text in the protocol is ASCII. (This only
+applies to the protocol; the contents of files are not limited to ASCII.)
 
 The first byte is the subprotocol, and then optional subprotocol parameter,
 and then a space, and then the absolute URL (the scheme is mandatory), and
