@@ -5,10 +5,10 @@ SCORPION PROTOCOL/FILE-FORMAT
 === Protocol ===
 
 The protocol can be TLS or non-TLS. Implementation of TLS is optional but
-is recommended; implementation of non-TLS is mandatory if it is possible.
-The same port number can be used for TLS and non-TLS; this is distinguished
-by the first byte that the client sends (TLS if it is 0x16 or non-TLS
-otherwise (in which case it is the subprotocol byte)).
+is recommended; implementation of non-TLS is mandatory. The same port
+number can be used for TLS and non-TLS; this is distinguished by the first
+byte that the client sends (TLS if it is 0x16 or non-TLS otherwise (in
+which case it is the subprotocol byte)).
 
 The default port number (for both TLS and non-TLS) is 1517.
 
@@ -1593,7 +1593,7 @@ meant to be text in any language.
 specify a different character encoding anyways.
 
 Note that not everything is restricted to ASCII only; specifically, the
-documents are not restricted to ASCII only.
+documents are not restricted to ASCII only. (This is also true of Spartan.)
 
 *** Why is it a binary file format? That would make it difficult to use a
 text editor, and besides, you are redefining well-defined control codes.
