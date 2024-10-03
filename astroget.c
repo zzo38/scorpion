@@ -24,6 +24,7 @@ exit
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>

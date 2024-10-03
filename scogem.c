@@ -4,6 +4,7 @@ exit
 #endif
 
 #include "scogem.h"
+#include <unistd.h>
 
 static char urlbuf[0x2000];
 static FILE*urlfile;
