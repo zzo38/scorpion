@@ -1,0 +1,168 @@
+
+=== Structures ===
+
+ASN1
+  Represents a single ASN.1 value. See the section below about ASN.1 data
+  formats for an explanation of what the ASN.1 formats mean.
+
+  .data = A pointer to the beginning of the raw primitive or constructed
+  data, excluding the bytes for the class, type, and length.
+
+  .length = The length of the data in bytes.
+
+  .type = The type number. If the class is ASN1_UNIVERSAL (0) then this is
+  one of the constants listed near the top of the asn1.h file.
+
+  .class = The class, which can be ASN1_UNIVERSAL (0), ASN1_APPLICATION
+  (1), ASN1_CONTEXT_SPECIFIC (2), or ASN1_PRIVATE (3).
+
+  .constructed = Zero if primitive or one if constructed.
+
+ASN1_DateTime
+  Represents a general date/time, including time zone.
+
+  .zone = The time zone, in minutes from UTC; positive numbers are east and
+  negative numbers are west.
+
+  .year = The AD year number.
+
+  .month = The month number from 1 to 12.
+
+  .day = The day number from 1 to 31.
+
+  .hours = The number of hours from 0 to 23.
+
+  .minutes = The number of minutes past the hour, from 0 to 59.
+
+  .seconds = The number of seconds past the minute, normally from 0 to 59,
+  but may be 60 in the case of leap seconds.
+
+ASN1_Encoder
+  This is an opaque type, which is used during encoding.
+
+
+=== Return values ===
+
+Except as otherwise specified, all functions return an error code, where
+zero means OK and nonzero means error.
+
+
+=== General functions ===
+
+asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano)
+  Convert a ASN1_DateTime structure to UNIX time.
+
+  in = The structure with the date/time to be converted.
+
+  out = Where the output time is written to. In the case of leap seconds,
+  the timestamp is the same as that for the last second of the same minute.
+
+  nano = It may be null. If it is not null, writes the number of
+  nanoseconds past the UNIX time. This is normally less than one billion,
+  but can exceed one billion in the case of leap seconds.
+
+asn1_distinguished_parse(const uint8_t*,size_t,ASN1*,size_t*)
+  Same as asn1_parse but does not allow indefinite encoding, and requires
+  that the type and length are encoded in the minimum number of bytes.
+
+asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next)
+  Parses a ASN.1 BER value from memory. This does not decode the value.
+
+  data = The pointer to the data.
+
+  length = The maximum length of the data. It will not try to read past
+  this length. If this length is not big enough to parse a single value,
+  then it returns ASN1_TOO_SHORT.
+
+  out = The ASN1 structure to write the parsed value into.
+
+  next = It may be null. If it is not null, then the total length that has
+  been read is added to the variable that it points to, so that you may
+  know where to start reading from next.
+
+
+=== Decoding functions ===
+
+Most of these functions have the first two arguments being "asn" and
+"type", where "asn" is the value to decode, and "type" specifies the ASN.1
+universal type of the value. If the type is ASN1_AUTO then it will decide
+the type automatically from the ASN1 structure; in this case, the class
+must be ASN1_UNIVERSAL or ASN1_CONTEXT_SPECIFIC (in which case it assumes
+it is an explicit type). If the type passed to the function is not
+ASN1_AUTO then it assumes that it is an implicit type and uses the type
+you specified instead.
+
+asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out)
+  Decodes one of the ASN.1 date/time types. The time zone in the output is
+  left unchanged if the ASN.1 value does not specify the time zone, but if
+  it does specify the time zone then it will use the time zone in the
+  ASN.1 value instead.
+
+asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano)
+  Combines asn1_decode_date and asn1_date_to_time.
+
+  zone = The default time zone, in minutes (specify 0 for UTC). It is
+  ignored if the ASN.1 value explicitly specifies the time zone.
+
+asn1_decode_uint8(const ASN1*asn,uint32_t type,uint8_t*out)
+  Decodes a unsigned 8-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a 8-bit integer.
+
+asn1_decode_uint16(const ASN1*asn,uint32_t type,uint16_t*out)
+  Decodes a unsigned 16-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a 16-bit integer.
+
+asn1_decode_uint32(const ASN1*asn,uint32_t type,uint32_t*out)
+  Decodes a unsigned 32-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a 32-bit integer.
+
+asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out)
+  Decodes a unsigned 64-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a 64-bit integer.
+
+asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out)
+  Reads a single bit from a value.
+
+  which = Which bit to read. How this number is interpreted depends on
+  the type, as follows:
+
+  ASN1_BIT_STRING: The high bit of the first byte (although this is not
+  the first byte of the encoded value) is bit 0.
+
+  ASN1_OCTET_STRING: The low bit of the first byte is bit 0.
+
+  ASN1_INTEGER: The low bit of the last byte is bit 0. If the bit
+  position number is out of range, then it uses the high bit of the
+  first byte (the sign bit), instead of leaving it unchanged.
+
+  ASN1_BOOLEAN: The bit position number is ignored.
+
+  out = Where to store the bit that has been read. If the requested bit
+  number is out of range then it remains unchanged (therefore allowing
+  the use of default values, which is usually zero).
+
+asn1_print_decimal_oid(const ASN1*asn,uint32_t type,FILE*stream)
+  Prints a object identifier in decimal format. If any part has a number
+  bigger than 160 digits then a question mark is printed instead. (You
+  should not use this for comparison; if you want to compare OIDs, then
+  you should just compare the binary data directly, instead.)
+
+  Note that this function may print some data and still return an error,
+  in case of an invalid encoding. Numbers that are too big is not an error
+  but will print a question mark in place of the too big number.
+
+  type = The type can be ASN1_OID or ASN1_RELATIVE_OID. In the latter case,
+  it prints two dots before the numbers.
+
+  stream = The file to write to.
+
+
+=== Encoding functions ===
+
+(TODO)
+
+
+=== ASN.1 data format ===
+
+(TODO)
+

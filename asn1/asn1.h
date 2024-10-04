@@ -1,0 +1,124 @@
+
+#include <stdint.h>
+#include <time.h>
+
+// Universal types
+#define ASN1_EOC 0
+#define ASN1_END_OF_CONTENT 0
+#define ASN1_BOOLEAN 1
+#define ASN1_INTEGER 2
+#define ASN1_BIT_STRING 3
+#define ASN1_OCTET_STRING 4
+#define ASN1_NULL 5
+#define ASN1_OBJECT_IDENTIFIER 6
+#define ASN1_OID 6
+#define ASN1_OBJECT_DESCRIPTOR 7
+#define ASN1_EXTERNAL 8
+#define ASN1_REAL 9
+#define ASN1_FLOAT 9
+#define ASN1_ENUMERATED 10
+#define ASN1_EMBEDDED_PDV 11
+#define ASN1_UTF8STRING 12
+#define ASN1_UTF8_STRING 12
+#define ASN1_RELATIVE_OID 13
+#define ASN1_TIME 14
+#define ASN1_SEQUENCE 16
+#define ASN1_SEQUENCE_OF 16
+#define ASN1_SET 17
+#define ASN1_SET_OF 17
+#define ASN1_NUMERICSTRING 18
+#define ASN1_NUMERIC_STRING 18
+#define ASN1_PRINTABLESTRING 19
+#define ASN1_PRINTABLE_STRING 19
+#define ASN1_T61STRING 20
+#define ASN1_T61_STRING 20
+#define ASN1_TELETEXSTRING 20
+#define ASN1_TELETEX_STRING 20
+#define ASN1_VIDEOTEXSTRING 21
+#define ASN1_VIDEOTEX_STRING 21
+#define ASN1_IA5STRING 22
+#define ASN1_IA5_STRING 22
+#define ASN1_ASCII_STRING 22
+#define ASN1_UTCTIME 23
+#define ASN1_UTC_TIME 23
+#define ASN1_GENERALIZEDTIME 24
+#define ASN1_GENERALIZED_TIME 24
+#define ASN1_GRAPHICSTRING 25
+#define ASN1_GRAPHIC_STRING 25
+#define ASN1_VISIBLESTRING 26
+#define ASN1_VISIBLE_STRING 26
+#define ASN1_GENERALSTRING 27
+#define ASN1_GENERAL_STRING 27
+#define ASN1_UNIVERSALSTRING 28
+#define ASN1_UNIVERSAL_STRING 28
+#define ASN1_UTF32_STRING 28
+#define ASN1_UCS4_STRING 28
+#define ASN1_ISO10646_STRING 28
+#define ASN1_CHARACTER_STRING 29
+#define ASN1_BMPSTRING 30
+#define ASN1_BMP_STRING 30
+#define ASN1_UTF16_STRING 30
+#define ASN1_UCS2_STRING 30
+#define ASN1_DATE 31
+#define ASN1_TIME_OF_DAY 32
+#define ASN1_DATE_TIME 33
+#define ASN1_DURATION 34
+#define ASN1_OID_IRI 35
+#define ASN1_RELATIVE_OID_IRI 36
+
+// Classes
+#define ASN1_UNIVERSAL 0
+#define ASN1_APPLICATION 1
+#define ASN1_CONTEXT_SPECIFIC 2
+#define ASN1_PRIVATE 3
+
+// Results
+#define ASN1_OK 0
+#define ASN1_ERROR 1
+#define ASN1_IMPROPER_TYPE 2
+#define ASN1_IMPROPER_VALUE 3
+#define ASN1_TOO_SHORT 4
+#define ASN1_TOO_SMALL 4
+#define ASN1_IMPROPER_ENCODING 5
+#define ASN1_TOO_BIG 6
+#define ASN1_OVERFLOW 6
+#define ASN1_IMPROPER_MODE 7
+#define ASN1_IMPROPER_ARGUMENT 8
+
+// Flags
+#define ASN1_SORTED 0x01
+#define ASN1_UNIQUE 0x02
+#define ASN1_INDEFINITE 0x04
+#define ASN1_ONCE 0x08
+
+// Others
+#define ASN1_AUTO 0 // means use the existing universal or explicit type instead of an implicit type
+
+typedef struct {
+  const uint8_t*data;
+  size_t length;
+  uint32_t type;
+  uint8_t class,constructed,own;
+} ASN1;
+
+typedef struct {
+  int16_t zone; // measured in minutes
+  int16_t year;
+  uint8_t month,day,hours,minutes,seconds;
+  uint32_t nano;
+} ASN1_DateTime;
+
+typedef struct ASN1_Encoder ASN1_Encoder;
+
+int asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano);
+int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out);
+int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano);
+int asn1_decode_uint8(const ASN1*asn,uint32_t type,uint8_t*out);
+int asn1_decode_uint16(const ASN1*asn,uint32_t type,uint16_t*out);
+int asn1_decode_uint32(const ASN1*asn,uint32_t type,uint32_t*out);
+int asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out);
+int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
+int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
+int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
+int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
+
