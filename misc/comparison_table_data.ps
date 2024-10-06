@@ -1,0 +1,286 @@
+% This file contains data (the actual rendering would be a separate file)
+% for a larger comparison table similar than the one included in the Scroll
+% and Spartan protocol specifications. This file is public domain. It is
+% also incomplete; you are free to suggest improvements (including in case
+% you find any mistake or something that is unclear, or if you want to add
+% additional rows/columns, etc).
+<<
+  /Gemini <<
+    /Name (Gemini)
+    /Port null
+    /PortTLS 1965
+    /Scheme null
+    /SchemeTLS (gemini)
+    /NamingScheme (space)
+    /VirtualHosting true
+    /RequestStructure (full URL)
+    /RequestEncoding (UTF-8)
+    /FileFormat (Gemini)
+    /InputPrompt (1x status)
+    /DataUpload false
+    /MIME true
+    /ULFI false
+    /SameSiteRedirects true
+    /CrossSiteRedirects true
+    /ProxyRequests true
+    /LanguageRequest false
+    /LanguageResponse true
+    /ResponseSize false
+    /AbstractMetadataRequest false
+    /LinkRelations false
+    /ListNesting false
+    /Favicon false
+    /HeadingLevels 3
+    /RelativeLinks true
+    /InlineFormatting false
+    /BlockQuotation true
+    /UniversalDecimalClassification false
+    /ConversionFile false
+    /Notes <<
+      /DataUpload (Titan can be used for full data upload capability.)
+      /Favicon (There is an unofficial specification using the /favicon.txt file. Clients are not supposed to automatically access additional files (including this one), though.)
+      /InineFormatting (SGR escape codes are sometimes used, but are not an official part of the specification. Not all clients implement it.)
+    >>
+  >>
+  /Gopher <<
+    /Name (Gopher)
+    /Port 70
+    /PortTLS 70
+    /Scheme (gopher)
+    /SchemeTLS (gophers)
+    /NamingScheme (several meanings; University of Minnesota)
+    /VirtualHosting false
+    /RequestStructure (path)
+    /RequestEncoding (ASCII)
+    /FileFormat (Gopher menu, plain text)
+    /InputPrompt (Type 7)
+    /DataUpload false
+    /MIME false
+    /ULFI false
+    /SameSiteRedirects false
+    /CrossSiteRedirects false
+    /ProxyRequests false
+    /LanguageRequest false
+    /LanguageResponse false
+    /ResponseSize false
+    /AbstractMetadataRequest false
+    /LinkRelations false
+    /ListNesting false
+    /Favicon false
+    /HeadingLevels 0
+    /RelativeLinks false
+    /InlineFormatting false
+    /BlockQuotation false
+    /UniversalDecimalClassification false
+    /ConversionFile false
+    /Notes <<
+      /SchemeTLS (There is no way directly from a gopher menu to know if it should use TLS or not.)
+      /VirtualHosting (Only possible when TLS is used.)
+    >>
+  >>
+  /Gopher+ <<
+    /Name (Gopher+)
+    /Port 70
+    /PortTLS null
+    /Scheme (gopher)
+    /SchemeTLS null
+    /VirtualHosting false
+    /RequestStructure (path)
+    /MIME true
+    /ULFI false
+    /ResponseSize true
+    /AbstractMetadataRequest true
+    /LinkRelations false
+    /Favicon false
+    /ConversionFile false
+    /Notes <<
+      /ConversionFile (The use of metadata requests allows a very limited set of what the conversion file does in Scorpion.)
+    >>
+  >>
+  /Nex <<
+    /Name (Nightfall Express)
+    /Port 1900
+    /PortTLS null
+    /Scheme (nex)
+    /SchemeTLS null
+    /NamingScheme (cityscape and highways)
+    /VirtualHosting false
+    /RequestStructure (path)
+    /RequestEncoding (ASCII)
+    /FileFormat (plain text)
+    /InputPrompt (none)
+    /DataUpload false
+    /MIME false
+    /ULFI false
+    /SameSiteRedirects false
+    /CrossSiteRedirects false
+    /ProxyRequests false
+    /LanguageRequest false
+    /LanguageResponse false
+    /ResponseSize false
+    /AbstractMetadataRequest false
+    /LinkRelations false
+    /ListNesting false
+    /Favicon false
+    /HeadingLevels 0
+    /InlineFormatting false
+    /BlockQuotation false
+    /UniversalDecimalClassification false
+    /ConversionFile false
+    /Notes <<
+      /FileFormat (Directory listings can also include links like Gemini has.)
+    >>
+  >>
+  /Scorpion <<
+    /Name (Scorpion)
+    /Port 1517
+    /PortTLS 1517
+    /Scheme (scorpion)
+    /SchemeTLS (scorpions)
+    /NamingScheme (constellation)
+    /VirtualHosting true
+    /RequestStructure (request type and full URL)
+    /RequestEncoding (ASCII)
+    /FileFormat (Scorpion)
+    /InputPrompt (1x status or link type)
+    /DataUpload true
+    /MIME true
+    /ULFI true
+    /SameSiteRedirects true
+    /CrossSiteRedirects true
+    /ProxyRequests true
+    /LanguageRequest false
+    /LanguageResponse false
+    /ResponseSize true
+    /AbstractMetadataRequest false
+    /LinkRelations true
+    /ListNesting false
+    /HeadingLevels 6
+    /RelativeLinks true
+    /InlineFormatting true
+    /BlockQuotation true
+    /UniversalDecimalClassification false
+    /ConversionFile true
+    /TRONcode true
+    /Notes <<
+      /PortTLS (The server knows whether or not the client is using TLS by the first byte of the request.)
+      /MIME (Support for MIME types is provided for compatibility; ULFI is preferable.)
+      /LanguageResponse (Language can allegedly be specified in the file format, but the specification is incomplete.)
+      /AbstractMetadataRequest (May be added in future (unsure).)
+      /LinkRelations (This feature is optional.)
+      /ListNesting (There is no actual "list" type, although the control character 0x02 can be used to delimit list numbers/bullets from the text, and can occur more than once.)
+      /Favicon (Only possible when TLS is used. Clients MUST allow favicons to be disabled (or not implement favicons at all).)
+      /InlineFormatting (Limited; only "normal", "emphasis", "strong", "fixpitch", and the exact meanings are deliberately not defined by the specification.)
+      /ConversionFile (This feature is optional.)
+    >>
+  >>
+  /Scroll <<
+    /Name (Scroll)
+    /Port null
+    /PortTLS 5699
+    /Scheme null
+    /SchemeTLS (scroll)
+    /NamingScheme (scrolls, libraries)
+    /VirtualHosting true
+    /RequestStructure (full URL and language)
+    /RequestEncoding (UTF-8)
+    /FileFormat (Scrolltext)
+    /InputPrompt (1x status or link type)
+    /DataUpload false
+    /MIME true
+    /ULFI false
+    /SameSiteRedirects true
+    /CrossSiteRedirects true
+    /ProxyRequests true
+    /LanguageRequest true
+    /LanguageResponse true
+    /ResponseSize false
+    /AbstractMetadataRequest true
+    /LinkRelations true
+    /ListNesting true
+    /Favicon false
+    /HeadingLevels 5
+    /RelativeLinks true
+    /InlineFormatting true
+    /BlockQuotation true
+    /UniversalDecimalClassification true
+    /ConversionFile false
+    /Notes <<
+      /InputPrompt (The comparison table included with the specification only says "1x status", but the actual specification says that it uses both.)
+      /DataUpload (Titan can be used for full data upload capability.)
+      /LinkRelations (The relations are different from HTML.)
+      /UniversalDecimalClassification (Class 4 is not currently defined in UDC, but Scroll uses it to mean anything that doesn't fit in the other classifications (including no class at all).)
+    >>
+  >>
+  /Spartan <<
+    /Name (Spartan)
+    /Port 300
+    /PortTLS null
+    /Scheme (spartan)
+    /SchemeTLS null
+    /NamingScheme (Sparta/Greece; Michigan State University)
+    /VirtualHosting true
+    /RequestStructure (host name, path, and upload size)
+    /RequestEncoding (ASCII)
+    /FileFormat (Gemini)
+    /InputPrompt (link type)
+    /DataUpload true
+    /MIME true
+    /ULFI false
+    /SameSiteRedirects true
+    /CrossSiteRedirects false
+    /ProxyRequests false
+    /LanguageRequest false
+    /LanguageResponse true
+    /ResponseSize false
+    /AbstractMetadataRequest false
+    /LinkRelations false
+    /ListNesting false
+    /Favicon false
+    /HeadingLevels 3
+    /RelativeLinks true
+    /InlineFormatting false
+    /BlockQuotation true
+    /UniversalDecimalClassification false
+    /ConversionFile false
+    /Notes <<
+      /DataUpload (Does not have a way to distinguish query strings from uploads.)
+      /LanguageResponse (The specification does not mention it, but it would be possible the same as for Gemini since the file format is the same.)
+    >>
+  >>
+  /WWW <<
+    /Name (WWW)
+    /Port 80
+    /PortTLS 443
+    /Scheme (http)
+    /SchemeTLS (https)
+    /VirtualHosting true
+    /RequestStructure (request type, path, HTTP version, and headers)
+    /RequestEncoding (ASCII)
+    /FileFormat (HTML)
+    /InputPrompt (HTML forms or <ISINDEX>)
+    /DataUpload true
+    /MIME true
+    /ULFI false
+    /SameSiteRedirects true
+    /CrossSiteRedirects true
+    /ProxyRequests true
+    /LanguageRequest true
+    /LanguageResponse true
+    /ResponseSize true
+    /AbstractMetadataRequest false
+    /LinkRelations true
+    /ListNesting true
+    /Favicon true
+    /HeadingLevels 6
+    /RelativeLinks true
+    /InlineFormatting true
+    /BlockQuotation true
+    /UniversalDecimalClassification false
+    /ConversionFile false
+    /Notes <<
+      /InputPrompt (<ISINDEX> works like input prompts in Gemini and other protocols, but it is deprecated and is not commonly used in HTML.)
+      /LinkRelations (Most relations are not commonly implemented. The relations are different from Scroll.)
+    >>
+  >>
+>>
