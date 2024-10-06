@@ -86,8 +86,8 @@
 #define ASN1_IMPROPER_ARGUMENT 8
 
 // Flags
-#define ASN1_SORTED 0x01
-#define ASN1_UNIQUE 0x02
+#define ASN1_SORT 0x01
+#define ASN1_UNIQ 0x02
 #define ASN1_INDEFINITE 0x04
 #define ASN1_ONCE 0x08
 
@@ -112,13 +112,30 @@ typedef struct ASN1_Encoder ASN1_Encoder;
 
 int asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano);
 int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out);
+int asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out);
+int asn1_decode_int16(const ASN1*asn,uint32_t type,int16_t*out);
+int asn1_decode_int32(const ASN1*asn,uint32_t type,int32_t*out);
+int asn1_decode_int64(const ASN1*asn,uint32_t type,int64_t*out);
 int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano);
 int asn1_decode_uint8(const ASN1*asn,uint32_t type,uint8_t*out);
 int asn1_decode_uint16(const ASN1*asn,uint32_t type,uint16_t*out);
 int asn1_decode_uint32(const ASN1*asn,uint32_t type,uint32_t*out);
 int asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out);
 int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
+int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out);
 int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
 int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
 int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
+
+#define asn1__decode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E*),asn1_decode_##F,
+#define asn1_decode_number(A,B,C) (( \
+  asn1__decode_number__(C,int8_t,int8) \
+  asn1__decode_number__(C,int16_t,int16) \
+  asn1__decode_number__(C,int32_t,int32) \
+  asn1__decode_number__(C,int64_t,int64) \
+  asn1__decode_number__(C,uint8_t,uint8) \
+  asn1__decode_number__(C,uint16_t,uint16) \
+  asn1__decode_number__(C,uint32_t,uint32) \
+  asn1__decode_number__(C,uint64_t,uint64) \
+  (void)0 )))))))))(A,B,C) )
 

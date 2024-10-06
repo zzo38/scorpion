@@ -65,6 +65,11 @@ asn1_distinguished_parse(const uint8_t*,size_t,ASN1*,size_t*)
   Same as asn1_parse but does not allow indefinite encoding, and requires
   that the type and length are encoded in the minimum number of bytes.
 
+asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out)
+  Converts a null-terminated C string into a ASN1 structure (which will
+  contain a pointer to the string). The type cannot be automatic; it must
+  be specified explicitly. Passing a null pointer is an error.
+
 asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next)
   Parses a ASN.1 BER value from memory. This does not decode the value.
 
@@ -96,10 +101,33 @@ asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out)
   Decodes one of the ASN.1 date/time types. The time zone in the output is
   left unchanged if the ASN.1 value does not specify the time zone, but if
   it does specify the time zone then it will use the time zone in the
-  ASN.1 value instead.
+  ASN.1 value instead. It will also keep any existing values in the output
+  structure for the ASN.1 types that only specify date or only time of day,
+  in which case the time of day or the date is kept as it is.
+
+asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out)
+  Decodes a signed 8-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a signed 8-bit integer.
+
+asn1_decode_int16(const ASN1*asn,uint32_t type,int16_t*out)
+  Decodes a signed 16-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a signed 16-bit integer.
+
+asn1_decode_int32(const ASN1*asn,uint32_t type,int32_t*out)
+  Decodes a signed 32-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a signed 32-bit integer.
+
+asn1_decode_int64(const ASN1*asn,uint32_t type,int64_t*out)
+  Decodes a signed 64-bit integer. Returns ASN1_OVERFLOW if the value is
+  not in the range of a signed 64-bit integer.
+
+asn1_decode_number(const ASN1*asn,uint32_t type,???*out)
+  A macro that calls one of the other numeric decoding functions according
+  to the type of the "out" argument.
 
 asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano)
-  Combines asn1_decode_date and asn1_date_to_time.
+  Combines asn1_decode_date and asn1_date_to_time. The defaults for any
+  fields other than the time zone will be zero.
 
   zone = The default time zone, in minutes (specify 0 for UTC). It is
   ignored if the ASN.1 value explicitly specifies the time zone.

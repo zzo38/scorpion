@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -c asn1.c
+gcc -s -O2 -c -fwrapv asn1.c
 exit
 #endif
 
@@ -283,11 +283,24 @@ int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out) {
 
 int asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano) {
   const int16_t mon[12]={-1,30,58,89,119,150,180,211,242,272,303,333};
+  int32_t leap;
   if(in->month<1 || in->month>12 || in->seconds>62) return ASN1_IMPROPER_VALUE;
   *out=(in->hours*60+in->minutes-in->zone)*60+(in->seconds<60?in->seconds:59);
-  if(in->month>2 && !((in->year%100?:in->year/100)&3)) *out+=86400LL;
-  *out+=86400LL*(mon[in->month-1]+in->day+(in->year-1970)*365LL+(in->year-1969)/4-(in->year-1901)/100+(in->year-1601)/400);
+  leap=in->year-(in->month<3);
+  leap=(leap/4)-(leap/100)+(leap/400)-477;
+  *out+=86400LL*(mon[in->month-1]+in->day+(in->year-1970)*365LL+leap);
   if(nano) *nano=in->nano+(in->seconds>59?(in->seconds-59)*1000000000L:0L);
+  return ASN1_OK;
+}
+
+int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out) {
+  if(!data || !out) return ASN1_ERROR;
+  out->own=0;
+  out->constructed=0;
+  out->data=(const uint8_t*)data;
+  out->length=strlen(data);
+  out->class=class;
+  out->type=type;
   return ASN1_OK;
 }
 
@@ -320,6 +333,44 @@ int asn1_decode_uint32(const ASN1*asn,uint32_t type,uint32_t*out) {
 
 int asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out) {
   UNSIGNED_DECODE(64);
+}
+
+#define SIGNED_DECODE(M) \
+  size_t n; \
+  uint64_t i; \
+  CONVERT_TYPE; \
+  if(asn->constructed || (type!=ASN1_INTEGER && type!=ASN1_ENUMERATED)) return ASN1_IMPROPER_TYPE; \
+  if(!asn->length) return ASN1_IMPROPER_VALUE; \
+  if(asn->data[0]&0x80) { \
+    *out=-1; \
+    for(i=0,n=asn->length-1;;n--,i+=8) { \
+      if(i>=M-8 && !(asn->data[n]&0x80)) return ASN1_OVERFLOW; \
+      if(i<M) *out&=~(((uint64_t)(0xFF^asn->data[n]))<<i); else if(asn->data[n]!=0xFF) return ASN1_OVERFLOW; \
+      if(!n) return ASN1_OK; \
+    } \
+  } else { \
+    *out=0; \
+    for(i=0,n=asn->length-1;;n--,i+=8) { \
+      if(i>=M-8 && (asn->data[n]&0x80)) return ASN1_OVERFLOW; \
+      if(i<M) *out|=((uint64_t)(asn->data[n]))<<i; else if(asn->data[n]) return ASN1_OVERFLOW; \
+      if(!n) return ASN1_OK; \
+    } \
+  }
+
+int asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out) {
+  SIGNED_DECODE(8);
+}
+
+int asn1_decode_int16(const ASN1*asn,uint32_t type,int16_t*out) {
+  SIGNED_DECODE(16);
+}
+
+int asn1_decode_int32(const ASN1*asn,uint32_t type,int32_t*out) {
+  SIGNED_DECODE(32);
+}
+
+int asn1_decode_int64(const ASN1*asn,uint32_t type,int64_t*out) {
+  SIGNED_DECODE(64);
 }
 
 #define TWO_DIGITS(M,V) do { \
@@ -392,6 +443,34 @@ int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out) {
         }
       }
       if(x==asn->length) return ASN1_OK; else goto zone;
+    case ASN1_DATE:
+      if(asn->length!=10) return ASN1_IMPROPER_VALUE;
+      if(asn->data[4]!='-' || asn->data[7]!='-') return ASN1_IMPROPER_VALUE;
+      TWO_DIGITS(0,y);
+      TWO_DIGITS(2,out->year);
+      out->year+=100*y;
+      TWO_DIGITS(5,out->month);
+      TWO_DIGITS(8,out->day);
+      return ASN1_OK;
+    case ASN1_TIME_OF_DAY:
+      if(asn->length!=8) return ASN1_IMPROPER_VALUE;
+      if(asn->data[2]!=':' || asn->data[5]!=':') return ASN1_IMPROPER_VALUE;
+      TWO_DIGITS(0,out->hours);
+      TWO_DIGITS(3,out->minutes);
+      TWO_DIGITS(6,out->seconds);
+      return ASN1_OK;
+    case ASN1_DATE_TIME:
+      if(asn->length!=19) return ASN1_IMPROPER_VALUE;
+      if(asn->data[4]!='-' || asn->data[7]!='-' || asn->data[10]!='T' || asn->data[13]!=':' || asn->data[16]!=':') return ASN1_IMPROPER_VALUE;
+      TWO_DIGITS(0,y);
+      TWO_DIGITS(2,out->year);
+      out->year+=100*y;
+      TWO_DIGITS(5,out->month);
+      TWO_DIGITS(8,out->day);
+      TWO_DIGITS(11,out->hours);
+      TWO_DIGITS(14,out->minutes);
+      TWO_DIGITS(17,out->seconds);
+      return ASN1_OK;
     default: return ASN1_IMPROPER_TYPE;
   }
 }
