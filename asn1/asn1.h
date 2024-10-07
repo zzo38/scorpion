@@ -110,6 +110,9 @@ typedef struct {
 
 typedef struct ASN1_Encoder ASN1_Encoder;
 
+int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode);
+ASN1_Encoder*asn1_create_encoder(FILE*file);
+FILE*asn1_current_file(ASN1_Encoder*enc);
 int asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano);
 int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out);
 int asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out);
@@ -122,10 +125,20 @@ int asn1_decode_uint16(const ASN1*asn,uint32_t type,uint16_t*out);
 int asn1_decode_uint32(const ASN1*asn,uint32_t type,uint32_t*out);
 int asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out);
 int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
+int asn1_encode(ASN1_Encoder*enc,const ASN1*value);
+int asn1_end(ASN1_Encoder*enc);
+int asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
+int asn1_finish_encoder(ASN1_Encoder*enc);
+int asn1_flush(ASN1_Encoder*enc);
 int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out);
 int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
+int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
+int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length);
 int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
+int asn1_wrap(ASN1_Encoder*enc);
+void asn1_write_length(uint64_t length,FILE*stream);
+void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream);
 
 #define asn1__decode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E*),asn1_decode_##F,
 #define asn1_decode_number(A,B,C) (( \

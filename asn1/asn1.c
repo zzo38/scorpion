@@ -116,6 +116,34 @@ int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*ne
   return ASN1_OK;
 }
 
+void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream) {
+  fputc((type>30?31:type)|(class<<6)|(constructed?0x20:0x00),stream);
+  if(type>30) {
+    if(type>=(1ULL<<28)) fputc((type>>28)&0x7F,stream);
+    if(type>=(1ULL<<21)) fputc((type>>21)&0x7F,stream);
+    if(type>=(1ULL<<14)) fputc((type>>14)&0x7F,stream);
+    if(type>=(1ULL<<7)) fputc((type>>7)&0x7F,stream);
+    fputc(type&0x7F,stream);
+  }
+}
+
+void asn1_write_length(uint64_t length,FILE*stream) {
+  if(length<128) {
+    fputc(length,stream);
+  } else {
+    uint8_t n=1;
+    if(length>=0x100ULL) n=2;
+    if(length>=0x10000ULL) n=3;
+    if(length>=0x1000000ULL) n=4;
+    if(length>=0x100000000ULL) n=5;
+    if(length>=0x10000000000ULL) n=6;
+    if(length>=0x1000000000000ULL) n=7;
+    if(length>=0x100000000000000ULL) n=8;
+    fputc(n+128,stream);
+    while(n--) fputc(length>>(n*8),stream);
+  }
+}
+
 static int convert_type(const ASN1*asn,ASN1*rel) {
   size_t s=0;
   int x;
@@ -478,5 +506,150 @@ int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out) {
 int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano) {
   ASN1_DateTime d={.zone=zone};
   return asn1_decode_date(asn,type,&d)?:asn1_date_to_time(&d,out,nano);
+}
+
+// Encoding
+
+typedef struct Encoder {
+  struct Encoder*next;
+  FILE*file;
+  char*mem;
+  size_t size;
+  uint8_t mode;
+} Encoder;
+
+struct ASN1_Encoder {
+  FILE*file;
+  Encoder*sub;
+  uint32_t type;
+  uint8_t class;
+  uint8_t mode;
+};
+
+ASN1_Encoder*asn1_create_encoder(FILE*file) {
+  ASN1_Encoder*enc;
+  if(!file) return 0;
+  enc=calloc(1,sizeof(ASN1_Encoder));
+  if(!enc) return 0;
+  enc->file=file;
+  return enc;
+}
+
+int asn1_finish_encoder(ASN1_Encoder*enc) {
+  int x;
+  if(enc->sub) return ASN1_IMPROPER_MODE;
+  x=fclose(enc->file)?ASN1_ERROR:ASN1_OK;
+  free(enc);
+  return x;
+}
+
+FILE*asn1_current_file(ASN1_Encoder*enc) {
+  if(enc) return enc->file; else return 0;
+}
+
+int asn1_flush(ASN1_Encoder*enc) {
+  if(enc) {
+    if(fflush(enc->file)) return ASN1_ERROR;
+  }
+  return ASN1_OK;
+}
+
+int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
+  Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
+  Encoder*p;
+  FILE*f;
+  if(mode&0xF3) return ASN1_IMPROPER_ARGUMENT;
+  if(!(p=malloc(sizeof(Encoder)))) return ASN1_ERROR;
+  *p=e;
+  if(!(mode&ASN1_INDEFINITE)) {
+    f=open_memstream(&p->mem,&p->size);
+    if(!f) {
+      free(p);
+      return ASN1_ERROR;
+    }
+  }
+  if(enc->class || enc->type) asn1_write_type(1,enc->class,enc->type,enc->file); else asn1_write_type(1,class,type,enc->file);
+  if(mode&ASN1_INDEFINITE) fputc(128,enc->file);
+  enc->sub=p;
+  enc->mode=mode;
+  enc->class=0;
+  enc->type=0;
+}
+
+int asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
+  return asn1_construct(enc,class,type,ASN1_ONCE);
+}
+
+int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
+  if(enc->class || enc->type) return ASN1_IMPROPER_MODE;
+  if(!class && !type) return ASN1_IMPROPER_ARGUMENT;
+  enc->class=class;
+  enc->type=type;
+  return ASN1_OK;
+}
+
+int asn1_end(ASN1_Encoder*enc) {
+  Encoder*p=enc->sub;
+  if(!p) return ASN1_IMPROPER_MODE;
+  if(enc->mode&ASN1_INDEFINITE) {
+    fwrite("\0",1,2,enc->file);
+  } else {
+    if(fclose(enc->file) || (p->size && !p->mem)) {
+      enc->sub=p->next;
+      enc->mode=p->mode;
+      enc->file=p->file;
+      free(p->mem);
+      free(p);
+      return ASN1_ERROR;
+    }
+    asn1_write_length(p->size,enc->file);
+    if(p->size) fwrite(p->mem,1,p->size,enc->file);
+    free(p->mem);
+  }
+  enc->sub=p->next;
+  enc->mode=p->mode;
+  enc->file=p->file;
+  free(p);
+  return ASN1_OK;
+}
+
+int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length) {
+  if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file);
+  else if(!class && !type) return ASN1_IMPROPER_TYPE;
+  else asn1_write_type(0,class,type,enc->file);
+  enc->class=0;
+  enc->type=0;
+  asn1_write_length(length,enc->file);
+  if(length) fwrite(data,1,length,enc->file);
+  return (enc->mode&ASN1_ONCE)?asn1_end(enc):ASN1_OK;
+}
+
+int asn1_encode(ASN1_Encoder*enc,const ASN1*value) {
+  if(enc->class || enc->type) asn1_write_type(value->constructed,enc->class,enc->type,enc->file);
+  else if(!value->class && !value->type) return ASN1_IMPROPER_TYPE;
+  else asn1_write_type(value->constructed,value->class,value->type,enc->file);
+  enc->class=0;
+  enc->type=0;
+  asn1_write_length(value->length,enc->file);
+  if(value->length) fwrite(value->data,1,value->length,enc->file);
+  return (enc->mode&ASN1_ONCE)?asn1_end(enc):ASN1_OK;
+}
+
+int asn1_wrap(ASN1_Encoder*enc) {
+  Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
+  Encoder*p;
+  FILE*f;
+  if(!(p=malloc(sizeof(Encoder)))) return ASN1_ERROR;
+  *p=e;
+  f=open_memstream(&p->mem,&p->size);
+  if(!f) {
+    free(p);
+    return ASN1_ERROR;
+  }
+  if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file); else asn1_write_type(0,ASN1_UNIVERSAL,ASN1_OCTET_STRING,enc->file);
+  enc->sub=p;
+  enc->mode=ASN1_ONCE;
+  enc->class=0;
+  enc->type=0;
 }
 

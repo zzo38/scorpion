@@ -85,6 +85,25 @@ asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next)
   been read is added to the variable that it points to, so that you may
   know where to start reading from next.
 
+void asn1_write_length(uint64_t length,FILE*stream)
+  Writes a length header of a ASN.1 item.
+
+  length = The length of the data within the item (not including the header
+  itself). This does not write the data; only the length header is written.
+
+  stream = File to be written to.
+
+void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream)
+  Writes a class/type header of a ASN.1 item.
+
+  constructed = Set to nonzero for constructed or zero for primitive.
+
+  class = Class of value.
+
+  type = Type of value. The class and type should not both be zero.
+
+  stream = File to be written to.
+
 
 === Decoding functions ===
 
@@ -187,7 +206,75 @@ asn1_print_decimal_oid(const ASN1*asn,uint32_t type,FILE*stream)
 
 === Encoding functions ===
 
-(TODO)
+Most of these functions require a pointer to a ASN1_Encoder object as the
+first argument. Use asn1_create_encoder to create this object, and then
+use asn1_finish_encoder to destroy it once you are finished with it.
+
+asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode)
+  Begins a constructed ASN.1 item.
+
+  mode = A combination of flags below (0 to use no flags).
+
+  ASN1_INDEFINITE = Use indefinite length (not valid for DER). This allows
+  data to be written to output before the entire contruction is completed,
+  so that it can be used with streaming protocols.
+
+  ASN1_ONCE = Automatically ends the construction after a single item
+  has been added inside.
+
+ASN1_Encoder*asn1_create_encoder(FILE*file)
+  Creates a ASN1_Encoder object that writes its output to the specified
+  file (which is not required to be seekable).
+
+FILE*asn1_current_file(ASN1_Encoder*enc)
+  Returns a FILE* object for the encoder. This is not necessarily the one
+  that has been passed to asn1_create_encoder. You can use this to write
+  raw data to the file.
+
+asn1_encode(ASN1_Encoder*enc,const ASN1*value)
+  Encodes a single ASN.1 value.
+
+  value = The value to be encoded. This can be any primitive or constructed
+  ASN.1 value.
+
+asn1_end(ASN1_Encoder*enc)
+  End of a construction started by asn1_construct.
+
+asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type)
+  Like asn1_construct but the mode is always ASN1_ONCE.
+
+asn1_finish_encoder(ASN1_Encoder*enc)
+  Finishes an encoder, flushing all data to the output stream, and freeing
+  the memory of the encoder. If it returns ASN1_OK or ASN1_ERROR, the
+  encoder object is no longer valid after calling this function. If it
+  returns ASN1_IMPROPER_MODE then the encoder object is still valid.
+
+asn1_flush(ASN1_Encoder*enc)
+  Flush the output file of the encoder. If there is a definite construction
+  that is not yet completed, then this will not result in any output.
+
+asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type)
+  Overrides the class and type of the next item to be encoded. Calling it
+  after being overridden before writing any more items will result in a
+  ASN1_IMPROPER_MODE error.
+
+asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length)
+  Encodes a single primitive value.
+
+  class = The class; can be ASN1_UNIVERSAL, ASN1_APPLICATION,
+  ASN1_CONTEXT_SPECIFIC, or ASN1_PRIVATE.
+
+  type = The type.
+
+  data = Pointer to the data to be written. This is ignored (and may be
+  null) if the length is zero.
+
+  length = The number of bytes of the data.
+
+asn1_wrap(ASN1_Encoder*enc)
+  Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but
+  the primitive/constructed bit is clear (indicating primitive) instead of
+  set. (This is used for the data of X.509 extensions.)
 
 
 === ASN.1 data format ===
