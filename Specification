@@ -790,6 +790,12 @@ The first byte of the data part of a data/text sub-block indicates the
 type; the rest of the bytes are the parameter (which may be empty for
 some types). The possible types are:
 
+* 0x30 to 0x37 = Languages and/or pronouncing. Bit2 means that the language
+is specified. The low 2-bits meaning: 0=none, 1=phonetic, 2=phonemic. If
+the language is present, 0x20 separates the language code from the
+pronounce code. (The codes 0x33 and 0x37 are not currently meaningful.)
+(TODO: Specify how the languages and pronouncing are encoded.)
+
 (TODO: this should include: languages, pronouncing (which may be combined
 with languages or used independently), date/time, and SI units. Possibly
 also other things, but also possibly not.)
@@ -815,6 +821,11 @@ may be purely written languages (e.g. Blissymbols).
 
 
 === Database file format ===
+
+(Note: This is not currently in use, and it might be changed or removed
+in future. However, it might instead be decided to keep it as it is, or
+with only minor changes. It is unclear so far what will be done; you can
+implement it or not, if you want to do or not.)
 
 This file format is optional to implement. (However, scientific clients
 should implement this format. Another possibility is to use separate
@@ -1241,6 +1252,15 @@ and if false then not.
 * 2.25.327847519394146920218914781995694576662.5.1 = The time zone in the
 format expected for the TZ environment variable in UNIX systems, e.g.
 "America/Vancouver". The data type is a IA5 string.
+
+* 2.25.327847519394146920218914781995694576662.6 = This extension is meant
+for securely specifying that one certificate supersedes another. (TODO:
+Define the format of this extension. Probably it would include a signature
+of the new and old certificates together, with the old key, and possibly
+with the new key as well if it has been changed. It should be made so that
+it can be used whether or not the certificate is self-signed, and should
+allow mentioning multiple certificates it supersedes in case it changes
+twice between two times a client accesses a server.)
 
 
 === Favicon formats ===
