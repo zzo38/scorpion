@@ -173,9 +173,8 @@ static size_t print_base128(const uint8_t*data,uint32_t adjust,FILE*stream) {
   }
   *u=0;
   for(;;) {
-    *u+=data[at]&0x7F;
-    if(data[at]<0x80) break;
-    for(y=m=0;m<n;m++) {
+    y=data[at]&0x7F;
+    for(m=0;m<n;m++) {
       x=u[m]*128+y;
       u[m]=x%100;
       y=x/100;
@@ -188,24 +187,20 @@ static size_t print_base128(const uint8_t*data,uint32_t adjust,FILE*stream) {
       u[n++]=y%100;
       y/=100;
     }
+    if(data[at]<0x80) break;
     at++;
   }
-  y=adjust;
-  for(m=0;m<n;m++) {
-    if((u[m]+=y)>99) {
-      y=u[m]/100;
-      u[m]%=100;
-    } else {
-      y=0;
+  if(y=adjust) {
+    for(m=0;m<n;m++) {
+      if(u[m]>=y) {
+        u[m]-=y;
+        break;
+      } else {
+        u[m]+=100-y;
+        y=1;
+      }
     }
-  }
-  while(y) {
-    if(n==79) {
-      fputc('?',stream);
-      return at+1;
-    }
-    u[n++]=y%100;
-    y/=100;
+    if(!u[n-1]) n--;
   }
   if(u[n-1]>9) fputc(u[n-1]/10+'0',stream);
   fputc(u[n-1]%10+'0',stream);
@@ -321,6 +316,25 @@ int asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano) {
   return ASN1_OK;
 }
 
+int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out) {
+  struct tm tm;
+  if(!gmtime_r(&in,&tm)) return ASN1_ERROR;
+  out->seconds=tm.tm_sec;
+  out->minutes=tm.tm_min;
+  out->hours=tm.tm_hour;
+  out->day=tm.tm_mday;
+  out->month=tm.tm_mon+1;
+  out->year=tm.tm_year+1900;
+  if(nano>=1000000000L) {
+    if(out->seconds!=59) return ASN1_IMPROPER_VALUE;
+    out->seconds+=nano/1000000000L;
+    nano%=1000000000L;
+  }
+  out->nano=nano;
+  out->zone=0;
+  return ASN1_OK;
+}
+
 int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out) {
   if(!data || !out) return ASN1_ERROR;
   out->own=0;
@@ -330,6 +344,120 @@ int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out) {
   out->class=class;
   out->type=type;
   return ASN1_OK;
+}
+
+static size_t make_oid_part(const char**text,uint8_t*buf,size_t maxlen,char add80) {
+  // Converts ASCII base ten to base 128 and moves it to the beginning of the buffer.
+  // Returns the number of output bytes, or 0 if it is too big.
+  size_t m=maxlen-1;
+  size_t n;
+  uint32_t x,carry;
+  if(!maxlen) return 0;
+  buf[m]=0;
+  while(**text>='0' && **text<='9') {
+    carry=**text-'0';
+    for(n=maxlen-1;;) {
+      x=buf[n]*10+carry;
+      buf[n]=x&0x7F;
+      carry=x>>7;
+      if(n==m) break; else n--;
+    }
+    if(carry) {
+      if(!m) return 0;
+      buf[--m]=carry;
+      carry=0;
+    }
+    ++*text;
+  }
+  if(add80) {
+    carry=80;
+    for(n=maxlen-1;carry;) {
+      x=buf[n]+carry;
+      buf[n]=x&0x7F;
+      carry=x>>7;
+      if(n==m) break; else n--;
+    }
+    if(carry) {
+      if(!m) return 0;
+      buf[--m]=carry;
+    }
+  }
+  for(n=m;n<maxlen;n++) buf[n-m]=buf[n]+(n==maxlen-1?0:0x80);
+  return maxlen-m;
+}
+
+int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out) {
+  char c;
+  size_t m;
+  if(!text || !buf || !maxlen || !out) return ASN1_ERROR;
+  out->data=buf;
+  out->length=0;
+  out->own=0;
+  switch(c=*text) {
+    case '0': case '1':
+      if(text[1]!='.') return ASN1_IMPROPER_VALUE;
+      c-='0';
+      text+=2;
+      if(*text<'0' || *text>'9') return ASN1_IMPROPER_VALUE;
+      m=make_oid_part(&text,buf,1,0);
+      if(*buf>=40) return ASN1_IMPROPER_VALUE;
+      if(c) *buf+=40;
+      goto more;
+    case '2':
+      if(text[1]!='.') return ASN1_IMPROPER_VALUE;
+      text+=2;
+      if(*text<'0' || *text>'9') return ASN1_IMPROPER_VALUE;
+      m=make_oid_part(&text,buf,maxlen,1);
+    more:
+      if(!m) return ASN1_TOO_SHORT;
+      buf+=m;
+      out->length+=m;
+      maxlen-=m;
+      if(*text=='.') {
+        ++text;
+        if(*text<'0' || *text>'9') return ASN1_IMPROPER_VALUE;
+        m=make_oid_part(&text,buf,maxlen,0);
+        goto more;
+      } else if(*text) {
+        return ASN1_IMPROPER_VALUE;
+      }
+      break;
+    default: return ASN1_IMPROPER_VALUE;
+  }
+  out->constructed=0;
+  out->class=ASN1_UNIVERSAL;
+  out->type=ASN1_OID;
+  return ASN1_OK;
+}
+
+int asn1_make_oid(const char*text,ASN1*out) {
+  uint8_t w[256];
+  uint8_t*p;
+  int x;
+  if(x=asn1_make_static_oid(text,w,256,out)) {
+    out->data=0;
+    out->length=0;
+    out->own=0;
+    return x;
+  }
+  p=malloc(out->length);
+  if(!p) {
+    out->data=0;
+    out->length=0;
+    out->own=0;
+    return ASN1_ERROR;
+  }
+  memcpy(p,out->data,out->length);
+  out->data=p;
+  out->own=1;
+  return ASN1_OK;
+}
+
+void asn1_free(ASN1*obj) {
+  if(obj->own) free((void*)(obj->data));
+  obj->data=0;
+  obj->length=0;
+  obj->own=0;
 }
 
 // Decoding
@@ -651,5 +779,15 @@ int asn1_wrap(ASN1_Encoder*enc) {
   enc->mode=ASN1_ONCE;
   enc->class=0;
   enc->type=0;
+}
+
+int asn1_encode_boolean(ASN1_Encoder*enc,int value) {
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_BOOLEAN,"\xFF"+(value?0:1),1);
+}
+
+int asn1_encode_oid(ASN1_Encoder*enc,const char*t) {
+  uint8_t b[256];
+  ASN1 x;
+  return asn1_make_static_oid(t,b,256,&x)?:asn1_encode(enc,&x);
 }
 
