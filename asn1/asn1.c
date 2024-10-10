@@ -791,3 +791,95 @@ int asn1_encode_oid(ASN1_Encoder*enc,const char*t) {
   return asn1_make_static_oid(t,b,256,&x)?:asn1_encode(enc,&x);
 }
 
+int asn1_encode_int8(ASN1_Encoder*enc,int8_t value) {
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,(uint8_t*)(&value),1);
+}
+
+int asn1_encode_int16(ASN1_Encoder*enc,int16_t value) {
+  uint8_t x[2]={value>>8,value};
+  int y=(x[0]==0xFF && x[1]>=0x80)?1:(x[0]==0x00 && x[1]<0x80)?1:0;
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,2-y);
+}
+
+int asn1_encode_int32(ASN1_Encoder*enc,int32_t value) {
+  uint8_t x[4]={value>>030,value>>020,value>>010,value};
+  int y=0;
+  while(y!=3 && !x[y]) y++;
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,4-y);
+}
+
+int asn1_encode_int64(ASN1_Encoder*enc,int64_t value) {
+  uint8_t x[8]={value>>070,value>>060,value>>050,value>>040,value>>030,value>>020,value>>010,value};
+  int y=0;
+  while(y!=7 && !x[y]) y++;
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,8-y);
+}
+
+int asn1_encode_uint16(ASN1_Encoder*enc,uint16_t value) {
+  uint8_t x[3]={0,value>>8,value};
+  int y=(value>=0x8000?0:value>=0x80?1:2);
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,3-y);
+}
+
+int asn1_encode_uint32(ASN1_Encoder*enc,uint32_t value) {
+  uint8_t x[5]={0,value>>030,value>>020,value>>010,value};
+  int y=(value>=0x80000000ULL?0:value>=0x800000?1:value>=0x8000?2:value>=0x80?3:4);
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,5-y);
+}
+
+int asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value) {
+  uint8_t x[9]={0,value>>070,value>>060,value>>050,value>>040,value>>030,value>>020,value>>010,value>>000};
+  int y=(value>=0x8000000000000000?0:value>=0x80000000000000?1:value>=0x800000000000ULL?2:value>=0x8000000000ULL?3:value>=0x80000000ULL?4:value>=0x800000ULL?5:value>=0x8000ULL?6:value>=0x80ULL?7:8);
+  return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,9-y);
+}
+
+int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
+  char buf[64];
+  int len;
+  uint32_t g,n,i;
+  if(x->month<1 || x->month>12 || x->day<1 || x->day>31 || x->hours>23 || x->minutes>59 || x->seconds>62 || x->nano>=1000000000) return ASN1_IMPROPER_VALUE;
+  switch(type) {
+    case ASN1_UTCTIME:
+      if(x->year<1950 || x->year>2049) return ASN1_IMPROPER_VALUE;
+      len=snprintf(buf,64,"%02d%02d%02d%02d%02d%02d%c",x->year%100,x->month,x->day,x->hours,x->minutes,x->seconds,x->zone?(x->zone<0?'-':'+'):'Z');
+      if(x->zone) len+=snprintf(buf+len,64-len,"%02d%02d",abs(x->zone)/60,abs(x->zone)%60);
+      break;
+    case ASN1_GENERALIZEDTIME:
+      len=snprintf(buf,64,"%04d%02d%02d%02d%02d%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
+      if(n=x->nano) {
+        buf[len++]='.';
+        g=1000000000;
+        while(n && (g/=10)) {
+          i=n/g;
+          buf[len++]=i+'0';
+          n-=g*i;
+        }
+      }
+      if(x->zone) len+=snprintf(buf+len,64-len,"%c%02d%02d",x->zone<0?'-':'+',abs(x->zone)/60,abs(x->zone)%60); else buf[len++]='Z';
+      break;
+    case ASN1_DATE:
+      len=snprintf(buf,64,"%04d-%02d-%02d",x->year,x->month,x->day);
+      break;
+    case ASN1_TIME_OF_DAY:
+      len=snprintf(buf,64,"T%02d:%02d:%02d",x->hours,x->minutes,x->seconds);
+      break;
+    case ASN1_DATE_TIME:
+      len=snprintf(buf,64,"%04d-%02d-%02dT%02d:%02d:%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
+      break;
+    default: return ASN1_IMPROPER_TYPE;
+  }
+  return asn1_primitive(enc,ASN1_UNIVERSAL,type,buf,len);
+}
+
+int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone) {
+  ASN1_DateTime d;
+  int i;
+  if(i=asn1_time_to_date(value+zone*60LL,nano,&d)) return i;
+  d.zone=zone;
+  return asn1_encode_date(enc,type,&d);
+}
+
+int asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text) {
+  return text?asn1_primitive(enc,ASN1_UNIVERSAL,type,text,strlen(text)):ASN1_IMPROPER_VALUE;
+}
+

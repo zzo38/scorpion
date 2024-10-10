@@ -289,10 +289,62 @@ asn1_encode_boolean(ASN1_Encoder*enc,int value)
 
   value = The value to be encoded; nonzero is true and zero is false.
 
+asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text)
+  Encodes a null terminated string (excluding the terminator).
+
+  type = The ASN.1 universal type to use. (You can use asn1_implicit if
+  you intend a non-universal type.)
+
+  text = The string to be encoded.
+
+asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x)
+  Encodes a date/time value.
+
+  type = The ASN.1 type to use for encoding. This can be ASN1_UTCTIME,
+  ASN1_GENERALIZEDTIME, ASN1_DATE, ASN1_TIME_OF_DAY, or ASN1_DATE_TIME.
+
+  x = The date/time structure.
+
+asn1_encode_int8(ASN1_Encoder*enc,int8_t value)
+  Encodes a signed 8-bit integer.
+
+asn1_encode_int16(ASN1_Encoder*enc,int16_t value)
+  Encodes a signed 16-bit integer.
+
+asn1_encode_int32(ASN1_Encoder*enc,int32_t value)
+  Encodes a signed 32-bit integer.
+
+asn1_encode_int64(ASN1_Encoder*enc,int64_t value)
+  Encodes a signed 64-bit integer.
+
+asn1_encode_integer(ASN1_Encoder*enc,??? value)
+  Encodes an integer. This is a macro that calls one of the other functions
+  for encoding integers according to the type of the specified value.
+
 asn1_encode_oid(ASN1_Encoder*enc,const char*t)
   Encodes a object identifier (OID).
 
   t = The text representation of the OID (as for asn1_make_static_oid).
+
+asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone)
+  Encodes a date/time value from UNIX time.
+
+  type = The ASN.1 type to use; same as for asn1_encode_date.
+
+  value = The UNIX time.
+
+  nano = The number of nanoseconds.
+
+  zone = The time zone, in minutes.
+
+asn1_encode_uint16(ASN1_Encoder*enc,uint16_t value)
+  Encodes a unsigned 16-bit integer.
+
+asn1_encode_uint32(ASN1_Encoder*enc,uint32_t value)
+  Encodes a unsigned 32-bit integer.
+
+asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value)
+  Encodes a unsigned 64-bit integer.
 
 asn1_end(ASN1_Encoder*enc)
   End of a construction started by asn1_construct.
@@ -331,7 +383,7 @@ asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,s
 asn1_wrap(ASN1_Encoder*enc)
   Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but
   the primitive/constructed bit is clear (indicating primitive) instead of
-  set. (This is used for the data of X.509 extensions.)
+  set (constructed). (This is used for the data of X.509 extensions.)
 
 
 === ASN.1 data format ===

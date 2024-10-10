@@ -127,7 +127,17 @@ int asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out);
 int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
 int asn1_encode(ASN1_Encoder*enc,const ASN1*value);
 int asn1_encode_boolean(ASN1_Encoder*enc,int value);
+int asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text);
+int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x);
+int asn1_encode_int8(ASN1_Encoder*enc,int8_t value);
+int asn1_encode_int16(ASN1_Encoder*enc,int16_t value);
+int asn1_encode_int32(ASN1_Encoder*enc,int32_t value);
+int asn1_encode_int64(ASN1_Encoder*enc,int64_t value);
 int asn1_encode_oid(ASN1_Encoder*enc,const char*t);
+int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone);
+int asn1_encode_uint16(ASN1_Encoder*enc,uint16_t value);
+int asn1_encode_uint32(ASN1_Encoder*enc,uint32_t value);
+int asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value);
 int asn1_end(ASN1_Encoder*enc);
 int asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_finish_encoder(ASN1_Encoder*enc);
@@ -156,4 +166,16 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
   asn1__decode_number__(C,uint32_t,uint32) \
   asn1__decode_number__(C,uint64_t,uint64) \
   (void)0 )))))))))(A,B,C) )
+
+#define asn1__encode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E),asn1_encode_##F,
+#define asn1_encode_integer(A,C) (( \
+  asn1__encode_number__(C,int8_t,int8) \
+  asn1__encode_number__(C,int16_t,int16) \
+  asn1__encode_number__(C,int32_t,int32) \
+  asn1__encode_number__(C,int64_t,int64) \
+  asn1__encode_number__(C,uint8_t,uint16) \
+  asn1__encode_number__(C,uint16_t,uint16) \
+  asn1__encode_number__(C,uint32_t,uint32) \
+  asn1__encode_number__(C,uint64_t,uint64) \
+  (void)0 )))))))))(A,C) )
 
