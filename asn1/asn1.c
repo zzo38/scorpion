@@ -697,7 +697,7 @@ int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
     }
   }
   if(enc->class || enc->type) asn1_write_type(1,enc->class,enc->type,enc->file); else asn1_write_type(1,class,type,enc->file);
-  if(mode&ASN1_INDEFINITE) fputc(128,enc->file);
+  if(mode&ASN1_INDEFINITE) fputc(128,enc->file); else enc->file=f;
   enc->sub=p;
   enc->mode=mode;
   enc->class=0;
@@ -717,7 +717,9 @@ int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
 }
 
 int asn1_end(ASN1_Encoder*enc) {
-  Encoder*p=enc->sub;
+  Encoder*p;
+  again:
+  p=enc->sub;
   if(!p) return ASN1_IMPROPER_MODE;
   if(enc->mode&ASN1_INDEFINITE) {
     fwrite("\0",1,2,enc->file);
@@ -730,14 +732,15 @@ int asn1_end(ASN1_Encoder*enc) {
       free(p);
       return ASN1_ERROR;
     }
-    asn1_write_length(p->size,enc->file);
-    if(p->size) fwrite(p->mem,1,p->size,enc->file);
+    asn1_write_length(p->size,p->file);
+    if(p->size) fwrite(p->mem,1,p->size,p->file);
     free(p->mem);
   }
   enc->sub=p->next;
   enc->mode=p->mode;
   enc->file=p->file;
   free(p);
+  if(enc->mode&ASN1_ONCE) goto again;
   return ASN1_OK;
 }
 
