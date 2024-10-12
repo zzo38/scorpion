@@ -1,0 +1,2 @@
+X(_NET_WM_PID)
+X(TRON_STRING)
