@@ -523,3 +523,5 @@ string must use the primitive encoding; they cannot also be constructed.
 * Optional and default fields are not allowed unless it is possible to
 determine its presence or absence without needing to look ahead.
 
+* The UTCTime and GeneralizedTime types must use the primitive encoding.
+

@@ -182,6 +182,7 @@ static size_t print_base128(const uint8_t*data,uint32_t adjust,FILE*stream) {
     while(y) {
       if(n==79) {
         fputc('?',stream);
+        while(data[at]&0x80) at++;
         return at+1;
       }
       u[n++]=y%100;
