@@ -414,3 +414,112 @@ asn1_wrap(ASN1_Encoder*enc)
 
 (TODO)
 
+
+=== ASN.1X ===
+
+ASN.1X is a variant of ASN.1 which adds some additional universal types and
+schema types, and removes some, deprecates some, and adds a few other
+restrictions as well. (Most of this is not implemented yet, and may be
+changed before the implementation is made.)
+
+The following universal typse are not used in ASN.1X:
+  ASN1_TIME (14)
+  ASN1_DATE (31)
+  ASN1_TIME_OF_DAY (32)
+  ASN1_DATE_TIME (33)
+  ASN1_DURATION (34)
+  ASN1_OID_IRI (35)
+  ASN1_RELATIVE_OID_IRI (36)
+
+The following types are deprecated in ASN.1X:
+  ASN1_NUMERICSTRING (18)
+  ASN1_UTCTIME (23)
+
+New universal types:
+
+* ASN1_BCD_STRING (64): Represents a string with the following characters:
+"0123456789*#+-. " (excluding the quotation marks). Each octet encodes
+two characters, where the high nybble corresponds to the first character
+and the low nybble corresponds to the second character.
+
+* ASN1_PC_STRING (65): Represents a string of characters in the PC
+character set. Note that the control characters can also be used as
+graphic characters.
+
+* ASN1_TRON_STRING (66): Represents a string of characters in the TRON
+character set, encoded as TRON-8.
+
+* ASN1_KEY_VALUE_LIST (67): Represents a set of keys (with no duplicate
+keys) and with a value associated with each key. The encoding is the same
+as for a SET of the keys, but with the corresponding value immediately
+after each key (when they are sorted, only the keys are sorted and the
+values are kept with the corresponding keys).
+
+* ASN1_UTC_TIMESTAMP (68): Represents a number of UTC seconds (and
+optionally fractions of seconds), excluding leap seconds, relative to
+January 1, 1985, 00:00:00, UTC.
+
+* ASN1_SI_TIMESTAMP (69): Represents a number of SI seconds (and
+optionally fractions of seconds), including leap seconds, relative to
+January 1, 1985, 00:00:00, UTC.
+
+* ASN1_UTC_TIME_INTERVAL (70): Represents a time interval as a number
+of UTC seconds. The number of seconds does not include leap seconds.
+
+* ASN1_SI_TIME_INTERVAL (71): Represents a time interval as a number
+of SI seconds (which may include fractions).
+
+The encoding of the new time types can be any one of:
+
+* A primitive encoding, same as the INTEGER type. This represents a
+integer number of seconds. This is valid for all four types.
+
+* A constructed encoding, containing a REAL. This represents a number
+of seconds. This is only valid for the SI-based types.
+
+* A constructed encoding, containing a INTEGER followed by a REAL.
+This represents a integer number of UTC seconds and a number of SI
+seconds. The number of SI seconds must be nonnegative and finite, and
+must be less than one unless the number of UTC seconds is one less
+than a multiple of sixty. This is only valid for ASN1_UTC_TIMESTAMP.
+
+The following additional schema types exist:
+
+* INLINE and INLINE OF: Is similar than SEQUENCE and SEQUENCE OF, but
+it is not encoded as a single item but instead as all of the items it
+contains directly within whatever container it is in. A field of type
+INLINE or INLINE OF cannot have an implicit type (although explicit
+is OK, in which case it is encoded like a implicit typed SEQUENCE) (it
+is OK for fields within a INLINE to have implicit or explicit types),
+and cannot be a field of a SET. A field of a CHOICE can be of a INLINE
+or INLINE OF type, but fields of that CHOICE type are then subject to
+the same restrictions as fields of a INLINE type. The last field of a
+INLINE type cannot be optional and cannot have a default value.
+
+* ANY: This has been removed from ASN.1 but is usable in ASN.1X. It
+means that an item of any type can be used for this field, except for
+INLINE and INLINE OF types. Except for ANY DEFINED BY, a field of ANY
+type cannot have an implicit type (but explicit is OK), and its class
+cannot be context-specific. If the type is SEQUENCE OF ANY DEFINED BY
+then it can also be defined by a sequence of object identifiers (in
+addition to being possible to be defined by a single object identifier).
+
+* OBJECT IDENTIFIER RELATIVE TO: You can specify that a OID is normally
+relative to a specified other constant OID or a OID in another field.
+A field of a OBJECT IDENTIFIER RELATIVE TO type cannot have an implicit
+type (but explicit is OK). The encoding is either as a OBJECT IDENTIFIER
+value representing the full OID (which can be any OID and is not required
+to be relative to the specified OID) or it can be a RELATIVE OID value
+which is interpreted as relative to the specified OID. If the encoding is
+DER, then it must be encoded as relative if possible, and as absolute
+only if relative is not possible. If the encoding is BER, then it can be
+encoded as absolute or relative regardless of what OID it is.
+
+The following additional restrictions exist:
+
+* If a string uses a constructed encoding, then the segments of the
+string must use the primitive encoding; they cannot also be constructed.
+
+* Optional and default fields are not allowed unless it is possible to
+determine its presence or absence without needing to look ahead.
+
