@@ -590,7 +590,7 @@ int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out) {
         out->minutes=out->seconds=0;
         x=10;
       }
-      if(asn->length>x && asn->data[x]=='.') {
+      if(asn->length>x && (asn->data[x]=='.' || asn->data[x]==',')) {
         z=100000000;
         x++;
         while(asn->length>x && asn->data[x]>='0' && asn->data[x]<='9') {
@@ -634,6 +634,138 @@ int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out) {
 int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano) {
   ASN1_DateTime d={.zone=zone};
   return asn1_decode_date(asn,type,&d)?:asn1_date_to_time(&d,out,nano);
+}
+
+int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size_t length,int8_t*sign,uint8_t*decimal,int64_t*exponent,uint8_t*infinite,uint8_t*exact) {
+  char d,k;
+  int64_t q;
+  size_t m,n;
+  CONVERT_TYPE;
+  if(exact) *exact=0;
+  if(!length) return ASN1_IMPROPER_ARGUMENT;
+  if(type==ASN1_REAL) {
+    if(!asn->length) {
+      memset(significand,0,length);
+      *sign=1;
+      *decimal=0;
+      *infinite=0;
+      *exponent=0;
+      if(exact) *exact=1;
+      return ASN1_OK;
+    }
+    if((asn->data[0]&0xC0)==0x40) {
+      if(asn->length!=1) return ASN1_IMPROPER_VALUE;
+      memset(significand,0,length);
+      *decimal=0;
+      *exponent=0;
+      if(exact) *exact=1;
+      switch(asn->data[0]) {
+        case 0x40: *infinite=1; *sign=1; return ASN1_OK;
+        case 0x41: *infinite=1; *sign=-1; return ASN1_OK;
+        case 0x42: *infinite=1; *sign=0; return ASN1_OK;
+        case 0x43: *infinite=0; *sign=-1; return ASN1_OK;
+        default: if(exact) *exact=0; return ASN1_IMPROPER_VALUE;
+      }
+    }
+    *infinite=0;
+    if(asn->data[0]&0x80) {
+      if(!(0x30&~asn->data[0])) return ASN1_IMPROPER_VALUE;
+      *decimal=0;
+      *sign=(asn->data[0]&0x40?-1:1);
+      *exponent=(asn->data[0]>>2)&3; // scale factor
+      n=(asn->data[0]&3)+1;
+      if(n==4) {
+        if(asn->length<2 || asn->length<asn->data[1]+2) return ASN1_IMPROPER_VALUE;
+        if(asn->data[1]>8) return ASN1_OVERFLOW;
+        q=(asn->data[2]&0x80)?-1:0;
+        for(n=2;n<asn->data[1]+2;n++) q=128LL*q+asn->data[n];
+        if((asn->data[0]&0x10) && (q>=0x2AAAAAAAAAAAAAAALL || q<=-0x2AAAAAAAAAAAAAAALL)) return ASN1_OVERFLOW;
+        if((asn->data[0]&0x20) && (q>=0x1FFFFFFFFFFFFFFFLL || q<=-0x1FFFFFFFFFFFFFFFLL)) return ASN1_OVERFLOW;
+      } else {
+        if(asn->length<n+1) return ASN1_IMPROPER_VALUE;
+        switch(n) {
+          case 1: q=asn->data[1]; if(q&0x80) q-=0x100; break;
+          case 2: q=(asn->data[1]<<8)|asn->data[2]; if(q&0x8000) q-=0x10000; break;
+          case 3: q=(asn->data[1]<<16)|(asn->data[2]<<8)|asn->data[3]; if(q&0x800000) q-=0x1000000; break;
+        }
+        n++;
+      }
+      *exponent+=q*"\x01\x03\x04"[(asn->data[0]>>4)&3]-8LL*(asn->length-n);
+      if(asn->length-n>length) {
+        memcpy(significand,asn->data+n,length);
+        if(exact) *exact=0;
+      } else {
+        memcpy(significand,asn->data+n,asn->length-n);
+        if(asn->length-n<length) memset(significand+asn->length-n,0,length+n-asn->length);
+        if(exact) *exact=1;
+      }
+    } else {
+      if(asn->data[0]>3 || !asn->data[0]) return ASN1_IMPROPER_VALUE;
+      *decimal=1;
+      *sign=1;
+      *exponent=0;
+      memset(significand,0,length);
+      for(n=1;n<asn->length && asn->data[n]==' ';n++);
+      if(n==asn->length) return ASN1_IMPROPER_VALUE;
+      if(asn->data[n]=='+') n++; else if(asn->data[n]=='-') n++,*sign=-1;
+      d=1; k=1; m=0;
+      while(n<asn->length && ((asn->data[n]>='0' && asn->data[n]<='9') || (d && asn->data[n]=='.'))) {
+        if(asn->data[n]!='.') {
+          if(m<length) {
+            if(k) significand[m]=10*(asn->data[n]-'0'); else significand[m]+=asn->data[n]-'0';
+          }
+          m+=k^=1;
+          *exponent+=d;
+        } else {
+          d=0;
+        }
+        n++;
+      }
+      if(n+1<asn->length && (asn->data[n]=='e' || asn->data[n]=='E')) {
+        n++;
+        k=0;
+        q=0;
+        if(asn->data[n]=='-') k=1,n++; else if(asn->data[n]=='+') n++;
+        while(n<asn->length && asn->data[n]>='0' && asn->data[n]<='9') {
+          if(q>99999999999999999LL) return ASN1_OVERFLOW;
+          q=10LL*q+asn->data[n++]-'0';
+        }
+        *exponent+=(k?-q:q);
+        if(k?(*exponent>q):(*exponent<q)) return ASN1_OVERFLOW;
+      }
+      if(n!=asn->length) return ASN1_IMPROPER_VALUE;
+    }
+  } else if(type==ASN1_INTEGER) {
+    if(!asn->length) return ASN1_IMPROPER_VALUE;
+    *decimal=0;
+    *infinite=0;
+    *exponent=8ULL*asn->length;
+    if(exact) *exact=1;
+    if(asn->length>length) {
+      memcpy(significand,asn->data,length);
+      if(exact) for(n=length;n<asn->length && *exact;n++) if(asn->data[n]) *exact=0;
+    } else {
+      memcpy(significand,asn->data,asn->length);
+      if(asn->length<length) memset(significand+asn->length,0,length-asn->length);
+    }
+    if(asn->data[0]&0x80) {
+      *sign=-1;
+      for(n=0;n<length && n<asn->length;n++) significand[n]^=-1;
+      if(length>=asn->length) {
+        for(n=asn->length-1;;) {
+          significand[n]++;
+          if(significand[n--]) break;
+        }
+      } else {
+        if(exact) *exact=0;
+      }
+    } else {
+      *sign=1;
+    }
+  } else {
+    return ASN1_IMPROPER_TYPE;
+  }
+  return ASN1_OK;
 }
 
 // Encoding

@@ -185,6 +185,30 @@ asn1_decode_number(const ASN1*asn,uint32_t type,???*out)
   A macro that calls one of the other numeric decoding functions according
   to the type of the "out" argument.
 
+asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size_t length,int8_t*sign,uint8_t*decimal,int64_t*exponent,uint8_t*infinite,uint8_t*exact)
+  Decodes a number (of type ASN1_INTEGER or ASN1_REAL) into parts.
+
+  significand = Stores the significant part, in unsigned big-endian format.
+
+  length = The length of the significant part, in bytes.
+
+  sign = Set to +1 if the number is positive or -1 if it is negative. If
+  it is Not a Number, then this will be 0.
+
+  decimal = Set to 1 if it is decimal or 0 if it is binary. If binary, then
+  the fraction is in base 256, and if decimal, then base 100.
+
+  exponent = The exponent. Zero means that significand[0] is the fractional
+  part immediately after the radix point; e.g. if it is 128 and the number
+  is binary format then the represented number is one half. Positive
+  numbers multiply by a power of two if binary or ten if decimal. Negative
+  numbers divide instead.
+
+  infinite = Set to 0 if finite, or 1 if infinite or NaN.
+
+  exact = This may be null. If it is not null, it will write 1 if it is the
+  exact number encoded or 0 if some bits/digits don't fit.
+
 asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano)
   Combines asn1_decode_date and asn1_date_to_time. The defaults for any
   fields other than the time zone will be zero.

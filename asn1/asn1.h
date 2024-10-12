@@ -47,6 +47,7 @@
 #define ASN1_GRAPHIC_STRING 25
 #define ASN1_VISIBLESTRING 26
 #define ASN1_VISIBLE_STRING 26
+#define ASN1_ISO646_STRING 26
 #define ASN1_GENERALSTRING 27
 #define ASN1_GENERAL_STRING 27
 #define ASN1_UNIVERSALSTRING 28
@@ -119,6 +120,7 @@ int asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out);
 int asn1_decode_int16(const ASN1*asn,uint32_t type,int16_t*out);
 int asn1_decode_int32(const ASN1*asn,uint32_t type,int32_t*out);
 int asn1_decode_int64(const ASN1*asn,uint32_t type,int64_t*out);
+int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size_t length,int8_t*sign,uint8_t*decimal,int64_t*exponent,uint8_t*infinite,uint8_t*exact);
 int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32_t*nano);
 int asn1_decode_uint8(const ASN1*asn,uint32_t type,uint8_t*out);
 int asn1_decode_uint16(const ASN1*asn,uint32_t type,uint16_t*out);
