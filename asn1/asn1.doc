@@ -624,6 +624,11 @@ next byte specifies the number of exponent bytes).
 bits set), which is a signed big-endian number; and then after the exponent
 is the significand which is a unsigned big-endian number.
 
+* For DER encoding of binary numbers, the base must be 2, and the
+significand must be either zero or an odd number, and the scaling factor
+(bit3 and bit2 of the flag byte) must be zero, and the smallest number of
+bytes must be used to encode the exponent and significand.
+
 * A decimal number starts with 0x01 or 0x02 or 0x03, followed by the ASCII
 representation of the ISO 6093 number of NR1 or NR2 or NR3, respectively.
 
@@ -645,6 +650,17 @@ negative numbers), neither the first nor last digit of the significand can
 be zero, and the last digit of the significand must be immediately followed
 by a dot and a uppercase E and then the exponent. The exponent cannot have
 a plus sign unless the exponent is zero in which case it does.
+
+Other restrictions of DER, which are not mentioned above:
+
+* If a field is optional because it has a default value that is used when
+the field is omitted, then the field must be omitted for DER if the value
+of the field is equal to the default value.
+
+* ISO 2022 strings are not allowed to use redundant escape codes to select
+character sets that are already selected, and must be designated as the
+smallest numbered G or C set that is allowed (e.g. G0 must be used instead
+of G1 if the character set is allowed to be G0).
 
 
 === ASN.1X ===
@@ -755,6 +771,17 @@ DER, then it must be encoded as relative if possible, and as absolute
 only if relative is not possible. If the encoding is BER, then it can be
 encoded as absolute or relative regardless of what OID it is.
 
+* Extended character string syntax: Any character string can also be
+written in text as a hexadecimal string with the BER or DER encoding of
+the string, although the type must be explicitly specified in order to
+avoid ambiguity. Furthermore, the TRON string is allowed to use the
+"Quadruple" notation, although the plane, row, and cell numbers are
+required to be in the range 33 to 253 inclusive except 127 (the group
+number can be any non-negative integer).
+
+* UTF16String: This type uses the same type number and encoding as the
+BMPString type, but allows surrogates to represent non-BMP characters.
+
 The following additional restrictions exist:
 
 * If a string uses a constructed encoding, then the segments of the
@@ -765,4 +792,16 @@ determine its presence or absence without needing to look ahead. For
 this purpose, ANY DEFINED BY is treated the same as ANY.
 
 * The UTCTime and GeneralizedTime types must use the primitive encoding.
+
+* XML types and other XML-related stuff is not used.
+
+* When the ASN.1 text schema notation is used and it contains character
+string data, the character set must be explicitly specified unless it is
+one of the ASCII-based string types.
+
+* ASN1-CHARACTER-MODULE is not a built-in module, although it may be
+defined as a separate file if this is desired.
+
+* PATTERN constraints have some additional restrictions as well as some
+additional possible notations, compared with standard ASN.1.
 
