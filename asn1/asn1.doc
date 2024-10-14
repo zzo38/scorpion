@@ -350,16 +350,22 @@ asn1_encode_oid(ASN1_Encoder*enc,const char*t)
 
   t = The text representation of the OID (as for asn1_make_static_oid).
 
+asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite)
+  (TODO)
+
 asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone)
   Encodes a date/time value from UNIX time.
 
-  type = The ASN.1 type to use; same as for asn1_encode_date.
+  type = The ASN.1 type to use; same as for asn1_encode_date, but may also
+  be ASN1_UTC_TIMESTAMP or ASN1_SI_TIMESTAMP.
 
-  value = The UNIX time.
+  value = The UNIX time. Normally, this excludes leap seconds, but if the
+  type is ASN1_SI_TIMESTAMP then it includes leap seconds.
 
   nano = The number of nanoseconds.
 
-  zone = The time zone, in minutes.
+  zone = The time zone, in minutes. This is ignored if the type is
+  ASN1_UTC_TIMESTAMP or ASN1_SI_TIMESTAMP.
 
 asn1_encode_uint16(ASN1_Encoder*enc,uint16_t value)
   Encodes a unsigned 16-bit integer.
@@ -412,7 +418,233 @@ asn1_wrap(ASN1_Encoder*enc)
 
 === ASN.1 data format ===
 
-(TODO)
+(This description uses the convention that bit0 is the low bit of each byte
+(that decides if the number is odd or even), rather than the conventions
+used in the official specifications.)
+
+All numbers are big-endian.
+
+ASN.1 BER (and DER, which is a restricted variant of BER) consists of:
+
+* The type byte, which has the high 2 bits specifying the class, bit5 being
+set for constructed or clear for primitive, and the low 5 bits being the
+type number if it is less than 31, or if the type number is 31 or more then
+all of the low 5 bits are set and then a big-endian unsigned base 128
+number follows which is the true type number, and the high bit of each of
+these bytes is set except the last one. The type and class are not allowed
+to both be zero.
+
+* The length (number of bytes of data that follows), which can be 0 to 127
+for that many bytes, or 128 for indefinite (meaning the length is not
+specified; this is only valid if the format is constructed), or 129 to 254
+if the low 7 bits of this number is how many bytes follow which are the
+true length in unsigned big-endian format. The length byte is not allowed
+to be 255 (a length of 255 is encoded as 129 and then 255). Indefinite form
+is not allowed for DER.
+
+* The data. The length specifies the number of bytes of this data. If the
+format is constructed, then it consists of zero or more ASN.1 BER (or DER)
+items. If the format is primitive, then the data is arbitrary and is
+according to the data type of this item.
+
+* If the length is specified as indefinite, two 0x00 bytes are required to
+indicate the end of this item.
+
+The classes are:
+
+* Universal (0): It is one of the types listed below.
+
+* Application (1): It is intended to be used for a specific application;
+the application will define what the type numbers means.
+
+* Context-specific (2): The type depends on the context.
+
+* Private (3): Defined in private specifications.
+
+The universal types are listed below. P means primitive, C means
+constructed, and S means that it is a string type. For string types
+(other than bit strings), it is normally primitive (and is required to be
+primitive in DER), but if it is constructed then it contains any number
+of items that use the universal class and universal type number for that
+type, and the value is the same as concatenating together.
+
+* Boolean (1 P): True or false. The data is one byte, and is zero for false
+or nonzero for true. For DER, true is always represented as 0xFF.
+
+* Integer (2 P): A signed big-endian integer of an arbitrary size. The data
+must be at least one byte long, and if it is more than one byte long then
+the first byte should not have all bits the same as the high bit of the
+second byte (since it would be redundant).
+
+* Bit string (3 S): A sequence of bits, ordered from high to low in each
+byte (so the high bit comes first). If the encoding is primitive, then the
+first byte specifies how many low bits of the last byte are unused (and
+must be clear if the encoding is DER). If the encoding is constructed, then
+the first byte to specify the number of unused bits is only present in the
+last segment.
+
+* Octet string (4 S): A sequence of arbitrary bytes.
+
+* Null (5 P): No value. The data is always empty.
+
+* Object identifier (6 P): An object identifier which is explained below.
+
+* Object descriptor (7 S): A description of an object that can have a
+object identifier. The encoding is the same as the graphic string type.
+
+* External (8 C): Like embedded PDV (see below) but the specification is
+a bit different, and is also not mentioned here.
+
+* Real (9 P): A floating point number; the explanation is below.
+
+* Enumerated (10 P): A selection from an enumeration. It is encoded the
+same as a integer.
+
+* Embedded PDV (11 C): Represents a value that might not be a ASN.1 type
+and that contains identification of the type and/or format of the data.
+The specification is a bit complicated and is not mentioned here.
+
+* UTF-8 string (12 S): A string of Unicode characters encoded as UTF-8.
+
+* Relative object identifier (13 P): Like a object identifier but it is
+relative to some unspecified object identifier. The encoding is like the
+object identifier but does not encode the first two numbers in a special
+way (and the numbers are not restricted like a object identifier).
+
+* Time (14 P): Represents a time as ISO 8601.
+
+* Sequence (16 C): A sequence of ASN.1 items.
+
+* Set (17 C): A set of ASN.1 items that do not have an order. DER requires
+that the items are in the order that the encoded representations (including
+the type/length headers) have when sorted as byte strings.
+
+* Numeric string (18 S): A ASCII string with only digits and/or spaces.
+
+* Printable string (19 S): A ASCII string limited to the subset of ASCII
+characters consisting of: uppercase and lowercase alphabets, digits, space,
+apostrophe, parentheses, plus, comma, minus, full stop, forward slash,
+colon, equal sign, and question mark.
+
+* T.61 string (20 S): Also called a Teletex string. A ISO 2022 string that
+uses T.61 characters.
+
+* Videotex string (21 S): A ISO 2022 string with T.100 and T.101
+characters.
+
+* IA5 string (22 S): A unrestricted ASCII string.
+
+* UTC time (23 S): Date/time in the format "YYMMDDhhmm[ss]Z". The quotation
+marks are not a part of the encoding, and [] means optional. YY is two year
+digits (since the century cannot be encoded, 50 means AD 1950 and 49 means
+AD 2049). MM is two month digits, from 01 for January to 12 for December.
+DD is the day of the month, from 01 to 31. hh is the number of hours past
+midnight, from 00 (midnight) to 23. mm is the number of minutes past the
+hour, from 00 to 59. ss is the number of seconds (and is optional) from 00
+to 59 (it might also be 60 for leap seconds, although the specification
+does not consider this and only limits it to 59). Z is the time zone; it
+can be literally "Z" by itself to mean UTC, or otherwise it is "+" or "-"
+(for east or west of UTC, respectively) to mean that the specified time is
+a number of hours and minutes offset from UTC; the number of hours is two
+digits and the number of minutes is two digits. If the encoding is DER,
+then the time zone must be "Z" and the seconds are mandatory.
+
+* Generalized time (24 S): Date/time in format "YYYYMMDDhhmmss[.fff][Z]",
+like above for UTC time except as specified here. YYYY is now four digits
+and is the full AD year number. The time zone is now optional (but must
+be present and "Z" if the encoding is DER). Seconds is now mandatory. You
+can optionally specify "." (or ",", but "." is required for DER) and a
+fractional number of seconds; in the case of DER, trailing zeros are not
+allowed for the fractional number of seconds, and "." is omitted if the
+number of seconds is an integer (so there are no fractional seconds).
+
+* Graphic string (25 S): A ISO 2022 string can have any graphic characters
+but cannot have control characters.
+
+* Visible string (26 S): A ASCII string without control characters.
+
+* General string (27 S): A unrestricted ISO 2022 string.
+
+* Universal string (28 S): A string of 32-bit ISO 10646 characters.
+
+* Character string (29 C): An unrestricted character string. The
+definition is a bit complicated and is not mentioned here.
+
+* BMP string (30 S): A string of 16-bit Unicode characters.
+
+A field can have an implicit or explicit type. An implicit type means the
+specified class and type replaces the universal class and universal type
+number in the encoding, so that the schema is required in order to know
+the data type of that item. An explicit type is similar but the item is
+constructed and contains a single item of that type (using the class and
+type numbers that it would usually have normally), so that it can be
+decoded without needing the schema (the encoding is like a implicit typed
+sequence containing a single item). If an implicit or explicit type does
+not specify the class, then the class is context-specific.
+
+An object identifier is a sequence of non-negative integers that represents
+some universal object. There must be at least two numbers; the first must
+be 0 to 2, and if the first isn't 2 then the second must be 0 to 39. If you
+want to define your own OID, then you must either register an arc with some
+kind of registration authority, or you must use a arc that does not require
+registration and use the mechanism that it requires in order to make up a
+OID. You can then use that OID and any OID that the registered one is a
+prefix of; e.g. if you have "2.999.1" then you can also use "2.999.1.15"
+and "2.999.1.42.99.0.6" as well (these numbers are examples).
+
+The encoding of an object identifier must be not empty, and must consist of
+the big-endian unsigned base 128 numbers in order, with the high bit of
+each byte set except the last byte of a number. Padding (0x80 as the first
+byte of a number) is not allowed. The first two numbers are encoded as a
+single number, by multiplying the first number by forty and then adding the
+second number, to produce the number that it should be encoded as.
+
+The working of real numbers is:
+
+* Positive zero is represented by empty data.
+
+* Negative zero is represented by a single byte 0x43.
+
+* Positive infinity is represented by a single byte 0x40.
+
+* Negative infinity is represented by a single byte 0x41.
+
+* NaN is represented by a single byte 0x42.
+
+* A binary number has the first byte specifying some flags. The high bit
+(bit7) is always set, the bit6 is set for negative or clear for positive,
+the bit5 and bit4 specify the base of the exponent (0 means base 2, 1 means
+base 8, and 2 means base 16; 3 is not valid), bit3 and bit2 are the left
+shift amount of the significand, and the bit1 and bit0 specify the number
+of exponent bytes (0 for 1 byte, 1 for 2 bytes, 2 for 3 bytes, or 3 if the
+next byte specifies the number of exponent bytes).
+
+* For a binary number, the flag byte is followed by the exponent bytes
+(preceded by the number of exponent bytes if the flag byte has the two low
+bits set), which is a signed big-endian number; and then after the exponent
+is the significand which is a unsigned big-endian number.
+
+* A decimal number starts with 0x01 or 0x02 or 0x03, followed by the ASCII
+representation of the ISO 6093 number of NR1 or NR2 or NR3, respectively.
+
+* A ISO 6093 number starts with zero or more spcaes, and then the optional
+plus or minus sign (plus is assumed if neither is specified), and then one
+or more digits, and then optionally a decimal-mark and zero or more digits,
+and then optionally the exponent part. The exponent part consists of the
+exponent-mark and then an optional plus or minus sign and then one or more
+digits. A decimal-mark is a dot or comma. A exponent-mark is a lowercase or
+uppercase E. (The meaning is the usual meaning like scientific notation.)
+
+* NR1 means the decimal-mark and exponent part are both omitted. NR2 means
+the decimal-mark is present but the exponent is omitted. NR3 means that the
+decimal-mark and the exponent are both present.
+
+* For decimal numbers, DER requires the use of NR3, with no spaces, without
+a plus sign for positive numbers (although a minus sign is used for
+negative numbers), neither the first nor last digit of the significand can
+be zero, and the last digit of the significand must be immediately followed
+by a dot and a uppercase E and then the exponent. The exponent cannot have
+a plus sign unless the exponent is zero in which case it does.
 
 
 === ASN.1X ===
@@ -469,6 +701,12 @@ of UTC seconds. The number of seconds does not include leap seconds.
 * ASN1_SI_TIME_INTERVAL (71): Represents a time interval as a number
 of SI seconds (which may include fractions).
 
+* ASN1_OUT_OF_BAND (72): This type is not for use for general-purpose
+data. It represents something which is transmitted out of band (e.g. a
+file descriptor) with whatever transport mechanism is being used. The
+transport mechanism defines how a value of this type is supposed to be
+encoded with whatever ASN.1 encoding is being used.
+
 The encoding of the new time types can be any one of:
 
 * A primitive encoding, same as the INTEGER type. This represents a
@@ -502,7 +740,9 @@ INLINE and INLINE OF types. Except for ANY DEFINED BY, a field of ANY
 type cannot have an implicit type (but explicit is OK), and its class
 cannot be context-specific. If the type is SEQUENCE OF ANY DEFINED BY
 then it can also be defined by a sequence of object identifiers (in
-addition to being possible to be defined by a single object identifier).
+addition to being possible to be defined by a single object identifier),
+in which case each item in the sequence is defined by the the item in
+the sequence it references.
 
 * OBJECT IDENTIFIER RELATIVE TO: You can specify that a OID is normally
 relative to a specified other constant OID or a OID in another field.
@@ -521,7 +761,8 @@ The following additional restrictions exist:
 string must use the primitive encoding; they cannot also be constructed.
 
 * Optional and default fields are not allowed unless it is possible to
-determine its presence or absence without needing to look ahead.
+determine its presence or absence without needing to look ahead. For
+this purpose, ANY DEFINED BY is treated the same as ANY.
 
 * The UTCTime and GeneralizedTime types must use the primitive encoding.
 

@@ -835,6 +835,7 @@ int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
   enc->mode=mode;
   enc->class=0;
   enc->type=0;
+  return ASN1_OK;
 }
 
 int asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
@@ -969,6 +970,10 @@ int asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value) {
   return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,9-y);
 }
 
+int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite) {
+  //TODO
+}
+
 int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
   char buf[64];
   int len;
@@ -1002,6 +1007,10 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
     case ASN1_DATE_TIME:
       len=snprintf(buf,64,"%04d-%02d-%02dT%02d:%02d:%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
       break;
+//    case ASN1_UTC_TIMESTAMP:
+//      //TODO
+//      
+//      break;
     default: return ASN1_IMPROPER_TYPE;
   }
   return asn1_primitive(enc,ASN1_UNIVERSAL,type,buf,len);
@@ -1010,6 +1019,30 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
 int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone) {
   ASN1_DateTime d;
   int i;
+  if(type==ASN1_UTC_TIMESTAMP || type==ASN1_SI_TIMESTAMP) {
+    value-=ASN1_TRON_EPOCH;
+    if(nano) {
+      uint8_t signif[5];
+      if(type==ASN1_UTC_TIMESTAMP) {
+        if(nano>=1000000000ULL && ((value+1)%60)) return ASN1_IMPROPER_VALUE;
+        if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_UTC_TIMESTAMP,0)) return ASN1_ERROR;
+        asn1_encode_int64(enc,value);
+        signif[0]=(nano/100000000ULL)%100;
+        signif[1]=(nano/1000000ULL)%100;
+        signif[2]=(nano/10000ULL)%100;
+        signif[3]=(nano/100ULL)%100;
+        signif[4]=(nano/1ULL)%100;
+        asn1_encode_real_parts(enc,signif,5,1,1,2,0);
+        if(asn1_end(enc)) return ASN1_ERROR;
+      } else {
+        if(nano>=1000000000ULL) return ASN1_IMPROPER_VALUE;
+        //TODO
+      }
+    } else {
+      if(!enc->class || !enc->type) enc->class=ASN1_UNIVERSAL,enc->type=type;
+      return asn1_encode_int64(enc,value);
+    }
+  }
   if(i=asn1_time_to_date(value+zone*60LL,nano,&d)) return i;
   d.zone=zone;
   return asn1_encode_date(enc,type,&d);
