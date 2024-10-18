@@ -164,6 +164,7 @@ int asn1_make_oid(const char*text,ASN1*out);
 int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out);
 int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
 int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length);
+FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
 int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out);
 int asn1_wrap(ASN1_Encoder*enc);

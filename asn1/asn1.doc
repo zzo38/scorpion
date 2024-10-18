@@ -196,7 +196,7 @@ asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size_t l
   it is Not a Number, then this will be 0.
 
   decimal = Set to 1 if it is decimal or 0 if it is binary. If binary, then
-  the fraction is in base 256, and if decimal, then base 100.
+  the significand is in base 256, and if decimal, then base 100.
 
   exponent = The exponent. Zero means that significand[0] is the fractional
   part immediately after the radix point; e.g. if it is 128 and the number
@@ -409,6 +409,16 @@ asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,s
   null) if the length is zero.
 
   length = The number of bytes of the data.
+
+FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type)
+  Encodes a primitive value that can be written by the returned stream
+  object, instead of being given in memory. You can call asn1_end once
+  you are finished writing the value. This function returns a null pointer
+  if an error occurs.
+
+  class = The class.
+
+  type = The type.
 
 asn1_wrap(ASN1_Encoder*enc)
   Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but

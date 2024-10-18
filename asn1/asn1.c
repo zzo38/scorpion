@@ -638,6 +638,7 @@ int asn1_decode_time(const ASN1*asn,uint32_t type,int16_t zone,time_t*out,uint32
 }
 
 int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size_t length,int8_t*sign,uint8_t*decimal,int64_t*exponent,uint8_t*infinite,uint8_t*exact) {
+  // Not fully tested
   char d,k;
   int64_t q;
   size_t m,n;
@@ -916,6 +917,26 @@ int asn1_wrap(ASN1_Encoder*enc) {
   enc->mode=ASN1_ONCE;
   enc->class=0;
   enc->type=0;
+  return ASN1_OK;
+}
+
+FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
+  Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
+  Encoder*p;
+  FILE*f;
+  if(!(p=malloc(sizeof(Encoder)))) return 0;
+  *p=e;
+  f=open_memstream(&p->mem,&p->size);
+  if(!f) {
+    free(p);
+    return 0;
+  }
+  if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file); else asn1_write_type(0,class,type,enc->file);
+  enc->sub=p;
+  enc->mode=0;
+  enc->class=0;
+  enc->type=0;
+  return f;
 }
 
 int asn1_encode_boolean(ASN1_Encoder*enc,int value) {
@@ -971,7 +992,35 @@ int asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value) {
 }
 
 int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite) {
-  //TODO
+  // Not fully tested
+  FILE*f;
+  size_t n;
+  if(!sign && !infinite) return ASN1_IMPROPER_VALUE;
+  while(length && !significand[length-1]) --length;
+  if(!length && !infinite) {
+    return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_REAL,"C",sign<0?1:0);
+  } else if(infinite) {
+    return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_REAL,"@AB"+(sign>0?0:sign<0?1:2),1);
+  } else if(decimal) {
+    exponent-=2LL*length;
+    f=asn1_primitive_stream(enc,ASN1_UNIVERSAL,ASN1_REAL);
+    if(!f) return ASN1_ERROR;
+    fputc(3,f);
+    if(sign<0) fputc('-',f);
+    for(n=0;n<length;n++) if(significand[n]) break;
+    fprintf(f,"%d",significand[n]);
+    for(n++;n<length-1;n++) fprintf(f,"%02d",significand[n]);
+    if(significand[n]%10) {
+      fprintf(f,"%02d",significand[n]);
+    } else {
+      --exponent;
+      fputc(significand[n]/10+'0',f);
+    }
+    fprintf(f,".E%s%lld",exponent?"":"+",(long long)exponent);
+    return asn1_end(enc);
+  } else {
+    //TODO
+  }
 }
 
 int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
