@@ -103,6 +103,5 @@ int main(int argc,char**argv) {
     default: errx(1,"Improper switch");
   }
   initialize(argc,argv);
-set_window_cursor(mainwindow,XC_arrow);XFlush(display);getchar(); // test only
   return 0;
 }

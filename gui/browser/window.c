@@ -17,6 +17,49 @@ Colormap colormap;
 
 static Cursor cursors[80];
 static char privatecolor;
+static XContext window_data_context;
+static int server_fd;
+static int poll_fd;
+static FdStatus closed_root;
+static FdStatus*closed_item=&closed_root;
+static FdStatus*server_fd_status;
+
+static int server_fd_in_event(FdStatus*s) {
+  XEvent e;
+  WindowStatus*p;
+  int i;
+  while(XPending(display)) {
+    XNextEvent(display,&e);
+    if(e.type==MappingNotify) {
+      XRefreshKeyboardMapping(&e.xmapping);
+      continue;
+    }
+    if(!e.xany.window || XFindContext(display,e.xany.window,window_data_context,(XPointer*)&p) || !p) continue;
+    if(e.type==DestroyNotify && e.xdestroywindow.event==e.xdestroywindow.window) {
+      p->flag|=WF_DESTROYED;
+      if(p->class->event) i=p->class->event(p,&e); else i=0;
+      if(p->class->destroy) p->class->destroy(p);
+      XDeleteContext(display,p->id,window_data_context);
+      if(p->flag&WF_OWN_GC) XFreeGC(display,p->gc);
+      free(p);
+      if(i) goto yield;
+      continue;
+    }
+    if(p->class->event) {
+      if(i=p->class->event(p,&e)) {
+        yield:
+        XFlush(display);
+        return i;
+      }
+    }
+  }
+  return 0;
+}
+
+static const FdClass server_fd_class={
+  .in=server_fd_in_event,
+  .pri=server_fd_in_event,
+};
 
 void set_window_cursor(Window w,int shape) {
   if(!cursors[shape>>1]) cursors[shape>>1]=XCreateFontCursor(display,shape);
@@ -87,6 +130,76 @@ void init_window_system(WindowConfig*conf) {
     colormap=wa.colormap;
   }
   XFree(sh);
+  window_data_context=XUniqueContext();
+  server_fd=ConnectionNumber(display);
+  poll_fd=epoll_create1(EPOLL_CLOEXEC);
+  if(poll_fd==-1) err(1,"Cannot create epoll instance");
+  server_fd_status=fd_register(server_fd,&server_fd_class,0);
+  fd_configure(server_fd_status,EPOLLIN|EPOLLPRI);
   XMapWindow(display,mainwindow);
   XFlush(display);
 }
+
+FdStatus*fd_register(int fd,const FdClass*cl,void*data) {
+  struct epoll_event e={.events=0};
+  FdStatus*x=calloc(1,sizeof(FdStatus)+cl->data_size);
+  if(!x) err(1,"Allocation failed");
+  x->class=cl;
+  x->id=fd;
+  if(cl->data_size) x->data=x->unused; else x->data=data;
+  e.data.ptr=x;
+  if(epoll_ctl(poll_fd,EPOLL_CTL_ADD,fd,&e)) warn("epoll_ctl (ADD,%d)",fd);
+  if(cl->start) cl->start(x);
+  return x;
+}
+
+void fd_unregister(FdStatus*x) {
+  struct epoll_event e;
+  if(!x->closed) {
+    if(epoll_ctl(poll_fd,EPOLL_CTL_DEL,x->id,&e)) warn("epoll_ctl (DEL,%d)",x->id);
+    x->closed=closed_item;
+    closed_item=x;
+  }
+}
+
+void fd_configure(FdStatus*x,uint32_t v) {
+  struct epoll_event e={.events=v};
+  e.data.ptr=x;
+  if(!x->closed && epoll_ctl(poll_fd,EPOLL_CTL_MOD,x->id,&e)) warn("epoll_ctl (MOD,%d)",x->id);
+}
+
+void fd_clean(void) {
+  FdStatus*x;
+  while(closed_item!=&closed_root) {
+    x=closed_item;
+    closed_item=x->closed;
+    free(x);
+  }
+}
+
+int do_event_loop(int timeout) {
+  struct epoll_event e;
+  FdStatus*p;
+  int i;
+  if(display) XFlush(display);
+  loop:
+  fd_clean();
+  i=epoll_wait(poll_fd,&e,1,timeout);
+  if(i==-1 && errno==EINTR) goto loop;
+  if(i<=0) return i;
+  p=e.data.ptr;
+  p->events=e.events;
+  i=0;
+  if((p->events&EPOLLIN) && !p->closed && p->class->in) i|=p->class->in(p);
+  if((p->events&EPOLLOUT) && !p->closed && p->class->out) i|=p->class->out(p);
+  if((p->events&EPOLLRDHUP) && !p->closed && p->class->rdhup) i|=p->class->rdhup(p);
+  if((p->events&EPOLLPRI) && !p->closed && p->class->pri) i|=p->class->pri(p);
+  if((p->events&EPOLLERR) && !p->closed && p->class->err) i|=p->class->err(p);
+  if((p->events&EPOLLHUP) && !p->closed && p->class->hup) i|=p->class->hup(p);
+  if(i) {
+    fd_clean();
+    return i;
+  }
+  goto loop;
+}
+
