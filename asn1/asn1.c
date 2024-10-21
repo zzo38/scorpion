@@ -252,23 +252,26 @@ int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out) {
         size_t n=0;
         while(n!=asn->length) {
           if(x=asn1_parse(asn->data,asn->length-n,&o,&n)) return x;
+          if(!o.length) return ASN1_IMPROPER_VALUE;
           if(n==asn->length) {
+            if(o.data[0]&~7) return ASN1_IMPROPER_VALUE;
             u=(o.length-1)*8LL-(o.data[0]&7);
             if(which<u) {
               *out=(o.data[which/8+1]&(0x80>>(which&7)))?1:0;
               return ASN1_OK;
             }
           } else {
-            u=o.length*8LL;
+            if(o.data[0]) return ASN1_IMPROPER_VALUE;
+            u=(o.length-1)*8LL;
             if(which<u) {
               *out=(o.data[which/8]&(0x80>>(which&7)))?1:0;
               return ASN1_OK;
             }
           }
-          which-=o.length*8LL;
+          which-=(o.length-1)*8LL;
         }
       } else {
-        if(!asn->length) return ASN1_IMPROPER_VALUE;
+        if(!asn->length || (asn->data[0]&~7)) return ASN1_IMPROPER_VALUE;
         u=(asn->length-1)*8LL-(asn->data[0]&7);
         if(which<u) *out=(asn->data[which/8+1]&(0x80>>(which&7)))?1:0;
       }
@@ -680,7 +683,7 @@ int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size
         if(asn->length<2 || asn->length<asn->data[1]+2) return ASN1_IMPROPER_VALUE;
         if(asn->data[1]>8) return ASN1_OVERFLOW;
         q=(asn->data[2]&0x80)?-1:0;
-        for(n=2;n<asn->data[1]+2;n++) q=128LL*q+asn->data[n];
+        for(n=2;n<asn->data[1]+2;n++) q=256LL*q+asn->data[n];
         if((asn->data[0]&0x10) && (q>=0x2AAAAAAAAAAAAAAALL || q<=-0x2AAAAAAAAAAAAAAALL)) return ASN1_OVERFLOW;
         if((asn->data[0]&0x20) && (q>=0x1FFFFFFFFFFFFFFFLL || q<=-0x1FFFFFFFFFFFFFFFLL)) return ASN1_OVERFLOW;
       } else {
@@ -692,7 +695,7 @@ int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size
         }
         n++;
       }
-      *exponent+=q*"\x01\x03\x04"[(asn->data[0]>>4)&3]-8LL*(asn->length-n);
+      *exponent+=q*"\x01\x03\x04"[(asn->data[0]>>4)&3]+8LL*(asn->length-n);
       if(asn->length-n>length) {
         memcpy(significand,asn->data+n,length);
         if(exact) *exact=0;
@@ -1085,7 +1088,10 @@ int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,i
         if(asn1_end(enc)) return ASN1_ERROR;
       } else {
         if(nano>=1000000000ULL) return ASN1_IMPROPER_VALUE;
+        if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SI_TIMESTAMP,0)) return ASN1_ERROR;
         //TODO
+        
+        if(asn1_end(enc)) return ASN1_ERROR;
       }
     } else {
       if(!enc->class || !enc->type) enc->class=ASN1_UNIVERSAL,enc->type=type;

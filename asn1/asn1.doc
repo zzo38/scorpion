@@ -472,11 +472,11 @@ the application will define what the type numbers means.
 * Private (3): Defined in private specifications.
 
 The universal types are listed below. P means primitive, C means
-constructed, and S means that it is a string type. For string types
-(other than bit strings), it is normally primitive (and is required to be
-primitive in DER), but if it is constructed then it contains any number
-of items that use the universal class and universal type number for that
-type, and the value is the same as concatenating together.
+constructed, and S means that it is a string type. For string types, it is
+normally primitive (and is required to be primitive in DER), but if it is
+constructed then it contains any number of items that use the universal
+class and universal type number for that type, and the value is the same as
+concatenating together.
 
 * Boolean (1 P): True or false. The data is one byte, and is zero for false
 or nonzero for true. For DER, true is always represented as 0xFF.
@@ -490,8 +490,7 @@ second byte (since it would be redundant).
 byte (so the high bit comes first). If the encoding is primitive, then the
 first byte specifies how many low bits of the last byte are unused (and
 must be clear if the encoding is DER). If the encoding is constructed, then
-the first byte to specify the number of unused bits is only present in the
-last segment.
+only the last segment may have unused bits.
 
 * Octet string (4 S): A sequence of arbitrary bytes.
 
