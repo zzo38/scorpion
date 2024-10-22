@@ -93,7 +93,8 @@ option to disable SNI (in order to mitigate some types of spying).
 * Servers SHOULD NOT require SNI, and SHOULD ignore any provided SNI and
 use the host name in the request instead. (Exceptions are possible, e.g.
 if it needs to use a different protocol with the same port number and IP
-address for some reason, but this should be avoided if possible.)
+address for some reason, or if a proxy server is used to forward requests
+to another server without needing the proxy to handle encryption, etc.)
 
 * If possible, clients SHOULD allow to use the system's DNS services to
 implement encrypted Client Hello; if implemented, there MUST be an option
@@ -131,7 +132,10 @@ it is a dynamic file).
 * The file type/format. MIME has some problems and ULFI is better, but for
 now, for compatibility you can use MIME; however, spaces are not allowed.
 If the "charset" parameter is not included then the default according to
-the file format should be used; "us-ascii" is a recommended default.
+the file format should be used; "us-ascii" is a recommended default if it
+is not otherwise known. (If there is a possibility of the character set
+being unknown, servers SHOULD explicitly specify them; this is unnecessary
+if the file contains only ASCII characters.)
 
 * Optionally, the version, which if present must consist only of uppercase
 and lowercase letters, digits, and forward slash and plus sign. (Clients
@@ -153,6 +157,10 @@ NOT automatically follow any further redirects.
 it must be a unsigned 31-bit number (encoded as decimal in ASCII, not as
 binary), or it can be ? if it is unable to estimate the required time
 before trying again. (TODO: Possibly remove this; maybe it is not useful.)
+(An implementation may have a maximum amount of time that it is willing to
+wait; e.g. one week with a random variation of up to 24 hours either way.
+Furthermore, if this error is received multiple times in succession, a
+client should increase the amount of waiting time.)
 
 * The error message text (optional).
 
@@ -690,10 +698,9 @@ would not be common when using PC character codes).
 
 * 0x1B = Used for SGR codes. The next byte MUST be 0x5B, and then zero
 or more bytes in range 0x30 to 0x3B except 0x3A, and then one byte
-which is 0x6D. This is allowed in both preformatted blocks and in other
-blocks, but it is discouraged, especially in non-preformatted blocks.
-Clients should skip over the SGR code entirely, but MAY have an option
-to interpret them (possibly only in preformatted blocks).
+which is 0x6D. This is allowed only in preformatted blocks, although its
+use is discouraged. Clients should skip over the SGR code entirely, but
+MAY have an option to interpret them.
 
 It is not required to implement most of the control codes, except as
 specified above.
@@ -1485,8 +1492,6 @@ Client certificates are not encrypted with TLS 1.2, but are encrypted
 with TLS 1.3. Therefore, clients SHOULD warn when using a client
 certificate with a TLS version 1.2 or less.
 
-(TODO)
-
 
 === Missing details ===
 
@@ -1623,8 +1628,13 @@ is permitted, too.
 *** Isn't it difficult to detect whether or not the first byte is 0x16 and
 have an existing TLS library take over the connection if it is?
 
-My guess is that you can use recv with the MSG_PEEK flag. (However, I have
-not tried this. If you know otherwise, please tell me.)
+It should be possible to use recv with the MSG_PEEK flag, before passing
+it to the existing TLS library.
+
+(If you are using the Go programming language, see the "small net
+information services" program; the files named "peekedConn.go" and
+"maybeTLSListener.go" implement this behaviour. It is not a programming
+language I use, so I cannot help with questions about the program.)
 
 *** Why is it restricted to ASCII only?
 
@@ -1634,7 +1644,8 @@ There are a few reasons for this:
 
 * The URL and some other parts are "computer code", where large character
 sets are inappropriate due to homoglyphs and other complexity; it isn't
-meant to be text in any language.
+meant to be text in any language (although some parts of it may resemble
+English words or abbreviations of them).
 
 * Plain text files are ASCII at the simplest case, but you can still
 specify a different character encoding anyways.
@@ -1693,6 +1704,12 @@ colon by itself is the ULFI that does not specify any file formats. For
 redirects (3x status codes), any default value would be inappropriate, so
 it cannot try to recover from such errors in this way and instead will
 have to display an error message.
+
+*** Is it possible to use languages other than Japanese?
+
+Yes. It is not only for Japanese. The TRON character encoding can be used
+with other languages as well, and the use of the word "furigana" in the
+specification does not imply that only Japanese is possible.
 
 *** What is the copyright of this file?
 
