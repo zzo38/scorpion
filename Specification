@@ -20,6 +20,7 @@ Table of contents:
   Unordered Labels File Identification
   X.509 extensions
   Favicon formats
+  Superseding certificates
   Recommendations and other notes
   Dynamic files
   Security issues
@@ -1166,13 +1167,9 @@ format expected for the TZ environment variable in UNIX systems, e.g.
 "America/Vancouver". The data type is a IA5 string.
 
 * 2.25.327847519394146920218914781995694576662.6 = This extension is meant
-for securely specifying that one certificate supersedes another. (TODO:
-Define the format of this extension. Probably it would include a signature
-of the new and old certificates together, with the old key, and possibly
-with the new key as well if it has been changed. It should be made so that
-it can be used whether or not the certificate is self-signed, and should
-allow mentioning multiple certificates it supersedes in case it changes
-twice between two times a client accesses a server.)
+for securely specifying that one certificate supersedes another, even if
+it is self-signed. See the below section about "Superseding certificates"
+with the format of this extension.
 
 
 === Favicon formats ===
@@ -1186,6 +1183,44 @@ If the data type is a UTF-8 string, then it is interpreted as specified by:
 
 If the data type is a implicit type 1 octet string, then it is a Haiku
 vector icon format, except that the initial <6E 63 69 66> is omitted.
+
+
+=== Superseding certificates ===
+
+(Note: This might change soon, due to some discussion.)
+
+The format of this extension is a sequence consisting of the fields:
+
+* The public key for other certificates to supersede this one, or null.
+If it is null, or if this extension is not present, then the certificate's
+own key will be used for this purpose.
+
+* A bit string which specifies which extensions (where the first bit
+corresponds to the first extension in this certificate, etc) should have
+their values replaced with all bits clear for the purpose of calculating
+the signature of this certificate with the old certificate's keys. If any
+bits are present, then the last bit that is present must be set; all
+further bits are implied to be clear. This bit string should never specify
+that the superseding certificates extension is itself excluded. (This is
+present in order to avoid a mess with potential future defined extensions
+which would conflict.)
+
+* A sequence of the Superseding Item structures, explained below. They
+should be listed in order from oldest to newest. It is not necessary to
+list all of the older certificates, but you should list the few most
+recent, especially if they have been changed recently.
+
+The Superseding Item structure is a sequence of the fields:
+
+* The identifier of the older certificate. (TODO: How to identify?)
+
+* The signature (a bit string) of this certificate with the older
+certificate's key. For the purpose of computing the signature, use
+only the tbsCertificate (not the stuff that comes afterward), but with
+all bits cleared in the value (not the type/length header) of the
+signatures within all Superseding Items, and all bits cleared within
+the value (the octet string data, which wraps ASN.1 DER data) of all
+extensions that are excluded.
 
 
 === Recommendations and other notes ===
