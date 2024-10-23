@@ -599,7 +599,7 @@ static int do_block(void) {
         case CMD_RAWI: raw_inline_entry(bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(sty=0x12,bodyf); break;
         case CMD_TAB: if((bt!=0x0D && tv!=CMD_SET) || mode) goto bad; fputc(0x09,bodyf); break;
-        case CMD_RGR: if(mode) goto bad; fputs("\e[m",bodyf); break;
+        case CMD_RGR: if(bt!=0x0D || mode) goto bad; fputs("\e[m",bodyf); break;
         default: bad: Error("Improper command in body (%d;%d)",tokent,tokenv);
       }
     } else if(tokent==TOK_COMMAND_BEGIN) {
@@ -614,7 +614,7 @@ static int do_block(void) {
         case CMD_R: if(bt==0x0D || mode) goto bad; fputc(0x16,bodyf); break;
         case CMD_RAW: if(mode) goto bad; raw_entry(bodyf); break;
         case CMD_S: if(bt==0x0D || mode) goto bad; fputc(0x12,bodyf); break;
-        case CMD_SGR: if(mode) goto bad; fputc(0x1B,bodyf); fputc(0x5B,bodyf); mode='S'; break;
+        case CMD_SGR: if(bt!=0x0D || mode) goto bad; fputc(0x1B,bodyf); fputc(0x5B,bodyf); mode='S'; break;
         default: goto bad;
       }
     } else if(tokent==TOK_COMMAND_END) {
