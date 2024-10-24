@@ -1187,13 +1187,15 @@ vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 === Superseding certificates ===
 
-(Note: This might change soon, due to some discussion.)
-
 The format of this extension is a sequence consisting of the fields:
 
 * The public key for other certificates to supersede this one, or null.
 If it is null, or if this extension is not present, then the certificate's
 own key will be used for this purpose.
+
+* The Algorithm Identifier for the hash algorithm which is used for
+identifying older certificates which are being superseded. (TODO: Make
+the recommendation of which hash algorithm should be used.)
 
 * A bit string which specifies which extensions (where the first bit
 corresponds to the first extension in this certificate, etc) should have
@@ -1201,9 +1203,10 @@ their values replaced with all bits clear for the purpose of calculating
 the signature of this certificate with the old certificate's keys. If any
 bits are present, then the last bit that is present must be set; all
 further bits are implied to be clear. This bit string should never specify
-that the superseding certificates extension is itself excluded. (This is
-present in order to avoid a mess with potential future defined extensions
-which would conflict.)
+that the superseding certificates extension is itself excluded, and any
+implementation that understands an extension should not allow excluding it
+if such an exclusion is unnecessary. (This is present in order to avoid a
+mess with potential future defined extensions which would conflict.)
 
 * A sequence of the Superseding Item structures, explained below. They
 should be listed in order from oldest to newest. It is not necessary to
@@ -1212,7 +1215,7 @@ recent, especially if they have been changed recently.
 
 The Superseding Item structure is a sequence of the fields:
 
-* The identifier of the older certificate. (TODO: How to identify?)
+* The hash of the older certificate.
 
 * The signature (a bit string) of this certificate with the older
 certificate's key. For the purpose of computing the signature, use
