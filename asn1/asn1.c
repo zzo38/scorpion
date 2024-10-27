@@ -228,6 +228,7 @@ int asn1_print_decimal_oid(const ASN1*asn,uint32_t type,FILE*stream) {
     }
   } else {
     fputc('.',stream);
+    fputc('.',stream);
   }
   while(at<asn->length) {
     fputc('.',stream);
@@ -775,9 +776,16 @@ int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size
 
 // Encoding
 
+typedef struct Sorter {
+  FILE*file;
+  size_t*mem;
+  size_t size;
+} Sorter;
+
 typedef struct Encoder {
   struct Encoder*next;
   FILE*file;
+  Sorter*sort;
   char*mem;
   size_t size;
   uint8_t mode;
@@ -791,6 +799,9 @@ struct ASN1_Encoder {
   uint8_t mode;
 };
 
+#define SorterItem1 if(enc->mode&ASN1_SORT) { size_t t=ftell(enc->file); fwrite(&t,1,sizeof(size_t),enc->sub->sort->file); }
+#define SorterItem2 SorterItem1; if(enc->mode&ASN1_KVSORT) enc->mode^=ASN1_SORT;
+
 ASN1_Encoder*asn1_create_encoder(FILE*file) {
   ASN1_Encoder*enc;
   if(!file) return 0;
@@ -803,9 +814,8 @@ ASN1_Encoder*asn1_create_encoder(FILE*file) {
 int asn1_finish_encoder(ASN1_Encoder*enc) {
   int x;
   if(enc->sub) return ASN1_IMPROPER_MODE;
-  x=fclose(enc->file)?ASN1_ERROR:ASN1_OK;
   free(enc);
-  return x;
+  return ASN1_OK;
 }
 
 FILE*asn1_current_file(ASN1_Encoder*enc) {
@@ -822,17 +832,37 @@ int asn1_flush(ASN1_Encoder*enc) {
 int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
   Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
   Encoder*p;
+  Sorter*y;
   FILE*f;
-  if(mode&0xF3) return ASN1_IMPROPER_ARGUMENT;
+  if(mode&0xF0) return ASN1_IMPROPER_ARGUMENT;
   if(!(p=malloc(sizeof(Encoder)))) return ASN1_ERROR;
+  if(mode&(ASN1_SORT|ASN1_KVSORT)) {
+    mode|=ASN1_SORT;
+    if(mode&(ASN1_INDEFINITE|ASN1_ONCE)) {
+      free(p);
+      return ASN1_IMPROPER_ARGUMENT;
+    }
+    if(!(e.sort=y=calloc(1,sizeof(Sorter)))) goto err;
+    y->file=open_memstream((char**)&y->mem,&y->size);
+    if(!y->file) goto err;
+  }
   *p=e;
   if(!(mode&ASN1_INDEFINITE)) {
     f=open_memstream(&p->mem,&p->size);
     if(!f) {
+      err:
       free(p);
+      if(e.sort) {
+        if(e.sort->file) {
+          fclose(e.sort->file);
+          free(e.sort->mem);
+        }
+        free(e.sort);
+      }
       return ASN1_ERROR;
     }
   }
+  SorterItem1; // In this case, the toggle for KVSORT is done at asn1_end
   if(enc->class || enc->type) asn1_write_type(1,enc->class,enc->type,enc->file); else asn1_write_type(1,class,type,enc->file);
   if(mode&ASN1_INDEFINITE) fputc(128,enc->file); else enc->file=f;
   enc->sub=p;
@@ -854,6 +884,31 @@ int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
   return ASN1_OK;
 }
 
+static int do_sorting(ASN1_Encoder*enc,Encoder*p) {
+  Sorter*y=p->sort;
+  size_t t,j;
+  size_t*a;
+  size_t*b;
+  int compare(const void*vx,const void*vy) {
+    const size_t*sx=vx;
+    const size_t*sy=vy;
+    size_t kx=a[*sx+1]-a[*sx];
+    size_t ky=a[*sy+1]-a[*sy];
+    return (kx || ky)?memcmp(p->mem+a[*sx],p->mem+a[*sy],kx<ky?kx:ky):0;
+  }
+  fwrite(&p->size,1,sizeof(size_t),y->file);
+  fwrite(&p->size,1,sizeof(size_t),y->file);
+  t=ftell(y->file)/sizeof(size_t)-2;
+  for(j=0;j<=t;j++) fwrite(&j,1,sizeof(size_t),y->file);
+  if(fclose(y->file) || !y->mem) return 1;
+  a=y->mem;
+  qsort(b=a+t+2,t,sizeof(size_t),compare);
+  for(j=0;j<t;j++) fwrite(p->mem+a[b[j]],1,a[b[j]+1]-a[b[j]],p->file);
+  free(y->mem);
+  free(y);
+  return 0;
+}
+
 int asn1_end(ASN1_Encoder*enc) {
   Encoder*p;
   again:
@@ -863,6 +918,12 @@ int asn1_end(ASN1_Encoder*enc) {
     fwrite("\0",1,2,enc->file);
   } else {
     if(fclose(enc->file) || (p->size && !p->mem)) {
+      if(p->sort) {
+        fclose(p->sort->file);
+        err1:
+        free(p->sort->mem);
+        free(p->sort);
+      }
       enc->sub=p->next;
       enc->mode=p->mode;
       enc->file=p->file;
@@ -871,7 +932,13 @@ int asn1_end(ASN1_Encoder*enc) {
       return ASN1_ERROR;
     }
     asn1_write_length(p->size,p->file);
-    if(p->size) fwrite(p->mem,1,p->size,p->file);
+    if(p->size) {
+      if(enc->mode&(ASN1_SORT|ASN1_KVSORT)) {
+        if(do_sorting(enc,p)) goto err1;
+      } else {
+        fwrite(p->mem,1,p->size,p->file);
+      }
+    }
     free(p->mem);
   }
   enc->sub=p->next;
@@ -879,10 +946,12 @@ int asn1_end(ASN1_Encoder*enc) {
   enc->file=p->file;
   free(p);
   if(enc->mode&ASN1_ONCE) goto again;
+  if(enc->mode&ASN1_KVSORT) enc->mode^=ASN1_SORT;
   return ASN1_OK;
 }
 
 int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length) {
+  SorterItem2;
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file);
   else if(!class && !type) return ASN1_IMPROPER_TYPE;
   else asn1_write_type(0,class,type,enc->file);
@@ -894,6 +963,7 @@ int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*da
 }
 
 int asn1_encode(ASN1_Encoder*enc,const ASN1*value) {
+  SorterItem2;
   if(enc->class || enc->type) asn1_write_type(value->constructed,enc->class,enc->type,enc->file);
   else if(!value->class && !value->type) return ASN1_IMPROPER_TYPE;
   else asn1_write_type(value->constructed,value->class,value->type,enc->file);
@@ -915,6 +985,7 @@ int asn1_wrap(ASN1_Encoder*enc) {
     free(p);
     return ASN1_ERROR;
   }
+  SorterItem1;
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file); else asn1_write_type(0,ASN1_UNIVERSAL,ASN1_OCTET_STRING,enc->file);
   enc->sub=p;
   enc->mode=ASN1_ONCE;
@@ -934,6 +1005,7 @@ FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
     free(p);
     return 0;
   }
+  SorterItem1;
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file); else asn1_write_type(0,class,type,enc->file);
   enc->sub=p;
   enc->mode=0;

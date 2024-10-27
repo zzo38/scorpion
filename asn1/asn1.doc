@@ -286,6 +286,13 @@ asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode)
 
   mode = A combination of flags below (0 to use no flags).
 
+  ASN1_SORT = Sort the values. Use this for sorting the items in a set.
+  This cannot be used with ASN1_INDEFINITE or with ASN1_ONCE.
+
+  ASN1_KVSORT = Sort the values like ASN1_SORT, but they are sorted
+  according to the first item in each pair of items, according to the
+  ASN.1X key/value list type.
+
   ASN1_INDEFINITE = Use indefinite length (not valid for DER). This allows
   data to be written to output before the entire contruction is completed,
   so that it can be used with streaming protocols.

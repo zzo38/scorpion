@@ -99,7 +99,7 @@
 
 // Flags
 #define ASN1_SORT 0x01
-#define ASN1_UNIQ 0x02
+#define ASN1_KVSORT 0x02
 #define ASN1_INDEFINITE 0x04
 #define ASN1_ONCE 0x08
 
