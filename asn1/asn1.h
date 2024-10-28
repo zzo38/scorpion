@@ -106,6 +106,8 @@
 // Others
 #define ASN1_AUTO 0 // means use the existing universal or explicit type instead of an implicit type
 #define ASN1_TRON_EPOCH 473385600LL
+#define ASN1_LOWERCASE 0x61
+#define ASN1_UPPERCASE 0x41
 
 typedef struct {
   const uint8_t*data;
@@ -147,6 +149,7 @@ int asn1_encode_int8(ASN1_Encoder*enc,int8_t value);
 int asn1_encode_int16(ASN1_Encoder*enc,int16_t value);
 int asn1_encode_int32(ASN1_Encoder*enc,int32_t value);
 int asn1_encode_int64(ASN1_Encoder*enc,int64_t value);
+int asn1_encode_integer_base(ASN1_Encoder*enc,int base,const uint8_t*digits,size_t length,int8_t sign,char trans);
 int asn1_encode_oid(ASN1_Encoder*enc,const char*t);
 int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite);
 int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone);

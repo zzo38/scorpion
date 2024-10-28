@@ -352,6 +352,20 @@ asn1_encode_integer(ASN1_Encoder*enc,??? value)
   Encodes an integer. This is a macro that calls one of the other functions
   for encoding integers according to the type of the specified value.
 
+asn1_encode_integer_base(ASN1_Encoder*enc,int base,const uint8_t*digits,size_t length,int8_t sign,char trans)
+  Encodes an integer from a string of digits.
+
+  base = The base of the digits, from 2 to 256.
+
+  digits = The big-endian array of digits.
+
+  length = The number of digits.
+
+  sign = Set to +1 for positive or -1 for negative.
+
+  trans = If zero, the digits array is the values directly, but if nonzero
+  then they are ASCII characters 0-9, and A-Z or a-z.
+
 asn1_encode_oid(ASN1_Encoder*enc,const char*t)
   Encodes a object identifier (OID).
 
@@ -420,8 +434,8 @@ asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,s
 FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type)
   Encodes a primitive value that can be written by the returned stream
   object, instead of being given in memory. You can call asn1_end once
-  you are finished writing the value. This function returns a null pointer
-  if an error occurs.
+  you are finished writing the value (do not call fclose with this file).
+  This function returns a null pointer if an error occurs.
 
   class = The class.
 

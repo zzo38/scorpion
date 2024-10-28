@@ -1007,6 +1007,7 @@ FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
   }
   SorterItem1;
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file); else asn1_write_type(0,class,type,enc->file);
+  enc->file=f;
   enc->sub=p;
   enc->mode=0;
   enc->class=0;
@@ -1177,5 +1178,59 @@ int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,i
 
 int asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text) {
   return text?asn1_primitive(enc,ASN1_UNIVERSAL,type,text,strlen(text)):ASN1_IMPROPER_VALUE;
+}
+
+int asn1_encode_integer_base(ASN1_Encoder*enc,int base,const uint8_t*digits,size_t length,int8_t sign,char trans) {
+  uint8_t*v;
+  size_t s,j,k;
+  uint32_t w,c;
+  if(!length) return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,"",1);
+  if(base>36 && trans) return ASN1_IMPROPER_ARGUMENT;
+  if(base<2 || base>256 || !sign) return ASN1_IMPROPER_ARGUMENT;
+  if(base==256 && sign>0 && *digits<0x80) {
+    for(s=0;s<length-1 && !digits[s];s++);
+    if(s && digits[s]>=0x80) s--;
+    return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,digits+s,length-s);
+  }
+  v=calloc(1,length+1);
+  if(!v) return ASN1_ERROR;
+  s=length;
+  for(j=0;j<length;j++) {
+    // Multiply by base
+    for(c=0,k=length;;k--) {
+      w=v[k]*base+c;
+      v[k]=w&0xFF;
+      c=w>>8;
+      if(k==s) break;
+    }
+    if(c && s) v[--s]=c;
+    // Add digit
+    c=digits[j];
+    if(trans) {
+      if(c>='A') c=(c&31)+9; else c&=15;
+    }
+    for(k=length;c;k--) {
+      w=v[k]+c;
+      v[k]=w&0xFF;
+      c=w>>8;
+      if(k==s) break;
+    }
+    if(c && s) v[--s]=c;
+  }
+  if(sign<0 && (s!=length || v[s])) {
+    // Make negative (same as bitwise NOT and add one)
+    for(c=1,k=length;;k--) {
+      w=(v[k]^0xFF)+c;
+      v[k]=w&0xFF;
+      c=w>>8;
+      if(k==s) break;
+    }
+    if(s && v[s]<0x80) v[--s]=0xFF;
+  } else {
+    if(s && v[s]>=0x80) v[--s]=0;
+  }
+  w=asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,v+s,length+1-s);
+  free(v);
+  return w;
 }
 
