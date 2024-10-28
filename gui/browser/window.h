@@ -65,7 +65,7 @@ struct FdStatus {
   void*data;
   uint32_t events;
   FdStatus*closed;
-  char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__)));
+  char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__),may_alias));
 };
 
 struct WindowClass {
@@ -85,12 +85,19 @@ struct WindowStatus {
   void*data;
   GC gc;
   uint32_t flag;
-  char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__)));
+  WindowStatus*parent;
+  WindowStatus*first;
+  WindowStatus*last;
+  WindowStatus*prev;
+  WindowStatus*next;
+  char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__),may_alias));
 };
 
-#define WF_VALUE         0x00000001
-#define WF_OWN_GC        0x00000002
-#define WF_DESTROYED     0x00000004
+#define WF_USER_STATE      0x00000001
+#define WF_OWN_GC          0x00000002
+#define WF_DESTROYED       0x00000004
+#define WF_NO_AUTO_MAP     0x00000008
+#define WF_CUSTOM_CREATE   0x00000010
 
 extern Display*display;
 extern Window rootwindow;

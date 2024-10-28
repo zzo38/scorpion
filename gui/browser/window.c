@@ -41,6 +41,12 @@ static int server_fd_in_event(FdStatus*s) {
       if(p->class->destroy) p->class->destroy(p);
       XDeleteContext(display,p->id,window_data_context);
       if(p->flag&WF_OWN_GC) XFreeGC(display,p->gc);
+      if(p->parent) {
+        if(p->parent->first==p) p->parent->first=p->next;
+        if(p->parent->last==p) p->parent->first=p->prev;
+        if(p->prev) p->prev->next=p->next;
+        if(p->next) p->next->prev=p->prev;
+      }
       free(p);
       if(i) goto yield;
       continue;
@@ -201,5 +207,45 @@ int do_event_loop(int timeout) {
     return i;
   }
   goto loop;
+}
+
+WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy,void*data) {
+  Window id;
+  WindowStatus*ws=calloc(1,sizeof(WindowStatus)+cl->data_size);
+  if(!ws) err(1,"Allocation failed");
+  ws->class=cl;
+  ws->flag=cl->flag&~WF_DESTROYED;
+  if(cl->data_size) {
+    ws->data=ws->unused;
+    if(data) memcpy(ws->data,data,cl->data_size);
+  } else {
+    ws->data=data;
+  }
+  if(ws->parent=pa) {
+    if(ws->prev=pa->last) ws->prev->next=ws; else pa->first=ws;
+    pa->last=ws;
+  }
+  
+  if(ws->flag&WF_OWN_GC) {
+    ws->gc=XCreateGC(display,id,0,0);
+    //if(pa) XCopyGC(display,pa->gc,x,0x3FFFFF);
+  } else {
+    ws->gc=pa?pa->gc:DefaultGC(display,DefaultScreen(display));
+  }
+  
+  if(!(ws->flag&WF_NO_AUTO_MAP)) XMapWindow(display,id);
+  return ws;
+}
+
+void win_destroy(WindowStatus*ws) {
+  if(ws->flag&WF_DESTROYED) return;
+  ws->flag|=WF_DESTROYED;
+  XDestroyWindow(display,ws->id);
+}
+
+WindowStatus*win_status(Window id) {
+  WindowStatus*p;
+  if(XFindContext(display,id,window_data_context,(XPointer*)&p)) return 0;
+  return p;
 }
 
