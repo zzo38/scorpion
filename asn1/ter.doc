@@ -1,0 +1,197 @@
+ASN.1X TER (Text Encoding Rules)
+
+The file is a ASCII (or Extended ASCII) text file.
+
+
+=== Schema-independent format ===
+
+The schema-independent format is the subset of the other formats, so a
+valid schema-independent TER file is also valid for schema-dependent TER.
+The same tokens are defined in schema-independent format even though some
+of them are only used in the other formats, though.
+
+Comments start with % (outside of a string) and end at the end of line.
+
+Delimiters:
+  {   Begin schema-specific block
+  }   End schema-specific block
+  [   Begin sequence
+  ]   End sequence
+  <[  Begin set
+  ]>  End set
+  <<  Begin key/value list
+  >>  End key/value list
+  <{  Reserved
+  }>  Reserved
+
+Schema-specific blocks can only be used in the schema-specific format, as
+well as some items that are not specific to the schema which are mentioned
+below as using the { } block.
+
+Integers can be one of the following forms:
+
+* Plain decimal integer, with an optional + or - sign at first.
+
+* Integer with a base 2 to 36 (in decimal) and then # and then the number
+represented using that base. Letters can be uppercase or lowercase, and
+you can have optional + or - after # to indicate the sign.
+
+A object identifier is represented by the numbers in decimal form with dots
+in between. A relative object identifier has the same format but ... is at
+the beginning.
+
+Real numbers can be one of the following forms:
+
+* Decimal, with or without a 10# prefix, and with or without a fractional
+part (with a dot before it) and an exponent part (with e or E before it).
+At least two of these three parts must be present (in addition to the
+integer part), in order to be distinguished from object identifiers.
+
+* Binary, using the prefix 2# or 4# or 8# or 16# for the base of the
+significand, and the exponent part has p or P before it and is always
+written in decimal form and is the number of bits (regardless of the
+base of the representation). You must have at least one of the fractional
+part of the significand and the exponent part (you can have both), in
+order to be distinguished from integers.
+
+Both integers and real numbers can include optional underscores (but not
+as the first character) which have no meaning.
+
+Special values:
+  #Z     Null (same as "5U<>")
+  #F     False (same as "1U<00>")
+  #T     True (same as "1U<FF>")
+  #INF   Positive infinity
+  #+INF  Positive infinity
+  #-INF  Negative infinity
+  #NAN   Not a number
+
+An implicit type is specified by a token consisting of the type number in
+decimal form, followed by one of U (universal), A (application), C (context
+specific), or P (private), and has an optional colon afterward. This is a
+single token, but the value that is represented by the next token or block,
+will use the specified implicit type instead of its actual type.
+
+An octet string token has < > around it, and contains the hexadecimal data
+of the octet string. Spaces, tabs, and line breaks are allowed inside, but
+not between the two hex digits that represent one byte.
+
+An octet string can also use <= => around it if it is base 64. Trailing
+equal signs are optional.
+
+Text strings use ( ) around it. If the type is not specified, then IA5 is
+assumed by default.
+
+The possible escape sequences in text strings are:
+
+* \\ \( \) represents the second character literally. Unescaped ( ) are
+allowed if they are balanced.
+
+* \a \b \t \n \v \f \r represents ASCII control characters, which are the
+same as the C programming language.
+
+* \e represents a ASCII escape character, as in GNU C.
+
+* \x and exactly two hex digits represents one byte. This is not allowed
+at all in UTF-16 strings, universal strings, and BCD strings. In TRON
+strings it is only allowed for representing control characters (a space
+is considered to be a control character in TRON strings).
+
+* \ and exactly three octal digits represents one byte. It has the same
+restrictions as the \x escape.
+
+* \T and any number of hex digits followed by a semicolon represents a
+single TRON character; it is only allowed in a TRON string. If the plane
+number is not specified, then the current plane number is used.
+
+* \u and exactly four hex digits represents a single Unicode character,
+and is allowed only in Unicode strings.
+
+* \U and any numbef of hex digits followed by a semicolon is like \u (and
+has the same restrictions) but can represent non-BMP characters too. In a
+UTF-16 string it must be in the Unicode range, but in a UTF-8 string or a
+UTF-32 string, it can be up to 32-bits.
+
+* \c and four hex digits represesnts a ISO 2022 control character. The
+first two hex digits designate a C0 or C1 control set, according to the
+final byte of the escape sequence for selecting it, and the next two hex
+digits represent a control code from that set; the third digit must be
+0, 1, 8, or 9. This is only allowed in ISO 2022 strings.
+
+* \g and four hex digits represents a single-byte ISO 2022 graphic
+character. The first two are according to the final byte of the escape
+sequence for selecting the G0 or G1 set, and the next two are the character
+code within that set. This is only allowed in ISO 2022 strings.
+
+* \G and any number of hex digits followed by a semicolon represents a
+multi-byte ISO 2022 graphic character. This works like \g but the third
+and subsequent hex digits all specify the codes of a multi-byte character.
+
+The following prefixes can be used to specify string types:
+  OCTET:       Octet string
+  O:           Octet srting
+  IA5:         IA5 string
+  ASCII:       IA5 (ASCII) string
+  A:           IA5 (ASCII) string
+  PRINTABLE:   Printable string
+  P:           Printable string
+  VISIBLE:     Visible string
+  V:           Visible string
+  GRAPHIC:     Graphic string
+  GR:          Graphic string
+  GENERAL:     General string
+  GEN:         General string
+  UTF8:        UTF-8 string
+  BMP:         BMP string
+  UTF16:       UTF-16 string
+  UNIVERSAL:   Universal string
+  TELETEX:     Teletex string
+  VIDEOTEX:    Videotex string
+  NUMERIC:     Numeric string
+  BCD:         BCD string
+  PC:          PC string
+  TRON:        TRON string
+  DESCRIPTOR:  Object descriptor
+  DESC:        Object descriptor
+
+Any of these prefixes can also be used with a octet string, in which case
+it is like a implicit type.
+
+Date/time tokens are one of the following (including the colon) followed
+by the date/time representation in the same token.
+  TIME:       UTCTime or GeneralizedTime
+  UTCTIME:    UTCTime
+  UT:         UTCTime
+  GENTIME:    GeneralizedTime
+  GT:         GeneralizedTime
+  TS:         UTC timestamp
+
+The date/time representation is same like that of the UTCTime and
+GeneralizedTime types, but you can optionally put : and - and T in
+the appropriate places (which will be removed). The separation between
+the seconds and fractional seconds must use a dot and cannot use a comma.
+
+A name token (which is only used for the schema-specific variant and for
+macros) consists of uppercase and lowercase letters, digits, hyphen,
+underscore, and must start with a letter or underscore. A name token can
+also optionally start with a dot (in which case the next character must
+be a letter or underscore), which is meaningful in some contexts.
+
+The token BITS: followed by a { } block containing integers represents a
+bit string with only the specified bits set (0 means the first bit). It
+cannot contain negative integers or any values other than integers.
+
+Another way to make a bit string is with <+ +> around it, and then after
+the first plus sign must be the base number with # afterward; the base
+number can be 2, 4, 8, or 16. It is then followed by the data, which is
+like a < > octet string but represents bits instead, so spaces are allowed
+to intervene anywhere, and the base is not necessarily hexadecimal. If the
+base is omitted then base 2 is used.
+
+The token ~ means that the following value is wrapped in a octet string.
+
+
+=== Schema-dependent format ===
+
+(TODO)
+

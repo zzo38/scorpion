@@ -991,6 +991,7 @@ int asn1_wrap(ASN1_Encoder*enc) {
   enc->mode=ASN1_ONCE;
   enc->class=0;
   enc->type=0;
+  enc->file=f;
   return ASN1_OK;
 }
 
