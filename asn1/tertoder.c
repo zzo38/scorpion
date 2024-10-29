@@ -160,7 +160,7 @@ static int wordtok(int colon) {
         for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]=='p' || tokenstr[i]=='P' || tokenstr[i]=='.') break;
         j=0;
         if(i!=tokenlen) {
-          i=(tokenstr[i]=='-' || tokenstr[i]=='+')?(tokenw+1):tokenw;
+          i=(tokenstr[i]=='-' || tokenstr[i]=='+')?(j=1,tokenw+1):tokenw;
           for(;i<tokenlen && ((tokenstr[i]>='0' && tokenstr[i]<='9' && tokenstr[i]<tokenb+'0') || (tokenstr[i]>='A' && tokenstr[i]<'A'+tokenb-10));i++);
           if(i!=tokenlen && tokenstr[i]=='.') {
             j=1;
@@ -184,7 +184,6 @@ static int wordtok(int colon) {
     tokenw=0;
     tokenb=10;
     decimal:
-    j=0;
     i=tokenw;
     if(i<tokenlen && (tokenstr[i]=='-' || tokenstr[i]=='+')) i++;
     for(;i<tokenlen && tokenstr[i]>='0' && tokenstr[i]<='9';i++);
@@ -337,6 +336,64 @@ static void do_base64_string(void) {
   }
 }
 
+static void send_unicode(FILE*f,uint32_t t,uint32_t v) {
+  switch(t) {
+    case ASN1_UTF8_STRING:
+      if(v<0x80) {
+        fputc(v,f);
+      } else if(v<0x800) {
+        fputc((v>>6)+0xC0,f);
+        fputc(((v>>0)&0x3F)+0x80,f);
+      } else if(v<0x10000) {
+        fputc((v>>12)+0xE0,f);
+        fputc(((v>>6)&0x3F)+0x80,f);
+        fputc(((v>>0)&0x3F)+0x80,f);
+      } else if(v<0x200000) {
+        fputc((v>>18)+0xF0,f);
+        fputc(((v>>12)&0x3F)+0x80,f);
+        fputc(((v>>6)&0x3F)+0x80,f);
+        fputc(((v>>0)&0x3F)+0x80,f);
+      } else if(v<0x4000000) {
+        fputc((v>>24)+0xF8,f);
+        fputc(((v>>18)&0x3F)+0x80,f);
+        fputc(((v>>12)&0x3F)+0x80,f);
+        fputc(((v>>6)&0x3F)+0x80,f);
+        fputc(((v>>0)&0x3F)+0x80,f);
+      } else if(v<0x80000000U) {
+        fputc((v>>30)+0xFC,f);
+        fputc(((v>>24)&0x3F)+0x80,f);
+        fputc(((v>>18)&0x3F)+0x80,f);
+        fputc(((v>>12)&0x3F)+0x80,f);
+        fputc(((v>>6)&0x3F)+0x80,f);
+        fputc(((v>>0)&0x3F)+0x80,f);
+      } else {
+        errx(1,"Unicode character out of range");
+      }
+      break;
+    case ASN1_UTF16_STRING:
+      if(v<0x10000) {
+        fputc(v>>8,f);
+        fputc(v>>0,f);
+      } else if(v<0x110000) {
+        v-=0x10000;
+        fputc(((v>>18)&3)+0xD8,f);
+        fputc(v>>10,f);
+        fputc(((v>>8)&3)+0xDC,f);
+        fputc(v>>0,f);
+      } else {
+        errx(1,"Unicode character out of range");
+      }
+      break;
+    case ASN1_UNIVERSAL_STRING:
+      fputc(v>>24,f);
+      fputc(v>>16,f);
+      fputc(v>>8,f);
+      fputc(v>>0,f);
+      break;
+    default: errx(1,"Unicode characters are not allowed in non-Unicode strings");
+  }
+}
+
 static void do_relative_oid(void) {
   uint8_t buf[257];
   ASN1 x;
@@ -347,9 +404,145 @@ static void do_relative_oid(void) {
 }
 
 static void do_text_string(uint32_t type) {
-  FILE*f=asn1_primitive_stream(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING);
+  // ISO 2022 is not fully handled yet, but it is usable
+  const char bcd[]="0123456789*#+-. ";
+  const char printable[128]={
+    [32]=1, [65 ... 90]=1, [97 ... 122]=1, [48 ... 57]=1,
+    [39 ... 41]=1, [43 ... 47]=1, [58]=1, [61]=1, [63]=1,
+  };
+  const char*p;
+  FILE*f=asn1_primitive_stream(enc,ASN1_UNIVERSAL,type);
+  uint16_t g0=0;
+  uint16_t g1;
+  uint8_t bc=0;
+  uint32_t nest=0;
+  uint32_t cc;
+  int c;
   if(!f) errx(1,"Unexpected error");
-  
+  for(;;) {
+    c=getchar();
+    if(c<32 || c>126) errx(1,"Unexpected literal character in text string");
+    if(c==40) ++nest;
+    if(c==41 && !nest--) break;
+    if(c!='\\') {
+      normal:
+      switch(type) {
+        case ASN1_BCD_STRING:
+          p=strchr(bcd,c);
+          if(!p) errx(1,"Improper character in BCD string");
+          if(g0) {
+            g0=0;
+            fputc(bc|(p-bcd),f);
+            bc=0;
+          } else {
+            g0=1;
+            bc=(p-bcd)<<4;
+          }
+          break;
+        case ASN1_TRON_STRING:
+          // TODO: implement ASCII -> TRON
+          if(c<=32 || c==127) fputc(c,f); else errx(1,"Improper character in TRON string");
+          break;
+        case ASN1_NUMERIC_STRING:
+          if((c<'0' || c>'9') && c!=' ') errx(1,"Improper character in numeric string");
+          goto direct;
+        case ASN1_PRINTABLE_STRING:
+          if(!printable[c]) errx(1,"Improper character in printable string");
+          goto direct;
+        case ASN1_VISIBLE_STRING:
+          if(c<32 || c>126) errx(1,"Improper character in visible string");
+          goto direct;
+        case ASN1_BMP_STRING: fputc(0,f); fputc(c,f); break;
+        case ASN1_UNIVERSAL_STRING: fputc(0,f); fputc(0,f); fputc(0,f); fputc(c,f); break;
+        default: direct: fputc(c,f);
+      }
+    } else {
+      switch(c=getchar()) {
+        case '(': case ')': case '\\': goto normal;
+        case 'a': c='\a'; goto normal;
+        case 'b': c='\b'; goto normal;
+        case 'e': c='\e'; goto normal;
+        case 'f': c='\f'; goto normal;
+        case 'n': c='\n'; goto normal;
+        case 'r': c='\r'; goto normal;
+        case 't': c='\t'; goto normal;
+        case 'u':
+          c=getchar();
+          if(c>='0' && c<='9') cc=c-'0'; else if(c>='A' && c<='F') cc=c+10-'A'; else if(c>='a' && c<='f') cc=c+10-'a'; else errx(1,"Improper escape sequence");
+          cc<<=4;
+          c=getchar();
+          if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          cc<<=4;
+          c=getchar();
+          if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          cc<<=4;
+          c=getchar();
+          if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          send_unicode(f,type,cc);
+          break;
+        case 'v': c='\v'; goto normal;
+        case 'x':
+          if(type==ASN1_BCD_STRING || type==ASN1_BMP_STRING || type==ASN1_UNIVERSAL_STRING) errx(1,"Cannot use \\x in BCD string, BMP string, Universal string");
+          c=getchar();
+          if(c>='0' && c<='9') cc=c-'0'; else if(c>='A' && c<='F') cc=c+10-'A'; else if(c>='a' && c<='f') cc=c+10-'a'; else errx(1,"Improper escape sequence");
+          cc<<=4;
+          c=getchar();
+          if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          c=cc;
+          goto normal;
+        case 'T':
+          if(type!=ASN1_TRON_STRING) errx(1,"Cannot use \\T in non-TRON strings");
+          c=getchar();
+          if(c>='0' && c<='9') cc=c-'0'; else if(c>='A' && c<='F') cc=c+10-'A'; else if(c>='a' && c<='f') cc=c+10-'a'; else errx(1,"Improper escape sequence");
+          for(;;) {
+            c=getchar();
+            if(c==';') break;
+            if(cc&0xF0000000L) errx(1,"Too long escape sequence");
+            cc<<=4;
+            if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          }
+          if(cc<=0x20 || cc==0x7F) {
+            fputc(cc,f);
+          } else {
+            if(cc>0xFFFF && g0!=(cc>>16)) {
+              g0=cc>>16;
+              if((g0&0xFF)==0x7F || (g0&0xFF)<0x21 || (g0&0xFF)>0xFD) errx(1,"Improper TRON character");
+              g1=(g0>>8)+1;
+              while(g1--) fputc(0xFE,f);
+              fputc(g0,f);
+            }
+            if((cc&0xFF)==0x7F || (cc&0xFF)<0x21 || (cc&0xFF)>0xFD) errx(1,"Improper TRON character");
+            if(((cc>>8)&0xFF)==0x7F || ((cc>>8)&0xFF)<0x21 || ((cc>>8)&0xFF)>0xFD) errx(1,"Improper TRON character");
+            fputc(cc>>8,f);
+            fputc(cc>>0,f);
+          }
+          break;
+        case 'U':
+          c=getchar();
+          if(c>='0' && c<='9') cc=c-'0'; else if(c>='A' && c<='F') cc=c+10-'A'; else if(c>='a' && c<='f') cc=c+10-'a'; else errx(1,"Improper escape sequence");
+          for(;;) {
+            c=getchar();
+            if(c==';') break;
+            if(cc&0xF0000000L) errx(1,"Too long escape sequence");
+            cc<<=4;
+            if(c>='0' && c<='9') cc|=c-'0'; else if(c>='A' && c<='F') cc|=c+10-'A'; else if(c>='a' && c<='f') cc|=c+10-'a'; else errx(1,"Improper escape sequence");
+          }
+          send_unicode(f,type,cc);
+          break;
+        case 'Z': /* not implemented */ break;
+        case ' ': case '\t': case '\r': case '\n':
+          for(;;) {
+            c=getchar();
+            if(c==';') break;
+            if(c!=' ' && c!='\t' && c!='\r' && c!='\n') errx(1,"Improper escape sequence");
+          }
+          break;
+        case ';': /* do nothing */ break;
+        default: errx(1,"Improper escape sequence");
+      }
+    }
+  }
+  if(type==ASN1_BCD_STRING && g0) fputc(bc+15,f);
   asn1_end(enc);
 }
 
@@ -492,10 +685,11 @@ static void do_prefixed(void) {
     d.seconds=tokenstr[i]*10+tokenstr[i+1]-528;
     i+=2;
     // Nanoseconds
+    d.nano=0;
     if(type!=ASN1_UTCTIME && (tokenstr[i]=='.' || tokenstr[i]==',')) {
-      
-    } else {
-      d.nano=0;
+      uint32_t o=1000000000;
+      i++;
+      while(tokenstr[i]>='0' && tokenstr[i]<='9') d.nano+=(tokenstr[i++]-'0')*(o/=10);
     }
     // Time zone
     if(tokenstr[i]=='Z' && !tokenstr[i+1]) {

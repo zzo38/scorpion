@@ -45,14 +45,17 @@ Real numbers can be one of the following forms:
 * Decimal, with or without a 10# prefix, and with or without a fractional
 part (with a dot before it) and an exponent part (with e or E before it).
 At least two of these three parts must be present (in addition to the
-integer part), in order to be distinguished from object identifiers.
+integer part), in order to be distinguished from object identifiers. It
+may also have a - or + sign (after the 10# prefix if it is present), in
+which case you may have . without the exponent and base.
 
 * Binary, using the prefix 2# or 4# or 8# or 16# for the base of the
 significand, and the exponent part has p or P before it and is always
 written in decimal form and is the number of bits (regardless of the
 base of the representation). You must have at least one of the fractional
 part of the significand and the exponent part (you can have both), in
-order to be distinguished from integers.
+order to be distinguished from integers. It may also have a - or + sign
+(after the prefix), in which case . without the exponent is possible.
 
 Both integers and real numbers can include optional underscores (but not
 as the first character) which have no meaning.
@@ -112,20 +115,14 @@ has the same restrictions) but can represent non-BMP characters too. In a
 UTF-16 string it must be in the Unicode range, but in a UTF-8 string or a
 UTF-32 string, it can be up to 32-bits.
 
-* \c and four hex digits represesnts a ISO 2022 control character. The
-first two hex digits designate a C0 or C1 control set, according to the
-final byte of the escape sequence for selecting it, and the next two hex
-digits represent a control code from that set; the third digit must be
-0, 1, 8, or 9. This is only allowed in ISO 2022 strings.
+* \c and \g and \G are reserved for future definition to use with ISO 2022.
 
-* \g and four hex digits represents a single-byte ISO 2022 graphic
-character. The first two are according to the final byte of the escape
-sequence for selecting the G0 or G1 set, and the next two are the character
-code within that set. This is only allowed in ISO 2022 strings.
+* \Z reverts the C0 and G0 sets to the original selection at the next
+appropriate time.
 
-* \G and any number of hex digits followed by a semicolon represents a
-multi-byte ISO 2022 graphic character. This works like \g but the third
-and subsequent hex digits all specify the codes of a multi-byte character.
+* \ followed by any number of spaces, tabs, and/or line breaks, and then
+one semicolon, represents nothing; it can be used to divide text by lines
+in the text representation.
 
 The following prefixes can be used to specify string types:
   OCTET:       Octet string
