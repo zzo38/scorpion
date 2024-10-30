@@ -372,7 +372,9 @@ asn1_encode_oid(ASN1_Encoder*enc,const char*t)
   t = The text representation of the OID (as for asn1_make_static_oid).
 
 asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite)
-  (TODO)
+  Encodes a REAL number by the parts. The parts are given in the same
+  format as asn1_decode_real_parts, but most of them are not pointers
+  now, and instead specify the value directly.
 
 asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone)
   Encodes a date/time value from UNIX time.
@@ -662,7 +664,7 @@ bytes must be used to encode the exponent and significand.
 * A decimal number starts with 0x01 or 0x02 or 0x03, followed by the ASCII
 representation of the ISO 6093 number of NR1 or NR2 or NR3, respectively.
 
-* A ISO 6093 number starts with zero or more spcaes, and then the optional
+* A ISO 6093 number starts with zero or more spaces, and then the optional
 plus or minus sign (plus is assumed if neither is specified), and then one
 or more digits, and then optionally a decimal-mark and zero or more digits,
 and then optionally the exponent part. The exponent part consists of the

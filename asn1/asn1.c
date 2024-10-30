@@ -1069,9 +1069,9 @@ int asn1_encode_uint64(ASN1_Encoder*enc,uint64_t value) {
 }
 
 int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t length,int8_t sign,uint8_t decimal,int64_t exponent,uint8_t infinite) {
-  // Not fully tested
   FILE*f;
-  size_t n;
+  size_t m,n;
+  uint8_t c,d;
   if(!sign && !infinite) return ASN1_IMPROPER_VALUE;
   while(length && !significand[length-1]) --length;
   if(!length && !infinite) {
@@ -1084,19 +1084,51 @@ int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t len
     if(!f) return ASN1_ERROR;
     fputc(3,f);
     if(sign<0) fputc('-',f);
-    for(n=0;n<length;n++) if(significand[n]) break;
+    for(n=0;n<length && !significand[n];n++);
+    if(n==length-1 && !(significand[n]%10)) goto single;
     fprintf(f,"%d",significand[n]);
-    for(n++;n<length-1;n++) fprintf(f,"%02d",significand[n]);
-    if(significand[n]%10) {
-      fprintf(f,"%02d",significand[n]);
-    } else {
-      --exponent;
-      fputc(significand[n]/10+'0',f);
+    if(n<length-1) {
+      for(n++;n<length-1;n++) fprintf(f,"%02d",significand[n]);
+      if(significand[n]%10) {
+        fprintf(f,"%02d",significand[n]);
+      } else {
+        single:
+        ++exponent;
+        fputc(significand[n]/10+'0',f);
+      }
     }
     fprintf(f,".E%s%lld",exponent?"":"+",(long long)exponent);
     return asn1_end(enc);
   } else {
-    //TODO
+    f=asn1_primitive_stream(enc,ASN1_UNIVERSAL,ASN1_REAL);
+    if(!f) return ASN1_ERROR;
+    for(m=8LL*length-1;m && !(significand[m/8]&(0x80>>(m&7)));m--); // position of right-most bit
+    for(n=0;n<length && !significand[n];n++); // position of left-most nonzero byte
+    c=sign<0?0xC0:0x80;
+    exponent-=(m+1);
+    if(exponent<-0x800000 || exponent>=0x800000) c+=3;
+    else if(exponent<-0x8000 || exponent>=0x8000) c+=2;
+    else if(exponent<-0x80 || exponent>=0x80) c+=1;
+    fputc(c,f);
+    if((c&3)==3) {
+      if(     exponent>=0x80000000000000LL || exponent<0x80000000000000LL) c=8;
+      else if(exponent>=0x800000000000LL ||   exponent<0x800000000000LL) c=7;
+      else if(exponent>=0x8000000000LL ||     exponent<0x8000000000LL) c=6;
+      else if(exponent>=0x80000000LL ||       exponent<0x80000000LL) c=5;
+      else if(exponent>=0x800000LL ||         exponent<0x800000LL) c=4;
+      else if(exponent>=0x8000LL ||           exponent<0x8000LL) c=3;
+      fputc(c,f);
+    } else {
+      c=(c&3)+1;
+    }
+    while(c--) fputc(exponent>>(c*8),f);
+    if(7&~m) {
+      for(c=n=0;n<(m+7)/8;n++) if(c|=d=(significand[n]>>(7&~m))|(n?significand[n-1]<<(7&m+1):0)) fputc(d,f);
+    } else {
+      m=(m+1)/8;
+      fwrite(significand+n,1,m-n,f);
+    }
+    return asn1_end(enc);
   }
 }
 

@@ -155,18 +155,18 @@ static int wordtok(int colon) {
       ++tokenw;
       for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]>='a' && tokenstr[i]<='z') tokenstr[i]+='A'-'a';
       if(tokenb==10) {
-        for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]=='e' || tokenstr[i]=='E' || tokenstr[i]=='.') goto decimal;
+        for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]=='E' || tokenstr[i]=='.') goto decimal;
       } else if(tokenb==2 || tokenb==4 || tokenb==8 || tokenb==16) {
-        for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]=='p' || tokenstr[i]=='P' || tokenstr[i]=='.') break;
+        for(i=tokenw;i<tokenlen;i++) if(tokenstr[i]=='P' || tokenstr[i]=='.') break;
         j=0;
         if(i!=tokenlen) {
-          i=(tokenstr[i]=='-' || tokenstr[i]=='+')?(j=1,tokenw+1):tokenw;
+          i=(tokenstr[tokenw]=='-' || tokenstr[tokenw]=='+')?(j=1,tokenw+1):tokenw;
           for(;i<tokenlen && ((tokenstr[i]>='0' && tokenstr[i]<='9' && tokenstr[i]<tokenb+'0') || (tokenstr[i]>='A' && tokenstr[i]<'A'+tokenb-10));i++);
           if(i!=tokenlen && tokenstr[i]=='.') {
             j=1;
             for(i++;i<tokenlen && ((tokenstr[i]>='0' && tokenstr[i]<='9' && tokenstr[i]<tokenb+'0') || (tokenstr[i]>='A' && tokenstr[i]<'A'+tokenb-10));i++);
           }
-          if(i!=tokenlen && (tokenstr[i]=='p' || tokenstr[i]=='P')) {
+          if(i!=tokenlen && tokenstr[i]=='P') {
             i++;
             j=1;
             if(i!=tokenlen && (tokenstr[i]=='-' || tokenstr[i]=='+')) i++;
@@ -185,17 +185,18 @@ static int wordtok(int colon) {
     tokenb=10;
     decimal:
     i=tokenw;
-    if(i<tokenlen && (tokenstr[i]=='-' || tokenstr[i]=='+')) i++;
+    j=!!i;
+    if(i<tokenlen && (tokenstr[i]=='-' || tokenstr[i]=='+')) i++,j++;
     for(;i<tokenlen && tokenstr[i]>='0' && tokenstr[i]<='9';i++);
     if(i!=tokenlen && tokenstr[i]=='.') {
       for(i++;i<tokenlen && tokenstr[i]>='0' && tokenstr[i]<='9';i++);
     }
-    if(i!=tokenlen && (tokenstr[i]=='e') || (tokenstr[i]=='E')) {
-      i++;
+    if(i!=tokenlen && (tokenstr[i]=='e' || tokenstr[i]=='E')) {
+      i++,j++;
       if(i<tokenlen && (tokenstr[i]=='-' || tokenstr[i]=='+')) i++;
       for(;i<tokenlen && tokenstr[i]>='0' && tokenstr[i]<='9';i++);
-      if(i==tokenlen) ReturnT(TOK_REAL);
     }
+    if(j && i==tokenlen) ReturnT(TOK_REAL);
   }
   // No match
   errx(1,"Improper token");
@@ -334,6 +335,10 @@ static void do_base64_string(void) {
         break;
     }
   }
+}
+
+static void do_bit_string(void) {
+  //TODO
 }
 
 static void send_unicode(FILE*f,uint32_t t,uint32_t v) {
@@ -709,6 +714,62 @@ static void do_prefixed(void) {
   }
 }
 
+static void do_real(void) {
+  uint8_t*significand=0;
+  size_t length=0;
+  int8_t sign=+1;
+  uint8_t decimal=(tokenb==10);
+  int64_t exponent=0;
+  size_t at=tokenw;
+  uint8_t bits=(tokenb==2?1:tokenb==4?2:tokenb==8?3:tokenb==16?4:0);
+  uint8_t exbits=(bits?:1);
+  uint8_t cur=0;
+  uint8_t shift=0;
+  FILE*f=open_memstream((char**)&significand,&length);
+  if(!f) errx(1,"Unexpected error");
+  if(tokenstr[at]=='+') at++; else if(tokenstr[at]=='-') at++,sign=-1;
+  if(decimal) {
+    while(at<tokenlen) {
+      if(tokenstr[at]=='.' && exbits) {
+        exbits=0;
+      } else if(tokenstr[at]>='0' && tokenstr[at]<='9') {
+        exponent+=exbits;
+        if(shift^=1) cur=(tokenstr[at]-'0')*10; else fputc(cur+tokenstr[at]-'0',f);
+      } else {
+        break;
+      }
+      at++;
+    }
+    if(shift) fputc(cur,f);
+    if(tokenstr[at]=='E' || tokenstr[at]=='e') exponent+=strtoll(tokenstr+at+1,0,10);
+  } else {
+    while(at<tokenlen) {
+      if(tokenstr[at]=='.' && exbits) {
+        exbits=0;
+      } else if(tokenstr[at]>='0' && tokenstr[at]<='F') {
+        shift+=bits;
+        cur|=((tokenstr[at]+(tokenstr[at]>'9'?10-'A':-'0'))<<8)>>shift;
+        if(shift>=8) {
+          shift-=8;
+          fputc(cur,f);
+          cur=((tokenstr[at]+(tokenstr[at]>'9'?10-'A':-'0'))<<8)>>shift;
+        }
+        exponent+=exbits;
+      } else {
+        break;
+      }
+      at++;
+    }
+    if(cur) fputc(cur,f);
+    if(tokenstr[at]=='P') exponent+=strtoll(tokenstr+at+1,0,10);
+  }
+  fputc(0,f);
+  fclose(f);
+  if(!significand) errx(1,"Unexpected error");
+  if(asn1_encode_real_parts(enc,significand,length,sign,decimal,exponent,0)) errx(1,"Error encoding real number");
+  free(significand);
+}
+
 static void do_one_item(void) {
   char imp=0;
   int i;
@@ -742,7 +803,7 @@ static void do_one_item(void) {
       asn1_primitive(enc,ASN1_UNIVERSAL,tokenw,&tokenb,1);
       break;
     case TOK_OID:
-      asn1_encode_oid(enc,tokenstr);
+      if(asn1_encode_oid(enc,tokenstr)) errx(1,"Error encoding object identifier");
       break;
     case TOK_RELATIVE_OID:
       do_relative_oid();
@@ -761,8 +822,14 @@ static void do_one_item(void) {
     case TOK_START_TEXT_STRING:
       do_text_string(imp?ASN1_OCTET_STRING:ASN1_IA5_STRING);
       break;
+//    case TOK_START_BIT_STRING:
+//      do_bit_string();
+//      break;
     case TOK_PREFIX:
       do_prefixed();
+      break;
+    case TOK_REAL:
+      do_real();
       break;
     default: errx(1,"Wrong token in this context");
   }
