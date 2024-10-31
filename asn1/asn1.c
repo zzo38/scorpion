@@ -119,10 +119,10 @@ int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*ne
 void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream) {
   fputc((type>30?31:type)|(class<<6)|(constructed?0x20:0x00),stream);
   if(type>30) {
-    if(type>=(1ULL<<28)) fputc((type>>28)&0x7F,stream);
-    if(type>=(1ULL<<21)) fputc((type>>21)&0x7F,stream);
-    if(type>=(1ULL<<14)) fputc((type>>14)&0x7F,stream);
-    if(type>=(1ULL<<7)) fputc((type>>7)&0x7F,stream);
+    if(type>=(1ULL<<28)) fputc((type>>28)|0x80,stream);
+    if(type>=(1ULL<<21)) fputc((type>>21)|0x80,stream);
+    if(type>=(1ULL<<14)) fputc((type>>14)|0x80,stream);
+    if(type>=(1ULL<<7)) fputc((type>>7)|0x80,stream);
     fputc(type&0x7F,stream);
   }
 }
