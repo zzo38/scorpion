@@ -4,6 +4,7 @@ exit
 #endif
 
 #include <err.h>
+#include <search.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +79,23 @@ static const Prefix prefix[]={
   {"VISIBLE",ASN1_VISIBLE_STRING},
 };
 
+enum {
+  NK_UNDEF,
+  NK_OBJECT,
+};
+
+typedef struct {
+  const char*name;
+  uint8_t kind;
+  union {
+    // NK_OBJECT
+    struct {
+      uint8_t*oid;
+      size_t oidlen;
+    };
+  };
+} Name;
+
 #define TOKENMAX 8000
 static ASN1_Encoder*enc;
 static int tokent;
@@ -86,11 +104,31 @@ static int64_t tokenv;
 static uint32_t tokenw;
 static uint8_t tokenstr[(TOKENMAX)+4];
 static int tokenlen;
+static void*names;
 
 #define ReturnT(x) do{ return tokent=x; }while(0)
 #define ReturnTV(x,y) do{ tokenv=y; return tokent=x; }while(0)
 #define ReturnTW(x,y) do{ tokenw=y; return tokent=x; }while(0)
 #define ReturnTBW(x,y,z) do{ tokenb=y; tokenw=z; return tokent=x; }while(0)
+
+static int name_compare(const void*a,const void*b) {
+  const Name*x=a;
+  const Name*y=b;
+  return strcmp(x->name,y->name);
+}
+
+static Name*find_name(void) {
+  Name key={tokenstr,NK_UNDEF};
+  Name**nam=tsearch(&key,&names,name_compare);
+  if(!nam) errx(1,"Memory error");
+  if(*nam==&key) {
+    *nam=calloc(1,sizeof(Name));
+    if(!*nam) errx(1,"Memory error");
+    (*nam)->name=strdup(tokenstr);
+    if(!(*nam)->name) errx(1,"Memory error");
+  }
+  return *nam;
+}
 
 static const char wordch[128]={
   ['#']=2, ['0' ... '9']=1, ['-']=1, ['+']=2, ['.']=2,
@@ -829,8 +867,71 @@ static void do_real(void) {
   free(significand);
 }
 
+static int do_name(void) {
+  Name*nam=find_name();
+  Name*nam2;
+  int c;
+  ASN1 asn;
+  uint8_t buf[512];
+  switch(nam->kind) {
+    case NK_UNDEF:
+      if(nexttok()!=TOK_EQUAL) errx(1,"Undefined name (%s)",nam->name);
+      switch(nexttok()) {
+        case TOK_OID:
+          if(asn1_make_static_oid(tokenstr,buf,512,&asn)) errx(1,"Improper object identifier");
+          nam->kind=NK_OBJECT;
+          nam->oid=malloc(nam->oidlen=asn.length);
+          if(!nam->oid) errx(1,"Memory error");
+          memcpy(nam->oid,asn.data,asn.length);
+          break;
+        case TOK_NAME:
+          nam2=find_name();
+          if(nam2->kind!=NK_OBJECT) errx(1,"Wrong name in this context");
+          if(getchar()!='.') errx(1,"Wrong token in this context");
+          goto longoid;
+        default: errx(1,"Wrong token in this context");
+      }
+      return 1;
+    case NK_OBJECT:
+      c=getchar();
+      if(c=='.') {
+        longoid:
+        memcpy(tokenstr,"0.0.",4);
+        for(tokenlen=4;tokenlen<TOKENMAX;tokenlen) {
+          c=getchar();
+          if((c>='0' && c<='9') || c=='.') {
+            tokenstr[tokenlen++]=c;
+          } else {
+            if(c!=EOF) ungetc(c,stdin);
+            break;
+          }
+        }
+        tokenstr[tokenlen]=0;
+        if(nam->kind==NK_OBJECT) {
+          if(nam->oidlen>505 || asn1_make_static_oid(tokenstr,buf+nam->oidlen-1,512-nam->oidlen,&asn)) errx(1,"Improper object identifier");
+          memcpy(buf,nam->oid,nam->oidlen);
+          asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_OID,buf,nam->oidlen+asn.length-1);
+        } else { // (nam->kind==NK_UNDEF && nam2->kind==NK_OBJECT)
+          if(asn1_make_static_oid(tokenstr,buf,512,&asn)) errx(1,"Improper object identifier");
+          nam->kind=NK_OBJECT;
+          nam->oid=malloc(nam->oidlen=asn.length+nam2->oidlen-1);
+          if(!nam->oid) errx(1,"Memory error");
+          memcpy(nam->oid,nam2->oid,nam2->oidlen);
+          memcpy(nam->oid+nam2->oidlen,asn.data+1,asn.length-1);
+          return 1;
+        }
+      } else {
+        if(c!=EOF) ungetc(c,stdin);
+        asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_OID,nam->oid,nam->oidlen);
+      }
+      return 0;
+    default: errx(1,"Wrong name in this context");
+  }
+}
+
 static void do_one_item(void) {
   char imp=0;
+  char wrap=0;
   int i;
   again: switch(tokent) {
     case TOK_SEQ_BEGIN:
@@ -849,6 +950,7 @@ static void do_one_item(void) {
       asn1_end(enc);
       break;
     case TOK_WRAP:
+      wrap=0;
       asn1_wrap(enc);
       nexttok(); goto again;
     case TOK_IMPLICIT:
@@ -889,6 +991,12 @@ static void do_one_item(void) {
       break;
     case TOK_REAL:
       do_real();
+      break;
+    case TOK_NAME:
+      if(do_name()) {
+        if(imp || wrap) errx(1,"A definition is not supposed to be preceded by an implicit type");
+        nexttok(); goto again;
+      }
       break;
     default: errx(1,"Wrong token in this context");
   }

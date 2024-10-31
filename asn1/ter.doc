@@ -188,7 +188,17 @@ base is omitted then base 2 is used.
 The token ~ means that the following value is wrapped in a octet string.
 
 
-=== Schema-dependent format ===
+=== Definitions ===
+
+A name that has not been defined yet can be defined by writing = after the
+name, and then the definition. The possible kind of definitions are:
+
+* Object: The definition must be a OID. Then, this name can be used in most
+places where a OID is expected, including in another definition. It can also
+be followed by . and further numbers, to make a longer OID.
+
+
+=== Schema-specific format ===
 
 (TODO)
 
