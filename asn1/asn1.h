@@ -145,6 +145,7 @@ int asn1_encode(ASN1_Encoder*enc,const ASN1*value);
 int asn1_encode_boolean(ASN1_Encoder*enc,int value);
 int asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text);
 int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x);
+int asn1_encode_float(ASN1_Encoder*enc,float value);
 int asn1_encode_int8(ASN1_Encoder*enc,int8_t value);
 int asn1_encode_int16(ASN1_Encoder*enc,int16_t value);
 int asn1_encode_int32(ASN1_Encoder*enc,int32_t value);

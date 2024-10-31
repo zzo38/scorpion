@@ -1123,7 +1123,7 @@ int asn1_encode_real_parts(ASN1_Encoder*enc,const uint8_t*significand,size_t len
     }
     while(c--) fputc(exponent>>(c*8),f);
     if(7&~m) {
-      for(c=n=0;n<(m+7)/8;n++) if(c|=d=(significand[n]>>(7&~m))|(n?significand[n-1]<<(7&m+1):0)) fputc(d,f);
+      for(c=n=0;n<m/8+1;n++) if(c|=d=(significand[n]>>(7&~m))|(n?significand[n-1]<<(7&m+1):0)) fputc(d,f);
     } else {
       m=(m+1)/8;
       fwrite(significand+n,1,m-n,f);
@@ -1265,5 +1265,29 @@ int asn1_encode_integer_base(ASN1_Encoder*enc,int base,const uint8_t*digits,size
   w=asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,v+s,length+1-s);
   free(v);
   return w;
+}
+
+int asn1_encode_float(ASN1_Encoder*enc,float value) {
+  // This assumes use of IEEE 754 format
+  union {
+    float f;
+    uint32_t i;
+  } v={.f=value};
+  uint8_t significand[3];
+  int8_t sign;
+  int64_t exponent;
+  if(0x7F800000UL&~v.i) {
+    // Finite
+    significand[0]=(v.i>>16)&0x7F;
+    significand[1]=(v.i>>8)&0xFF;
+    significand[2]=(v.i>>0)&0xFF;
+    if(v.i&0x7F800000UL) *significand|=0x80;
+    sign=(v.i&0x80000000UL?-1:+1);
+    exponent=(((v.i>>23)&0xFF)?:1)-126;
+    return asn1_encode_real_parts(enc,significand,3,sign,0,exponent,0);
+  } else {
+    // Infinite
+    return asn1_encode_real_parts(enc,significand,0,(v.i&0x7FFFFFUL?0:v.i&0x80000000UL?-1:+1),0,0,1);
+  }
 }
 
