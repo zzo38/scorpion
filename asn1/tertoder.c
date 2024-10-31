@@ -338,7 +338,66 @@ static void do_base64_string(void) {
 }
 
 static void do_bit_string(void) {
-  //TODO
+  uint8_t*buf=0;
+  size_t len=0;
+  uint8_t cur=0;
+  uint8_t sh=0;
+  uint8_t bs=1;
+  char ok=0;
+  int c,d;
+  FILE*f=open_memstream((char**)&buf,&len);
+  if(!f) errx(1,"Unexpected error");
+  fputc(0,f); // will be changed later
+  for(;;) {
+    switch(c=getchar()) {
+      case EOF: errx(1,"Unexpected end of file"); break;
+      case ' ': case '\t': case '\f': case '\r': case '\n': /* do nothing */ break;
+      case 'A' ... 'F': c+=10-'A'; goto digit;
+      case 'a' ... 'f': c+=10-'a'; goto digit;
+      case '0' ... '9':
+        c-='0';
+        digit:
+        if(c>1 && bs==1 && !ok) {
+          if(getchar()!='#') {
+            goto bad;
+          } else if(c==6 && cur==0x80 && sh==7) {
+            bs=4;
+            cur=sh=0;
+            ok=1;
+          } else if(cur || sh) {
+            goto bad;
+          } else if(c==2 || c==4 || c==8) {
+            bs=c/3+1;
+            ok=1;
+          } else {
+            goto bad;
+          }
+        } else if(c>=(1<<bs)) {
+          bad: errx(1,"Improper digit in bit string");
+        } else {
+          if(cur || sh || !c) ok=1;
+          for(d=bs;d;) {
+            cur|=(1&(c>>--d))<<(sh=(sh-1)&7);
+            if(!sh) fputc(cur,f),cur=0;
+          }
+        }
+        break;
+      case '+':
+        if(getchar()!='>') errx(1,"Improper character in bit string");
+        goto end;
+      case '%':
+        while(c=getchar()) if(c=='\r' || c=='\n' || c=='\f' || c==EOF) break;
+        break;
+      default: errx(1,"Improper character in bit string");
+    }
+  }
+  end:
+  if(sh) fputc(cur,f);
+  fclose(f);
+  if(!buf) errx(1,"Unexpected error");
+  *buf=sh;
+  if(asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_BIT_STRING,buf,len)) errx(1,"Error encoding bit string");
+  free(buf);
 }
 
 static void send_unicode(FILE*f,uint32_t t,uint32_t v) {
@@ -822,9 +881,9 @@ static void do_one_item(void) {
     case TOK_START_TEXT_STRING:
       do_text_string(imp?ASN1_OCTET_STRING:ASN1_IA5_STRING);
       break;
-//    case TOK_START_BIT_STRING:
-//      do_bit_string();
-//      break;
+    case TOK_START_BIT_STRING:
+      do_bit_string();
+      break;
     case TOK_PREFIX:
       do_prefixed();
       break;
