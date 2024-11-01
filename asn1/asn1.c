@@ -1283,11 +1283,39 @@ int asn1_encode_float(ASN1_Encoder*enc,float value) {
     significand[2]=(v.i>>0)&0xFF;
     if(v.i&0x7F800000UL) *significand|=0x80;
     sign=(v.i&0x80000000UL?-1:+1);
-    exponent=(((v.i>>23)&0xFF)?:1)-126;
+    exponent=(((v.i>>23)&0xFFULL)?:1)-126;
     return asn1_encode_real_parts(enc,significand,3,sign,0,exponent,0);
   } else {
     // Infinite
     return asn1_encode_real_parts(enc,significand,0,(v.i&0x7FFFFFUL?0:v.i&0x80000000UL?-1:+1),0,0,1);
+  }
+}
+
+int asn1_encode_double(ASN1_Encoder*enc,double value) {
+  // This assumes use of IEEE 754 format
+  union {
+    double f;
+    uint64_t i;
+  } v={.f=value};
+  uint8_t significand[7];
+  int8_t sign;
+  int64_t exponent;
+  if(0x7FF0000000000000ULL&~v.i) {
+    // Finite
+    significand[0]=(v.i>>060)&0x0F;
+    significand[1]=(v.i>>050)&0xFF;
+    significand[2]=(v.i>>040)&0xFF;
+    significand[3]=(v.i>>030)&0xFF;
+    significand[4]=(v.i>>020)&0xFF;
+    significand[5]=(v.i>>010)&0xFF;
+    significand[6]=(v.i>>000)&0xFF;
+    if(v.i&0x7FF0000000000000ULL) *significand|=0x10;
+    sign=(v.i&0x8000000000000000ULL?-1:+1);
+    exponent=(((v.i>>52)&0x7FFULL)?:1)-1019;
+    return asn1_encode_real_parts(enc,significand,7,sign,0,exponent,0);
+  } else {
+    // Infinite
+    return asn1_encode_real_parts(enc,significand,0,(v.i&0xFFFFFFFFFFFFFULL?0:v.i&0x8000000000000000ULL?-1:+1),0,0,1);
   }
 }
 

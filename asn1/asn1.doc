@@ -336,6 +336,10 @@ asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x)
 
   x = The date/time structure.
 
+asn1_encode_double(ASN1_Encoder*enc,double value)
+  Encodes a 64-bit floating point number. This implementation expects
+  the internal representation to be IEEE 754.
+
 asn1_encode_float(ASN1_Encoder*enc,float value)
   Encodes a 32-bit floating point number. This implementation expects
   the internal representation to be IEEE 754.
