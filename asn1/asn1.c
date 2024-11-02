@@ -534,6 +534,54 @@ int asn1_decode_int64(const ASN1*asn,uint32_t type,int64_t*out) {
   SIGNED_DECODE(64);
 }
 
+int asn1_decode_float(const ASN1*asn,uint32_t type,float*out) {
+  uint8_t num[16];
+  char text[64];
+  int64_t ex;
+  uint8_t dec;
+  int8_t sg;
+  uint8_t inf;
+  union {
+    float f;
+    uint32_t i;
+  } v;
+  int x=asn1_decode_real_parts(asn,type,num,16,&sg,&dec,&ex,&inf,0);
+  int y;
+  if(x) {
+    return x;
+  } else if(inf) {
+    v.i=(sg<0?0xFF800000UL:sg==0?0xFFC00001UL:0x7F800000UL);
+  } else if(dec) {
+    *text=sg<0?'-':'+';
+    for(x=0;x<16;x++) sprintf(text+x+x+1,"%02d",num[x]);
+    sprintf(text+33,"E%lld",(long long)(ex-32));
+    v.f=strtod(text,0);
+  } else {
+    v.i=(sg<0?0x80000000UL:0UL);
+    for(x=0;x<16 && !num[x];x++);
+    if(x!=16) {
+      ex-=x*8LL;
+      for(y=0;y<8 && !(num[x]&(0x80>>y));y++);
+      ex-=y;
+      if(ex>-126) {
+        if(ex>127) {
+          v.i|=0x7F800000UL;
+          *out=v.f;
+          return ASN1_OVERFLOW;
+        }
+        y+=16;
+        while(x<16 && y>-8) v.i|=(y>0?num[x]<<y:num[x]>>-y)&0x7FFFFFUL,y-=8,x++;
+        v.i|=(ex+126L)<<23;
+      } else {
+        // subnormal
+        //TODO
+      }
+    }
+  }
+  *out=v.f;
+  return ASN1_OK;
+}
+
 #define TWO_DIGITS(M,V) do { \
   if(asn->length<M+2 || asn->data[M]<'0' || asn->data[M]>'9' || asn->data[(M)+1]<'0' || asn->data[(M)+1]>'9') return ASN1_IMPROPER_VALUE; \
   V=(asn->data[M]-'0')*10+asn->data[(M)+1]-'0'; \
@@ -737,7 +785,7 @@ int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size
           q=10LL*q+asn->data[n++]-'0';
         }
         *exponent+=(k?-q:q);
-        if(k?(*exponent>q):(*exponent<q)) return ASN1_OVERFLOW;
+        // if(k?(*exponent>q):(*exponent<q)) return ASN1_OVERFLOW;
       }
       if(n!=asn->length) return ASN1_IMPROPER_VALUE;
     }
