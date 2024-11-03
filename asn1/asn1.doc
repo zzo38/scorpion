@@ -41,6 +41,12 @@ ASN1_DateTime
 ASN1_Encoder
   This is an opaque type, which is used during encoding.
 
+ASN1_Iterator
+  Used for iteration; see the below section about iteration.
+
+ASN1_Value
+  Another name for the ASN1 structure.
+
 
 === Return values ===
 
@@ -455,6 +461,41 @@ asn1_wrap(ASN1_Encoder*enc)
   Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but
   the primitive/constructed bit is clear (indicating primitive) instead of
   set (constructed). (This is used for the data of X.509 extensions.)
+
+
+=== Iteration functions ===
+
+asn1_foreach(int error,ASN1_Iterator*iter,const ASN1*in,ASN1*out)
+  A macro, which can be followed by a statement or {} block which will
+  be executed for each item in the construction. Note that the arguments
+  may be evaluated multiple times.
+
+  error = Name of a variable to store an error code. This is zero during
+  the loop, but after the loop is done, it will be ASN1_DONE if no error
+  occured or something else (other than ASN1_OK) if an error occurs.
+
+  iter = The iterator structure to use. (It will automatically be
+  initialized by the loop, but should not be used for other purposes
+  inside of the loop.)
+
+  in = The constructed ASN.1 value to iterate.
+
+  out = The structure to store the value being iterated.
+
+asn1_foreach2(int error,ASN1_Iterator*iter,const ASN1*in,ASN1*k,ASN1*v)
+  Another macro, like asn1_foreach but for iterating a key/value list.
+
+asn1_next(ASN1_Iterator*iter,ASN1*value)
+  Finds the next item (the first one if asn1_rewind was recently called)
+  and write it to the value structure. Returns ASN1_OK if an item is
+  found or ASN1_DONE if there is no more left. It may return something
+  else if an error occurs.
+
+asn1_rewind(ASN1_Iterator*iter,const ASN1*value)
+  Rewinds the iterator to the beginning of a specified value, which
+  must be a constructed value. Any memory that is held by the value
+  should not be modified or freed while the iterator is in use, but
+  the value structure itself can be reused.
 
 
 === ASN.1 data format ===

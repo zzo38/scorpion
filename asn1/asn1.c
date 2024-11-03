@@ -1367,3 +1367,22 @@ int asn1_encode_double(ASN1_Encoder*enc,double value) {
   }
 }
 
+// Iteration
+
+int asn1_rewind(ASN1_Iterator*iter,const ASN1*value) {
+  if(!value->constructed) return ASN1_IMPROPER_TYPE;
+  iter->data=value->data;
+  iter->length=value->length;
+  return ASN1_OK;
+}
+
+int asn1_next(ASN1_Iterator*iter,ASN1*value) {
+  size_t s=0;
+  int e;
+  if(!iter->length) return ASN1_DONE;
+  if(e=asn1_parse(iter->data,iter->length,value,&s)) return e;
+  iter->data+=s;
+  iter->length-=s;
+  return ASN1_OK;
+}
+

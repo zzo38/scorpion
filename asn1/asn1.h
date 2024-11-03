@@ -96,6 +96,7 @@
 #define ASN1_OVERFLOW 6
 #define ASN1_IMPROPER_MODE 7
 #define ASN1_IMPROPER_ARGUMENT 8
+#define ASN1_DONE 9
 
 // Flags
 #define ASN1_SORT 0x01
@@ -124,6 +125,13 @@ typedef struct {
 } ASN1_DateTime;
 
 typedef struct ASN1_Encoder ASN1_Encoder;
+
+typedef struct {
+  const uint8_t*data;
+  size_t length;
+} ASN1_Iterator;
+
+typedef ASN1 ASN1_Value;
 
 int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode);
 ASN1_Encoder*asn1_create_encoder(FILE*file);
@@ -169,10 +177,12 @@ int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
 int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_make_oid(const char*text,ASN1*out);
 int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out);
+int asn1_next(ASN1_Iterator*iter,ASN1*value);
 int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next);
 int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length);
 FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
+int asn1_rewind(ASN1_Iterator*iter,const ASN1*value);
 int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out);
 int asn1_wrap(ASN1_Encoder*enc);
 void asn1_write_length(uint64_t length,FILE*stream);
@@ -201,4 +211,7 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
   asn1__encode_number__(C,uint32_t,uint32) \
   asn1__encode_number__(C,uint64_t,uint64) \
   (void)0 )))))))))(A,C) )
+
+#define asn1_foreach(A,B,C,D) for(A=asn1_rewind(B,C)?:asn1_next(B,D);A;A=asn1_next(B,D))
+#define asn1_foreach2(A,B,C,D,E) for(A=asn1_rewind(B,C)?:asn1_next(B,D)?:asn1_next(B,E);A;A=asn1_next(B,D)?:asn1_next(B,E))
 
