@@ -1187,6 +1187,15 @@ vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 === Superseding certificates ===
 
+(The below seems like it wold work, but there is some difficulty to get
+it to work, since it requires computing signatures of the certificate
+with some fields cleared. I had considered an alternative that uses the
+issuer certificate, as well as the subject certificate; this means that
+the public key field and list of excluded extensions field are both
+unnecessary, since the key is specified in the issuer certificate and
+excluding extensions is unnecessary. However, it then requires that
+both the issuer certificate and subject certificate must be changed.)
+
 The format of this extension is a sequence consisting of the fields:
 
 * The public key for other certificates to supersede this one, or null.
@@ -1337,9 +1346,9 @@ requires it) and for client certificates (if any have been provided):
 
 * REMOTE_HOST = The IP address of the client.
 
-* CLIENT_CERTIFICATE_HASH
-
-* CLIENT_CERTIFICATE_KEY
+* (Client certificate data, implementation-dependent, but see below.
+Recommendations may be made for this in future if some format for doing
+this becomes common.)
 
 Also on POSIX systems, if the file is actually a UNIX socket rather than
 a executable file or a non-executable regular file, then it can work by

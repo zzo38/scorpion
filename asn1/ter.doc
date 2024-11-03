@@ -168,6 +168,11 @@ GeneralizedTime types, but you can optionally put : and - and T in
 the appropriate places (which will be removed). The separation between
 the seconds and fractional seconds must use a dot and cannot use a comma.
 
+There are also prefixes for the C floating point types (which are encoded
+as the ASN.1 REAL type in binary format, even though the numbers will be
+specified in decimal format in the TER). The SINGLE: and DOUBLE: prefixes
+are used for this purpose.
+
 A name token (which is only used for the schema-specific variant and for
 macros) consists of uppercase and lowercase letters, digits, hyphen,
 underscore, and must start with a letter or underscore. A name token can

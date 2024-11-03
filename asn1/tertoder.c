@@ -52,6 +52,7 @@ static const Prefix prefix[]={
   {"BMP",ASN1_BMP_STRING},
   {"DESC",ASN1_OBJECT_DESCRIPTOR},
   {"DESCRIPTOR",ASN1_OBJECT_DESCRIPTOR},
+  {"DOUBLE",ASN1_REAL},
   {"GEN",ASN1_GENERAL_STRING},
   {"GENERAL",ASN1_GENERAL_STRING},
   {"GENTIME",ASN1_GENERALIZED_TIME},
@@ -65,6 +66,7 @@ static const Prefix prefix[]={
   {"P",ASN1_PRINTABLE_STRING},
   {"PC",ASN1_PC_STRING},
   {"PRINTABLE",ASN1_PRINTABLE_STRING},
+  {"SINGLE",ASN1_REAL},
   {"TELETEX",ASN1_TELETEX_STRING},
   {"TIME",250},
   {"TRON",ASN1_TRON_STRING},
@@ -698,6 +700,8 @@ static void do_prefixed(void) {
       break;
     } else if(c=='%') {
       while(c=getchar()) if(c=='\r' || c=='\n' || c=='\f' || c==EOF) break;
+    } else if(type==ASN1_REAL) {
+      break;
     } else {
       errx(1,"Improper use of prefix");
     }
@@ -712,6 +716,31 @@ static void do_prefixed(void) {
       do_base64_string();
     } else {
       errx(1,"Improper use of prefix");
+    }
+  } else if(type==ASN1_REAL) {
+    char*p;
+    i=*tokenstr;
+    ungetc(c,stdin);
+    for(tokenlen=0;;) {
+      c=getchar();
+      if(tokenlen==TOKENMAX-1) errx(1,"Too long SINGLE or DOUBLE");
+      if(c==EOF) errx(1,"Unexpected end of file");
+      if(c<43 || c>122 || (c>58 && c<65) || c==47 || (c>90 && c<97)) {
+        ungetc(c,stdin);
+        break;
+      }
+      tokenstr[tokenlen++]=c;
+    }
+    tokenstr[tokenlen]=0;
+    if(!tokenlen) errx(1,"Improper SINGLE or DOUBLE");
+    if(i=='D') {
+      double f=strtod(tokenstr,&p);
+      if(*p) errx(1,"Improper SINGLE or DOUBLE");
+      asn1_encode_double(enc,f);
+    } else {
+      float f=strtof(tokenstr,&p);
+      if(*p) errx(1,"Improper SINGLE or DOUBLE");
+      asn1_encode_float(enc,f);
     }
   } else if(i) {
     // Date/time types
