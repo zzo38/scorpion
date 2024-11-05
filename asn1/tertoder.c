@@ -9,6 +9,7 @@ exit
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "asn1.h"
 
 enum {
@@ -25,6 +26,9 @@ enum {
   TOK_EXT_END,
   TOK_WRAP,
   TOK_EQUAL,
+  TOK_ASTERISK,
+  TOK_DEFAULT,
+  TOK_QUESTION,
   TOK_NAME,
   TOK_PREFIX,
   TOK_IMPLICIT,
@@ -34,10 +38,29 @@ enum {
   TOK_REAL,
   TOK_OID,
   TOK_RELATIVE_OID,
+  TOK_FIELD,
   TOK_START_BIT_STRING,
   TOK_START_HEX_STRING,
   TOK_START_BASE64_STRING,
   TOK_START_TEXT_STRING,
+};
+
+enum {
+  OP_END,
+  OP_OF,
+  OP_TYPE,
+  OP_VMIN,
+  OP_VMAX,
+  OP_SMIN,
+  OP_SMAX,
+  OP_FIELD,
+  OP_MULTI,
+  OP_IMPLICIT,
+  OP_WRAP,
+  OP_BEGIN_SEQUENCE,
+  OP_BEGIN_SET,
+  OP_END_CONSTRUCT,
+  OP_DEFAULT,
 };
 
 typedef struct {
@@ -81,9 +104,15 @@ static const Prefix prefix[]={
   {"VISIBLE",ASN1_VISIBLE_STRING},
 };
 
+typedef struct Field Field;
+typedef struct Schema Schema;
+
 enum {
   NK_UNDEF,
   NK_OBJECT,
+  NK_FIELD,
+  NK_SCHEMA,
+  NK_BUSY,
 };
 
 typedef struct {
@@ -95,8 +124,38 @@ typedef struct {
       uint8_t*oid;
       size_t oidlen;
     };
+    // NK_SCHEMA
+    Schema*schema;
   };
 } Name;
+
+#define FF_OPTIONAL 0x01
+#define FF_CONSTRAINT 0x02
+#define FF_NAMED 0x04
+#define FF_DEFAULT 0x08
+#define FF_VALUE 0x10
+#define FF_MULTI 0x20
+
+struct Field {
+  union {
+    Name*fname;
+    uint16_t fnumber;
+  };
+  Name*xname;
+  uint32_t constraint;
+  uint32_t value;
+  uint8_t stringtype;
+  uint8_t flag;
+};
+
+struct Schema {
+  uint8_t type; // ASN1_ENUMERATED, ASN1_SEQUENCE, ASN1_KEY_VALUE_LIST
+  Field*fields;
+  uint16_t nfields;
+  uint8_t*constraint;
+  uint8_t*program;
+  size_t length;
+};
 
 #define TOKENMAX 8000
 static ASN1_Encoder*enc;
@@ -107,11 +166,16 @@ static uint32_t tokenw;
 static uint8_t tokenstr[(TOKENMAX)+4];
 static int tokenlen;
 static void*names;
+static char repeattoken;
+static char debugschema;
+static char debugtokens;
 
-#define ReturnT(x) do{ return tokent=x; }while(0)
-#define ReturnTV(x,y) do{ tokenv=y; return tokent=x; }while(0)
-#define ReturnTW(x,y) do{ tokenw=y; return tokent=x; }while(0)
-#define ReturnTBW(x,y,z) do{ tokenb=y; tokenw=z; return tokent=x; }while(0)
+#define ReturnT(x) do{ if(debugtokens) fprintf(stderr,"t=%d (b=%d w=%lu)\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
+#define ReturnTV(x,y) do{ tokenv=y; if(debugtokens) fprintf(stderr,"t=%d v=%lld (b=%d w=%lu)\n",x,(long long)tokenv,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
+#define ReturnTW(x,y) do{ tokenw=y; if(debugtokens) fprintf(stderr,"t=%d w=%lu (b=%d)\n",x,(unsigned long)tokenw,tokenb); return tokent=x; }while(0)
+#define ReturnTBW(x,y,z) do{ tokenb=y; tokenw=z; if(debugtokens) fprintf(stderr,"t=%d b=%d w=%lu\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
+
+static void do_one_item(void);
 
 static int name_compare(const void*a,const void*b) {
   const Name*x=a;
@@ -244,6 +308,11 @@ static int wordtok(int colon) {
 
 static int nexttok(void) {
   int c;
+  if(repeattoken) {
+    if(debugtokens) fprintf(stderr,"(Repeated token)\n");
+    repeattoken=0;
+    return tokent;
+  }
   tokenlen=0;
   again:
   c=getchar();
@@ -284,6 +353,9 @@ static int nexttok(void) {
     case '(': ReturnTW(TOK_START_TEXT_STRING,ASN1_IA5STRING);
     case '~': ReturnT(TOK_WRAP);
     case '=': ReturnT(TOK_EQUAL);
+    case '*': ReturnT(TOK_ASTERISK);
+    case '^': ReturnT(TOK_DEFAULT);
+    case '?': ReturnT(TOK_QUESTION);
     case '#': case '0' ... '9': case '-': case '+': case '.':
     case 'a' ... 'z': case 'A' ... 'Z': case '_':
       word:
@@ -300,6 +372,17 @@ static int nexttok(void) {
       eofword:
       tokenstr[tokenlen]=0;
       return wordtok(c==':');
+    case '$':
+      tokenw=0;
+      for(;;) {
+        c=getchar();
+        if(c<'0' || c>'9') break;
+        if(++tokenlen>6 || tokenw>6553) errx(1,"Improper field number");
+        tokenw=10*tokenw+c-'0';
+      }
+      if(tokenw>65535 || !tokenlen) errx(1,"Improper field number");
+      if(c!=EOF) ungetc(c,stdin);
+      ReturnT(TOK_FIELD);
     default: errx(1,"Improper character");
   }
 }
@@ -896,6 +979,534 @@ static void do_real(void) {
   free(significand);
 }
 
+static void define_constraint_value(FILE*f) {
+  ASN1_Encoder*enc0=enc;
+  enc=asn1_create_encoder(f);
+  if(!enc) errx(1,"Unexpected error");
+  nexttok();
+  do_one_item();
+  asn1_finish_encoder(enc);
+  enc=enc0;
+  if(debugtokens) fprintf(stderr,"End of constraint/schema value\n");
+}
+
+static void define_charset_constraint(FILE*f) {
+  uint8_t v[32]={};
+  int c,r,e,m,i;
+  fputc(OP_OF,f);
+  e=m=0; r=-1;
+  for(;;) {
+    c=getchar();
+    if(c==EOF) errx(1,"Unexpected end of file");
+    if(c<32 || c>126) errx(1,"Improper character in text string");
+    c&=0xFF;
+    if(c=='(') ++m; else if(c==')' && !m--) break;
+    if(c=='\\') {
+      switch(c=getchar()) {
+        case '\\': case '(': case ')': case '=': /* do nothing */ break;
+        case 'a': c='\a'; break;
+        case 'b': c='\b'; break;
+        case 'e': c='\e'; break;
+        case 'f': c='\f'; break;
+        case 'n': c='\n'; break;
+        case 'r': c='\r'; break;
+        case 'v': c='\v'; break;
+        case 'x':
+          i=getchar();
+          if(i>='0' && i<='9') c=i-'0'; else if(i>='A' && i<='F') c=i+10-'A'; else if(i>='a' && i<='f') c=i+10-'a'; else errx(1,"Improper escape sequence");
+          c<<=4;
+          i=getchar();
+          if(i>='0' && i<='9') c+=i-'0'; else if(i>='A' && i<='F') c+=i+10-'A'; else if(i>='a' && i<='f') c+=i+10-'a'; else errx(1,"Improper escape sequence");
+          break;
+        case ';': continue;
+        case ' ': case '\t': case '\r': case '\n':
+          for(;;) {
+            c=getchar();
+            if(c==';') break;
+            if(c!=' ' && c!='\t' && c!='\r' && c!='\n') errx(1,"Improper escape sequence");
+          }
+          continue;
+        default: errx(1,"Improper escape sequence");
+      }
+    } else if(c=='=') {
+      if(e || r==-1) errx(1,"Improper use of = in OF: constraint");
+      continue;
+    }
+    v[c>>3]|=1<<(c&7);
+    if(e) {
+      if(r>=c) errx(1,"Improper use of = in OF: constraint");
+      e=0;
+      while(++r<c) v[r>>3]|=1<<(r&7);
+      r=-1;
+    } else {
+      r=c;
+    }
+  }
+  if(e) errx(1,"Improper use of = in OF: constraint");
+  fwrite(v,1,32,f);
+}
+
+static int constraint_output_item(FILE*f,Schema*sch,int level) {
+  Name*nam;
+  int i;
+  again:
+  switch(nexttok()) {
+    case TOK_NAME:
+      nam=find_name();
+      for(i=0;i<sch->nfields;i++) if((sch->fields[i].flag&FF_NAMED) && nam==sch->fields[i].fname) break;
+      if(i==sch->nfields) errx(1,"Wrong field name in output list");
+      fputc(OP_FIELD,f);
+      fputc(i>>8,f);
+      fputc(i,f);
+      break;
+    case TOK_FIELD:
+      for(i=0;i<sch->nfields;i++) if(!(sch->fields[i].flag&FF_NAMED) && tokenw==sch->fields[i].fnumber) break;
+      if(i==sch->nfields) errx(1,"Wrong field name in output list");
+      fputc(OP_FIELD,f);
+      fputc(i>>8,f);
+      fputc(i,f);
+      break;
+    case TOK_ASTERISK:
+      fputc(OP_MULTI,f);
+      level=0;
+      break;
+    case TOK_SEQ_BEGIN:
+      fputc(OP_BEGIN_SEQUENCE,f);
+      while(!constraint_output_item(f,sch,1));
+      if(tokent!=TOK_SEQ_END) errx(1,"Wrong token (%d)",tokent);
+      fputc(OP_END_CONSTRUCT,f);
+      level=0;
+      break;
+    case TOK_SET_BEGIN:
+      fputc(OP_BEGIN_SET,f);
+      while(!constraint_output_item(f,sch,1));
+      if(tokent!=TOK_SET_END) errx(1,"Wrong token (%d)",tokent);
+      fputc(OP_END_CONSTRUCT,f);
+      level=0;
+      break;
+    case TOK_IMPLICIT:
+      fputc(OP_IMPLICIT,f);
+      fputc(tokenb,f);
+      fputc(tokenw>>030,f);
+      fputc(tokenw>>020,f);
+      fputc(tokenw>>010,f);
+      fputc(tokenw>>000,f);
+      goto again;
+    case TOK_WRAP:
+      fputc(OP_WRAP,f);
+      goto again;
+    case TOK_SEQ_END: case TOK_SET_END: return 1;
+    default: errx(1,"Wrong token in schema output item");
+  }
+  if(level) {
+    if(nexttok()==TOK_DEFAULT) {
+      fputc(OP_DEFAULT,f);
+      define_constraint_value(f);
+    } else {
+      repeattoken=1;
+    }
+  }
+  return 0;
+}
+
+static void define_schema(Name*nam0,int schtype,int endtok) {
+  Prefix prkey={tokenstr};
+  Prefix*pritem;
+  size_t bprg;
+  FILE*prg;
+  Schema*sch;
+  Name*nam;
+  Field fie;
+  int i,c;
+  char mu=(schtype!=ASN1_SEQUENCE);
+  nam0->kind=NK_BUSY;
+  nam0->schema=sch=calloc(sizeof(Schema),1);
+  if(!sch) err(1,"Memory error");
+  sch->type=schtype;
+  prg=open_memstream((char**)&sch->constraint,&sch->length);
+  if(!prg) errx(1,"Unexpected error");
+  nexttok();
+  // Inputs
+  while(tokent!=endtok) {
+    if(sch->nfields==0xFFFF) errx(1,"Too many fields");
+    memset(&fie,0,sizeof(Field));
+    if(tokent==TOK_ASTERISK) {
+      if(mu++) errx(1,"Improper use of * in schema");
+      fie.flag|=FF_MULTI;
+      nexttok();
+    }
+    if(tokent==TOK_PREFIX) {
+      pritem=bsearch(&prkey,prefix,sizeof(prefix)/sizeof(*prefix),sizeof(Prefix),prefix_compare);
+      if(!pritem) errx(1,"Unrecognzied prefix");
+      if(pritem->type==ASN1_UTCTIME || pritem->type==ASN1_UTC_TIMESTAMP || pritem->type==ASN1_REAL || pritem->type==ASN1_GENERALIZED_TIME || pritem->type==ASN1_BIT_STRING) errx(1,"Incorrect prefix");
+      fie.stringtype=pritem->type;
+      nexttok();
+    } else {
+      fie.stringtype=ASN1_IA5_STRING;
+    }
+    if(tokent==TOK_NAME) {
+      nam=find_name();
+      if(nam->kind==NK_UNDEF) nam->kind=NK_FIELD; else if(nam->kind!=NK_FIELD) errx(1,"Wrong name in this context");
+      for(i=0;i<sch->nfields;i++) if((sch->fields[i].flag&FF_NAMED) && sch->fields[i].fname==nam) errx(1,"Repeated field name in schema");
+      fie.flag|=FF_NAMED;
+      fie.fname=nam;
+    } else if(tokent==TOK_FIELD) {
+      for(i=0;i<sch->nfields;i++) if(!(sch->fields[i].flag&FF_NAMED) && sch->fields[i].fnumber==tokenw) errx(1,"Repeated field number in schema");
+      fie.fnumber=tokenw;
+    } else {
+      errx(1,"Field designation expected");
+    }
+    if(nexttok()==TOK_QUESTION) {
+      if(sch->type==ASN1_KEY_VALUE_LIST) errx(1,"Optional fields are not allowed in a key/value list");
+      fie.flag|=FF_OPTIONAL;
+      nexttok();
+    }
+    if(tokent==TOK_BRACE_BEGIN) {
+      fie.flag|=FF_CONSTRAINT;
+      fie.constraint=ftell(prg);
+      while(nexttok()!=TOK_BRACE_END) {
+        if(tokent==TOK_NAME) {
+          if(fie.xname) errx(1,"Constraint has multiple names but is not allowed");
+          fie.xname=find_name();
+        } else if(tokent==TOK_PREFIX) {
+          if(tokenlen==4) {
+            if(!memcmp(tokenstr,"TYPE",4)) {
+              fputc(OP_TYPE,prg);
+              nexttok();
+              if(tokent==TOK_BRACE_BEGIN) {
+                while(nexttok()!=TOK_BRACE_END) {
+                  if(tokent!=TOK_IMPLICIT) errx(1,"Expected implicit type token");
+                  fputc(tokenb+0x80,prg);
+                  fputc(tokenw>>030,prg);
+                  fputc(tokenw>>020,prg);
+                  fputc(tokenw>>010,prg);
+                  fputc(tokenw>>000,prg);
+                }
+              } else if(tokent==TOK_IMPLICIT) {
+                fputc(tokenb+0x80,prg);
+                fputc(tokenw>>030,prg);
+                fputc(tokenw>>020,prg);
+                fputc(tokenw>>010,prg);
+                fputc(tokenw>>000,prg);
+              } else {
+                if(tokent!=TOK_IMPLICIT) errx(1,"Expected implicit type token");
+              }
+              fputc(0,prg);
+            } else if(!memcmp(tokenstr,"VMIN",4)) {
+              fputc(OP_VMIN,prg);
+              define_constraint_value(prg);
+            } else if(!memcmp(tokenstr,"VMAX",4)) {
+              fputc(OP_VMAX,prg);
+              define_constraint_value(prg);
+            } else if(!memcmp(tokenstr,"SMIN",4)) {
+              fputc(OP_SMIN,prg);
+              goto sminmax;
+            } else if(!memcmp(tokenstr,"SMAX",4)) {
+              fputc(OP_SMAX,prg);
+              sminmax:
+              if(tokent!=TOK_INTEGER) errx(1,"Expected integer");
+              tokenv=strtoll(tokenstr+tokenw,0,tokenb);
+              if(tokenv&~0x7FFFFFFFUL) errx(1,"Expected nonnegative integer");
+              fputc(tokenv>>030,prg);
+              fputc(tokenv>>020,prg);
+              fputc(tokenv>>010,prg);
+              fputc(tokenv>>000,prg);
+            } else {
+              errx(1,"Prefix \"%s\" is not valid in constraints",tokenstr);
+            }
+          } else if(tokenlen==2 && tokenstr[0]=='O' && tokenstr[1]=='F') {
+            if(nexttok()!=TOK_START_TEXT_STRING) errx(1,"Prefix \"OF\" must be followed by a text string");
+            define_charset_constraint(prg);
+          } else {
+            errx(1,"Prefix \"%s\" is not valid in constraints",tokenstr);
+          }
+        } else {
+          errx(1,"Expected constraint or end brace");
+        }
+      }
+      nexttok();
+      fputc(0,prg);
+    }
+    if(tokent==TOK_EQUAL || tokent==TOK_DEFAULT) {
+      if(sch->type==TOK_EQUAL && !(fie.flag&FF_NAMED)) errx(1,"Numbered field cannot use = value");
+      if(sch->type==TOK_EQUAL && (fie.flag&FF_CONSTRAINT)) errx(1,"A field cannot use a = value and constraints together");
+      if(sch->type==ASN1_KEY_VALUE_LIST) errx(1,"Implied and default values are not allowed in a key/value list");
+      if(sch->type==ASN1_ENUMERATED && tokent==TOK_DEFAULT) errx(1,"Default values are only allowed in a [ ] schema");
+      fie.flag|=(tokent==TOK_EQUAL?FF_VALUE:FF_DEFAULT)|FF_OPTIONAL;
+      fie.value=ftell(prg);
+      define_constraint_value(prg);
+      nexttok();
+    }
+    if(!(sch->fields=realloc(sch->fields,++sch->nfields*sizeof(Field)))) err(1,"Memory error");
+    sch->fields[sch->nfields-1]=fie;
+  }
+  if(sch->type==ASN1_KEY_VALUE_LIST && sch->nfields!=2) errx(1,"A key/value schema must have exactly two fields");
+  if(!sch->nfields) errx(1,"Schema does not have any fields");
+  if(sch->type==ASN1_KEY_VALUE_LIST) sch->fields->flag|=FF_MULTI;
+  bprg=ftell(prg);
+  if(bprg&~0x7FFFFFFF) errx(1,"Too many constraints");
+  // Outputs
+  if(sch->type!=ASN1_KEY_VALUE_LIST && constraint_output_item(prg,sch,0)) errx(1,"Wrong token");
+  // Finish
+  fputc(OP_END,prg);
+  fclose(prg);
+  if(!sch->constraint) errx(1,"Unexpected error");
+  sch->program=sch->constraint+bprg;
+  nam0->kind=NK_SCHEMA;
+  // Debug
+  if(debugschema) {
+    unsigned long w;
+    fprintf(stderr,"Schema: \"%s\"\n",nam0->name);
+    fprintf(stderr,"  Type = %d\n  Num. fields = %d\n",sch->type,sch->nfields);
+    for(i=0;i<sch->nfields;i++) {
+      fprintf(stderr,"  Field %d:\n    Flags = 0x%02X\n    String type = %d\n",i,sch->fields[i].flag,sch->fields[i].stringtype);
+      if(sch->fields[i].flag&FF_NAMED) fprintf(stderr,"    Name = \"%s\"\n",sch->fields[i].fname->name);
+      else fprintf(stderr,"    Designation = $%d\n",sch->fields[i].fnumber);
+      if(sch->fields[i].xname) fprintf(stderr,"    Xname = \"%s\"\n",sch->fields[i].xname->name);
+      fprintf(stderr,"    Constraint = 0x%lX\n",(unsigned long)sch->fields[i].constraint);
+    }
+    fprintf(stderr,"  Program:");
+    for(w=0;w<sch->length;w++) {
+      if(!(w&15)) fprintf(stderr,"\n    %08lX: ",w);
+      fprintf(stderr,"%c%02X",w==bprg?'*':' ',sch->constraint[w]);
+    }
+    fputc('\n',stderr);
+  }
+}
+
+typedef struct {
+  size_t start,length;
+} FieldData;
+
+static void do_schema_item(const Schema*sch) {
+  static uint8_t oid[512];
+  ASN1 asn;
+  ASN1_Encoder*enc0=enc;
+  FieldData*fid;
+  uint8_t*data=0;
+  size_t datalen=0;
+  FILE*fp;
+  Name*nam;
+  uint32_t con;
+  uint16_t nf=0;
+  uint16_t cf;
+  int32_t mult=-1;
+  size_t at,siz;
+  char aft=0;
+  int endtok=0;
+  int i,c;
+  fid=calloc(sch->nfields+1,sizeof(FieldData));
+  if(!fid) errx(1,"Memory error");
+  if(sch->type==ASN1_KEY_VALUE_LIST) {
+    asn1_construct(enc,ASN1_UNIVERSAL,ASN1_KEY_VALUE_LIST,ASN1_KVSORT);
+    fp=asn1_current_file(enc);
+    mult=0;
+  } else {
+    fp=open_memstream((char**)&data,&datalen);
+    if(!fp) errx(1,"Memory error");
+    for(i=0;i<sch->nfields;i++) if(sch->fields[i].flag&FF_MULTI) {
+      mult=i;
+      break;
+    }
+    enc=asn1_create_encoder(fp);
+    if(!enc) errx(1,"Memory error");
+  }
+  fputc(0,fp);
+  nexttok();
+  if(tokent==TOK_BRACE_BEGIN) endtok=TOK_BRACE_END;
+  else if(tokent==TOK_KV_BEGIN && sch->type==ASN1_KEY_VALUE_LIST) endtok=TOK_KV_END;
+  else if(tokent==TOK_SEQ_BEGIN && sch->type==ASN1_SEQUENCE) endtok=TOK_SEQ_END;
+  if(endtok) nexttok();
+  if(sch->type!=ASN1_ENUMERATED && !endtok) errx(1,"Expected beginning delimiter of value according to schema");
+  while(tokent!=endtok || !endtok) {
+    if(tokent==TOK_NAME) {
+      nam=find_name();
+      if(nam->kind!=NK_FIELD) goto noname;
+      for(cf=0;cf<sch->nfields;cf++) if((sch->fields[cf].flag&FF_NAMED) && sch->fields[cf].fname==nam) break;
+      if(cf==sch->nfields) errx(1,"Field name \"%s\" does not match any field in the schema",tokenstr);
+      nexttok();
+      goto found;
+    }
+    noname:
+    while(nf<sch->nfields && (sch->fields[nf].flag&FF_NAMED)) nf++;
+    cf=nf++;
+    if(mult>=0 && cf>=sch->nfields) {
+      nf=mult;
+      while(nf<sch->nfields && (sch->fields[nf].flag&FF_NAMED)) nf++;
+      cf=nf++;
+    }
+    if(cf>=sch->nfields) errx(1,"Too many fields");
+    found:
+    if(aft && cf<mult) errx(1,"Cannot use field before * if field after * is present");
+    if(mult>=0 && cf>=mult && !aft) {
+      aft=1;
+      fid[sch->nfields].start=ftell(fp);
+    }
+    if((cf<mult || mult<0) && fid[cf].start) errx(1,"Repeated field");
+    if(sch->fields[cf].flag&FF_VALUE) {
+      con=sch->fields[cf].value;
+      siz=0;
+      asn1_parse(sch->constraint+con,sch->length,&asn,&siz);
+      fid[cf].start=con;
+      fid[cf].length=siz;
+      fwrite(sch->constraint+con,1,siz,fp);
+    } else {
+      nam=sch->fields[cf].xname;
+      if(!nam) {
+        // ignored, for now
+      } else if(nam->kind==NK_SCHEMA) {
+        do_schema_item(nam->schema);
+        goto endv;
+      } else if(nam->kind!=NK_OBJECT) {
+        errx(1,"Constraint name in schema is not of the expected kind");
+      }
+      fid[cf].start=ftell(fp);
+      if(nam && nam->kind==NK_OBJECT && tokent==TOK_OID) {
+        if(asn1_make_static_oid(tokenstr,oid,512,&asn)) errx(1,"Improper object identifier");
+        if(asn.length>=nam->oidlen && !memcmp(oid,nam->oid,nam->oidlen)) {
+          asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,oid+nam->oidlen,asn.length-nam->oidlen);
+        } else {
+          asn1_encode(enc,&asn);
+        }
+      } else if(nam && nam->kind==NK_OBJECT && tokent==TOK_NAME && (nam=find_name())->kind==NK_OBJECT) {
+        if(nam->oidlen>505) errx(1,"Too long object identifier in schema definition");
+        c=getchar();
+        if(c=='.') {
+          memcpy(tokenstr,"0.0.",4);
+          for(tokenlen=4;tokenlen<TOKENMAX;tokenlen) {
+            c=getchar();
+            if((c>='0' && c<='9') || c=='.') {
+              tokenstr[tokenlen++]=c;
+            } else {
+              if(c!=EOF) ungetc(c,stdin);
+              break;
+            }
+          }
+          tokenstr[tokenlen]=0;
+          if(asn1_make_static_oid(tokenstr,oid+nam->oidlen-1,512-nam->oidlen,&asn)) errx(1,"Improper object identifier");
+          memcpy(oid,nam->oid,nam->oidlen);
+          asn.data=oid;
+          asn.length+=nam->oidlen-1;
+        } else {
+          ungetc(c,stdin);
+          asn.class=ASN1_UNIVERSAL;
+          asn.type=ASN1_OID;
+          asn.data=nam->oid;
+          asn.length=nam->oidlen;
+        }
+        nam=sch->fields[cf].xname;
+        if(asn.length>=nam->oidlen && !memcmp(oid,nam->oid,nam->oidlen)) {
+          asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,oid+nam->oidlen,asn.length-nam->oidlen);
+        } else {
+          asn1_encode(enc,&asn);
+        }
+      } else {
+        if(tokent==TOK_START_TEXT_STRING) do_text_string(sch->fields[cf].stringtype); else do_one_item();
+      }
+      nexttok();
+      asn1_flush(enc);
+      if(sch->fields[cf].flag&FF_CONSTRAINT) {
+        if(!data) errx(1,"Improper use of constraints");
+        asn1_parse(data+fid[cf].start,ftell(fp)-fid[cf].start,&asn,0);
+        con=sch->fields[cf].constraint;
+        while(sch->constraint[con]!=OP_END) {
+          switch(sch->constraint[con++]) {
+            case OP_TYPE:
+              for(i=0;sch->constraint[con];) {
+                if(asn.class==sch->constraint[con] && asn.type==(((uint32_t)sch->constraint[con+1])<<030)+(sch->constraint[con+2]<<020)+(sch->constraint[con+3]<<010)+sch->constraint[con+4]) i=1;
+                con+=5;
+              }
+              con++;
+              if(!i) goto mismatch;
+              break;
+            case OP_OF:
+              if(asn.constructed) goto mismatch;
+              for(at=0;at<asn.length;at++) if(!(sch->constraint[con+(asn.data[at]>>3)]&(1<<(asn.data[at]&7)))) goto mismatch;
+              con+=32;
+              break;
+            case OP_SMIN:
+              if(asn.length<(((uint32_t)sch->constraint[con])<<030)+(sch->constraint[con+1]<<020)+(sch->constraint[con+2]<<010)+sch->constraint[con+3]) goto mismatch;
+              con+=4;
+              break;
+            case OP_SMAX:
+              if(asn.length>(((uint32_t)sch->constraint[con])<<030)+(sch->constraint[con+1]<<020)+(sch->constraint[con+2]<<010)+sch->constraint[con+3]) goto mismatch;
+              con+=4;
+              break;
+            //TODO
+            default: errx(1,"Unexpected constraint opcode");
+            mismatch:
+              if(!(sch->fields[cf].flag&FF_OPTIONAL)) errx(1,"Constraint failed");
+              fid[cf].start=0;
+              
+              //TODO
+          }
+        }
+      }
+      fid[cf].length=ftell(fp)-fid[cf].start;
+    }
+    endv:
+    if(sch->type==ASN1_ENUMERATED) break;
+  }
+  if(tokent==endtok) nexttok();
+  if(sch->type==ASN1_KEY_VALUE_LIST) {
+    asn1_end(enc);
+  } else {
+    for(cf=0;cf<sch->nfields;cf++) {
+      if(sch->fields[cf].flag&FF_MULTI) break;
+      if(!fid[cf].start) {
+        if(!(sch->fields[cf].flag&FF_OPTIONAL)) errx(1,"Required field missing");
+        if(sch->fields[cf].flag&FF_DEFAULT) {
+          if(mult>=0) errx(1,"Default values for the repeatable part of a schema is not possible");
+          con=sch->fields[cf].value;
+          siz=0;
+          asn1_parse(sch->constraint+con,sch->length,&asn,&siz);
+          fid[cf].start=con;
+          fid[cf].length=siz;
+          fwrite(sch->constraint+con,1,siz,fp);
+        }
+      }
+    }
+    // Send output
+    asn1_finish_encoder(enc);
+    fclose(fp);
+    enc=enc0;
+    if(!data) errx(1,"Unexpected error");
+    for(at=0;sch->program[at]!=OP_END;) switch(sch->program[at++]) {
+      case OP_FIELD:
+        cf=(sch->program[at]<<8)+sch->program[at+1];
+        at+=2;
+        if(sch->program[at]==OP_DEFAULT) {
+          siz=++at;
+          if(asn1_parse(sch->program+at,sch->length,&asn,&at)) errx(1,"Unexpected error");
+          if(fid[cf].start && fid[cf].length==at-siz && !memcmp(data+fid[cf].start,sch->program+siz,at-siz)) break;
+        }
+        if(fid[cf].start) {
+          asn1_parse(data+fid[cf].start,fid[cf].length,&asn,0);
+          asn1_encode(enc,&asn);
+        }
+        break;
+      case OP_MULTI:
+        if(siz=fid[sch->nfields].start) while(siz<datalen) {
+          if(asn1_parse(data+siz,datalen-siz,&asn,&siz)) errx(1,"Unexpected error");
+          asn1_encode(enc,&asn);
+        }
+        break;
+      case OP_IMPLICIT:
+        asn1_implicit(enc,sch->program[at],(((uint32_t)sch->program[at+1])<<030)+(sch->program[at+2]<<020)+(sch->program[at+3]<<010)+sch->program[at+4]);
+        at+=5;
+        break;
+      case OP_WRAP: asn1_wrap(enc); break;
+      case OP_BEGIN_SEQUENCE: asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0); break;
+      case OP_BEGIN_SET: asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SET,ASN1_SORT); break;
+      case OP_END_CONSTRUCT: asn1_end(enc); break;
+      default: errx(1,"Unexpected output opcode");
+    }
+    endout:
+    free(data);
+  }
+  free(fid);
+}
+
 static int do_name(void) {
   Name*nam=find_name();
   Name*nam2;
@@ -918,6 +1529,9 @@ static int do_name(void) {
           if(nam2->kind!=NK_OBJECT) errx(1,"Wrong name in this context");
           if(getchar()!='.') errx(1,"Wrong token in this context");
           goto longoid;
+        case TOK_BRACE_BEGIN: define_schema(nam,ASN1_ENUMERATED,TOK_BRACE_END); break;
+        case TOK_SEQ_BEGIN: define_schema(nam,ASN1_SEQUENCE,TOK_SEQ_END); break;
+        case TOK_KV_BEGIN: define_schema(nam,ASN1_KEY_VALUE_LIST,TOK_KV_END); break;
         default: errx(1,"Wrong token in this context");
       }
       return 1;
@@ -953,6 +1567,10 @@ static int do_name(void) {
         if(c!=EOF) ungetc(c,stdin);
         asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_OID,nam->oid,nam->oidlen);
       }
+      return 0;
+    case NK_SCHEMA:
+      do_schema_item(nam->schema);
+      repeattoken=1;
       return 0;
     default: errx(1,"Wrong name in this context");
   }
@@ -1032,6 +1650,13 @@ static void do_one_item(void) {
 }
 
 int main(int argc,char**argv) {
+  int c;
+  while((c=getopt(argc,argv,"+St"))>0) switch(c) {
+    case 'S': debugschema=1; break;
+    case 't': debugtokens=1; break;
+    default: errx(1,"Improper command-line switch");
+  }
+  if(optind!=argc) errx(1,"Wrong number of arguments");
   enc=asn1_create_encoder(stdout);
   if(!enc) errx(1,"Unexpected error");
   nexttok();

@@ -192,6 +192,9 @@ base is omitted then base 2 is used.
 
 The token ~ means that the following value is wrapped in a octet string.
 
+A field number token (used only in schema definitions) is $ and then a
+decimal number 0 to 65535.
+
 
 === Definitions ===
 
@@ -202,8 +205,120 @@ name, and then the definition. The possible kind of definitions are:
 places where a OID is expected, including in another definition. It can also
 be followed by . and further numbers, to make a longer OID.
 
+* Schema: See the below section about schema definitions.
 
-=== Schema-specific format ===
 
-(TODO)
+=== Schema definitions ===
+
+The schema definition is defined in two parts, being the input part and the
+output part, in that order.
+
+The input part is one of the following three types of blocks:
+
+* { } means that the value is any one of the fields.
+
+* [ ] means that the values are the fields in order (although some of the
+fields might be optional).
+
+* << >> means a key/value list; there must be exactly two fields (the key
+field and then the value field), and they cannot be named fields.
+
+Any of these blocks consists of the same things inside of them, which are
+the list of fields in the order that they are expected. The definition of
+each field consists of the following parts in this order:
+
+* An optional asterisk, which is only allowed up to once and only in a [ ]
+schema. This means that all following fields can occur zero or more times.
+
+* The string type, which is optional and is one of the string type prefixes
+mentioned in the above section. This causes any text string used as the
+value to use the specified type by default if not specified with the value,
+instead of using IA5: by default.
+
+* The field designation, which can either be a name (which must be a name
+that is not used for any other kind of definition, although it may match
+the name of a field in another schema definition), or a field number.
+
+* An optional question mark, indicating that this field is optional. A
+field in a key/value list cannot be optional. A field with a default value
+or required value is always optional (the question mark is redundant).
+
+* The optional constraints, which is a { } block; see below for the
+definition of constraints.
+
+* The optional value. This is a ASN.1 value as in the schema-independent
+format, with a = or ^ prefix. The = prefix means that if this field is
+present then it always has this value, and it is not specified in the
+data that uses this schema. The ^ prefix means that it is a default value
+which is used if this field is not present in the data. Neither is allowed
+in a << >> schema, and only = is allowed in a { } schema, but both are
+allowed in a [ ] schema.
+
+Constraints are any combination of the following:
+
+* Any name, which does not need to be defined ahead of time (but it must
+be defined before any data that uses this schema is defined). If the
+definition of that name is a OID, then this field will be encoded as
+relative to the specified OID if possible (but it will be encoded as
+absolute if it cannot be encoded as relative). If the definition of that
+name is a schema, then the value always uses that schema and the name of
+that schema does not need to be specified with the value when making a
+data item using this schema.
+
+* OF: followed by a string, which restricts the set of characters that
+are allowed in this field. This is only valid for the ASCII-based string
+types, as well as PC String, BCD String, and Octet String; and it requires
+that the string type is specified for this field. There is a special
+handling of this string; the character = means a range between the
+preceding and following character, but \= can mean a literal equal sign.
+
+* TYPE: followed by a implicit type token or a { } block containing
+implicit type tokens. Requires the value of this field to be of one
+of the specified types.
+
+* VMIN: or VMAX: followed by a value means the minimum or maximum value.
+
+* SMIN: or SMAX: followed by a nonnegative integer means the minimum or
+maximum size of the data in bytes.
+
+If the schema type is << >> then the output part is omitted, otherwise
+the output part is a single output item, where a output item is one of:
+
+* A field designation (name or number). It is OK to have a field multiple
+times. If the field is not present in the data and no default value is
+defined, then it will be omitted from the output (in some cases it will
+result in a null value instead, if it cannot be omitted).
+
+* An asterisk. For a [ ] schema, this means all fields that follow the
+asterisk in the input part will be included, as many times as they are.
+For a { } schema, it means whichever field is selected.
+
+* A [ ] or <[ ]> block containing zero or more output items; this will
+make a sequence or set containing the data.
+
+* An implicit type token, followed by another output item, in which
+case it will be encoded as that implicit type.
+
+* The sign ~ and a output item, which wraps the value.
+
+Any output item inside of a [ ] or <[ ]> block may optionally have ^
+afterward followed by a value, in which case that field is omitted from
+the output if its value is equal to the specified value. This is not
+allowed if the item is itself a [ ] or <[ ]> block, though.
+
+When mentioning the schema within the data, it works by writing the name
+of the schema followed by:
+
+* If the schema type is { } then any of its field names (followed by the
+value if it is not implied), with optionally { } around it; there must be
+exactly one of them. If it is a numbered field, then the field number is
+omitted and only the value is necessary.
+
+* If the schema type is [ ] then you need { } around the list of the
+fields, each of which is specified like for a { } schema type (but
+without the { } around each one individually).
+
+* If the schema type is << >> then you need either { } or << >> around
+the list of key/value pairs, like an ordinary << >> data item, but the
+fields can be handled like the { } and [ ] schema type.
 

@@ -457,6 +457,12 @@ FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type)
 
   type = The type.
 
+asn1_sorter_mark(ASN1_Encoder*enc)
+  When you are writing raw data into a sorted construction by the file
+  returned by asn1_current_file, this function can be used to mark the
+  beginning of each item. This function is not needed and has no effect
+  if the construction being made does not use sorting.
+
 asn1_wrap(ASN1_Encoder*enc)
   Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but
   the primitive/constructed bit is clear (indicating primitive) instead of

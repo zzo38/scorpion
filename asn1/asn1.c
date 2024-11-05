@@ -998,6 +998,11 @@ int asn1_end(ASN1_Encoder*enc) {
   return ASN1_OK;
 }
 
+int asn1_sorter_mark(ASN1_Encoder*enc) {
+  SorterItem2;
+  return ASN1_OK;
+}
+
 int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length) {
   SorterItem2;
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file);
