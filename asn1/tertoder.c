@@ -303,7 +303,7 @@ static int wordtok(int colon) {
     if(j && i==tokenlen) ReturnT(TOK_REAL);
   }
   // No match
-  errx(1,"Improper token");
+  errx(1,"Improper token: %s",tokenstr);
 }
 
 static int nexttok(void) {
@@ -345,11 +345,12 @@ static int nexttok(void) {
       if(c=='{') ReturnT(TOK_EXT_BEGIN);
       if(c=='+') ReturnT(TOK_START_BIT_STRING);
       if(c=='=') ReturnT(TOK_START_BASE64_STRING);
-      if(c!=EOF) ungetc(c,stdin);
+      if(c==EOF) errx(1,"Unexpected end of file");
+      ungetc(c,stdin);
       ReturnT(TOK_START_HEX_STRING);
     case '>':
       c=getchar();
-      if(c=='>') ReturnT(TOK_KV_END); else errx(1,"Improper token");
+      if(c=='>') ReturnT(TOK_KV_END); else errx(1,"Improper token: >");
     case '(': ReturnTW(TOK_START_TEXT_STRING,ASN1_IA5STRING);
     case '~': ReturnT(TOK_WRAP);
     case '=': ReturnT(TOK_EQUAL);
@@ -1215,7 +1216,7 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
             } else if(!memcmp(tokenstr,"SMAX",4)) {
               fputc(OP_SMAX,prg);
               sminmax:
-              if(tokent!=TOK_INTEGER) errx(1,"Expected integer");
+              if(nexttok()!=TOK_INTEGER) errx(1,"Expected integer");
               tokenv=strtoll(tokenstr+tokenw,0,tokenb);
               if(tokenv&~0x7FFFFFFFUL) errx(1,"Expected nonnegative integer");
               fputc(tokenv>>030,prg);
@@ -1267,7 +1268,7 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
   // Debug
   if(debugschema) {
     unsigned long w;
-    fprintf(stderr,"Schema: \"%s\"\n",nam0->name);
+    fprintf(stderr,"Schema: \"%s\" (%p)\n",nam0->name,sch);
     fprintf(stderr,"  Type = %d\n  Num. fields = %d\n",sch->type,sch->nfields);
     for(i=0;i<sch->nfields;i++) {
       fprintf(stderr,"  Field %d:\n    Flags = 0x%02X\n    String type = %d\n",i,sch->fields[i].flag,sch->fields[i].stringtype);
@@ -1308,6 +1309,7 @@ static void do_schema_item(const Schema*sch) {
   char imp=1;
   int endtok=0;
   int i,c;
+  if(debugschema) fprintf(stderr,"Begin schema item (%p)\n",sch);
   fid=calloc(sch->nfields+1,sizeof(FieldData));
   if(!fid) errx(1,"Memory error");
   if(sch->type==ASN1_KEY_VALUE_LIST) {
@@ -1323,8 +1325,8 @@ static void do_schema_item(const Schema*sch) {
     }
     enc=asn1_create_encoder(fp);
     if(!enc) errx(1,"Memory error");
+    fputc(0,fp);
   }
-  fputc(0,fp);
   nexttok();
   if(tokent==TOK_BRACE_BEGIN) endtok=TOK_BRACE_END;
   else if(tokent==TOK_KV_BEGIN && sch->type==ASN1_KEY_VALUE_LIST) endtok=TOK_KV_END;
@@ -1369,15 +1371,16 @@ static void do_schema_item(const Schema*sch) {
       fwrite(sch->constraint+con,1,siz,fp);
     } else {
       nam=sch->fields[cf].xname;
+      fid[cf].start=ftell(fp);
       if(!nam) {
         // No special handling is used for this case
       } else if(nam->kind==NK_SCHEMA) {
+        repeattoken=1;
         do_schema_item(nam->schema);
         goto endv;
       } else if(nam->kind!=NK_OBJECT) {
         errx(1,"Constraint name in schema is not of the expected kind");
       }
-      fid[cf].start=ftell(fp);
       if(nam && nam->kind==NK_OBJECT && tokent==TOK_OID) {
         if(asn1_make_static_oid(tokenstr,oid,512,&asn)) errx(1,"Improper object identifier");
         if(asn.length>=nam->oidlen && !memcmp(oid,nam->oid,nam->oidlen)) {
@@ -1497,11 +1500,10 @@ static void do_schema_item(const Schema*sch) {
       if(!fid[cf].start) {
         if(!(sch->fields[cf].flag&FF_OPTIONAL)) errx(1,"Required field missing");
         if(sch->fields[cf].flag&FF_DEFAULT) {
-          if(mult>=0) errx(1,"Default values for the repeatable part of a schema is not possible");
           con=sch->fields[cf].value;
           siz=0;
           asn1_parse(sch->constraint+con,sch->length,&asn,&siz);
-          fid[cf].start=con;
+          fid[cf].start=ftell(fp);
           fid[cf].length=siz;
           fwrite(sch->constraint+con,1,siz,fp);
         }
@@ -1559,6 +1561,7 @@ static void do_schema_item(const Schema*sch) {
     free(data);
   }
   free(fid);
+  if(debugschema) fprintf(stderr,"End schema item (%p)\n",sch);
 }
 
 static int do_name(void) {
