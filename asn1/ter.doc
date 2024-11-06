@@ -268,9 +268,12 @@ data item using this schema.
 * OF: followed by a string, which restricts the set of characters that
 are allowed in this field. This is only valid for the ASCII-based string
 types, as well as PC String, BCD String, and Octet String; and it requires
-that the string type is specified for this field. There is a special
+that the string type is specified for this field. It also requires that
+the type of the field is the specified string type. There is a special
 handling of this string; the character = means a range between the
 preceding and following character, but \= can mean a literal equal sign.
+When restricting the set of characters of a BCD string, a exclamation
+mark means that a optional trailing space is allowed.
 
 * TYPE: followed by a implicit type token or a { } block containing
 implicit type tokens. Requires the value of this field to be of one
