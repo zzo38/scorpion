@@ -1148,10 +1148,14 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
       nexttok();
     }
     if(tokent==TOK_PREFIX) {
-      pritem=bsearch(&prkey,prefix,sizeof(prefix)/sizeof(*prefix),sizeof(Prefix),prefix_compare);
-      if(!pritem) errx(1,"Unrecognzied prefix");
-      if(pritem->type==ASN1_UTCTIME || pritem->type==ASN1_UTC_TIMESTAMP || pritem->type==ASN1_REAL || pritem->type==ASN1_GENERALIZED_TIME || pritem->type==ASN1_BIT_STRING) errx(1,"Incorrect prefix");
-      fie.stringtype=pritem->type;
+      if(tokenlen==3 && tokenstr[0]=='O' && tokenstr[1]=='I' && tokenstr[2]=='D') {
+        fie.stringtype=ASN1_OID;
+      } else {
+        pritem=bsearch(&prkey,prefix,sizeof(prefix)/sizeof(*prefix),sizeof(Prefix),prefix_compare);
+        if(!pritem) errx(1,"Unrecognzied prefix");
+        if(pritem->type==ASN1_UTCTIME || pritem->type==ASN1_UTC_TIMESTAMP || pritem->type==ASN1_REAL || pritem->type==ASN1_GENERALIZED_TIME || pritem->type==ASN1_BIT_STRING) errx(1,"Incorrect prefix");
+        fie.stringtype=pritem->type;
+      }
       nexttok();
     } else {
       fie.stringtype=ASN1_IA5_STRING;
@@ -1420,6 +1424,8 @@ static void do_schema_item(const Schema*sch) {
         } else {
           asn1_encode(enc,&asn);
         }
+      } else if(sch->fields[cf].stringtype==ASN1_OID && tokent!=TOK_OID && (tokent!=TOK_RELATIVE_OID || !sch->fields[cf].xname)) {
+        errx(1,"Value must be a object identifier");
       } else {
         if(tokent==TOK_START_TEXT_STRING) do_text_string(sch->fields[cf].stringtype); else do_one_item();
       }

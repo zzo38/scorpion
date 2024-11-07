@@ -233,7 +233,8 @@ schema. This means that all following fields can occur zero or more times.
 * The string type, which is optional and is one of the string type prefixes
 mentioned in the above section. This causes any text string used as the
 value to use the specified type by default if not specified with the value,
-instead of using IA5: by default.
+instead of using IA5: by default. This may also be OID: in which case the
+value must be specified as an object identifier.
 
 * The field designation, which can either be a name (which must be a name
 that is not used for any other kind of definition, although it may match
@@ -280,9 +281,12 @@ implicit type tokens. Requires the value of this field to be of one
 of the specified types.
 
 * VMIN: or VMAX: followed by a value means the minimum or maximum value.
+The possible types are integer, enumerated, and real.
 
 * SMIN: or SMAX: followed by a nonnegative integer means the minimum or
 maximum size of the data in bytes.
+
+Constraints are ignored if the default value of a field is used.
 
 If the schema type is << >> then the output part is omitted, otherwise
 the output part is a single output item, where a output item is one of:
