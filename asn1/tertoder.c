@@ -193,9 +193,9 @@ static int funct_b(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*
   int n;
   if(!buf) err(1,"Allocation failed");
   for(n=0;n<nvalues;n++) {
-    if(values[n].class) return 1;
+    if(values[n].class) goto wrong;
     if(values[n].type==ASN1_INTEGER) {
-      if(asn1_decode_number(values+n,0,&i)) return 1;
+      if(asn1_decode_number(values+n,0,&i)) goto wrong;
       if(len<i/8+1) {
         buf=realloc(buf,i/8+2);
         if(!buf) err(1,"Allocation failed");
@@ -216,6 +216,8 @@ static int funct_b(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*
       }
       for(i=1;i<values[n].length;i++) buf[i]|=values[n].data[i];
     } else if(values[n].type) {
+      wrong:
+      free(buf);
       return 1;
     }
   }
@@ -1173,7 +1175,8 @@ static int constraint_output_item(FILE*f,Schema*sch,int level) {
     case TOK_FUNCTION:
       if(sch->function) errx(1,"A function is not allowed to occur more than once in the output list of a schema");
       fputc(OP_FUNCTION,f);
-      if(!(sch->function=builtins+tokenb-'A')) errx(1,"Undefined built-in function: $%c",tokenb);
+      sch->function=builtins+tokenb-'A';
+      if(!sch->function->kind) errx(1,"Undefined built-in function: $%c",tokenb);
       return 0;
     case TOK_SEQ_END: case TOK_SET_END: return 1;
     default: errx(1,"Wrong token in schema output item");
@@ -1304,6 +1307,10 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
           } else {
             errx(1,"Prefix \"%s\" is not valid in constraints",tokenstr);
           }
+        } else if(tokent==TOK_FUNCTION) {
+          if(fie.xname) errx(1,"Constraint has multiple names but is not allowed");
+          fie.xname=(Name*)(builtins+tokenb-'A');
+          if(!fie.xname->kind) errx(1,"Undefined built-in function: $%c",tokenb);
         } else {
           errx(1,"Expected constraint or end brace");
         }
@@ -1467,8 +1474,10 @@ static void do_schema_item(const Schema*sch) {
         repeattoken=1;
         do_schema_item(nam->schema);
         goto endv;
+      } else if(nam->kind==NK_FUNCTION && sch->type!=ASN1_KEY_VALUE_LIST) {
+        // This case is handled later
       } else if(nam->kind!=NK_OBJECT) {
-        errx(1,"Constraint name in schema is not of the expected kind");
+        errx(1,"Constraint name (%s) in schema is not of the expected kind",nam->name);
       }
       if(nam && nam->kind==NK_OBJECT && tokent==TOK_OID) {
         if(asn1_make_static_oid(tokenstr,oid,512,&asn)) errx(1,"Improper object identifier");
@@ -1518,7 +1527,8 @@ static void do_schema_item(const Schema*sch) {
       asn1_flush(enc);
       first=1;
       nextoption:
-      if((sch->fields[cf].flag&FF_CONSTRAINT) && sch->constraint[sch->fields[cf].constraint]!=OP_END) {
+      nam=sch->fields[cf].xname;
+      if((sch->fields[cf].flag&FF_CONSTRAINT) && (sch->constraint[sch->fields[cf].constraint]!=OP_END || (nam && nam->kind==NK_FUNCTION))) {
         if(!data) errx(1,"Improper use of constraints");
         asn1_parse(data+fid[cf].start,ftell(fp)-fid[cf].start,&asn,0);
         con=sch->fields[cf].constraint;
@@ -1572,6 +1582,11 @@ static void do_schema_item(const Schema*sch) {
               cf=nf++;
               goto nextoption;
           }
+        }
+        if(nam->kind==NK_FUNCTION) {
+          fid[cf].start=ftell(fp);
+          if(nam->call(enc,&asn,1,0,0,nam->userdata)) goto mismatch;
+          asn1_flush(enc);
         }
       }
       fid[cf].length=ftell(fp)-fid[cf].start;
