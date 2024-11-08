@@ -39,6 +39,7 @@ enum {
   TOK_OID,
   TOK_RELATIVE_OID,
   TOK_FIELD,
+  TOK_FUNCTION,
   TOK_START_BIT_STRING,
   TOK_START_HEX_STRING,
   TOK_START_BASE64_STRING,
@@ -61,6 +62,7 @@ enum {
   OP_BEGIN_SET,
   OP_END_CONSTRUCT,
   OP_DEFAULT,
+  OP_FUNCTION,
 };
 
 typedef struct {
@@ -113,6 +115,7 @@ enum {
   NK_FIELD,
   NK_SCHEMA,
   NK_BUSY,
+  NK_FUNCTION,
 };
 
 typedef struct {
@@ -126,6 +129,11 @@ typedef struct {
     };
     // NK_SCHEMA
     Schema*schema;
+    // NK_FUNCTION
+    struct {
+      int(*call)(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata);
+      void*userdata;
+    };
   };
 } Name;
 
@@ -155,6 +163,7 @@ struct Schema {
   uint8_t*constraint;
   uint8_t*program;
   size_t length;
+  const Name*function;
 };
 
 #define TOKENMAX 8000
@@ -171,9 +180,54 @@ static char debugschema;
 static char debugtokens;
 
 #define ReturnT(x) do{ if(debugtokens) fprintf(stderr,"t=%d (b=%d w=%lu)\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
+#define ReturnTB(x,y) do{ tokenb=y; if(debugtokens) fprintf(stderr,"t=%d b=%d (w=%lu)\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
 #define ReturnTV(x,y) do{ tokenv=y; if(debugtokens) fprintf(stderr,"t=%d v=%lld (b=%d w=%lu)\n",x,(long long)tokenv,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
 #define ReturnTW(x,y) do{ tokenw=y; if(debugtokens) fprintf(stderr,"t=%d w=%lu (b=%d)\n",x,(unsigned long)tokenw,tokenb); return tokent=x; }while(0)
 #define ReturnTBW(x,y,z) do{ tokenb=y; tokenw=z; if(debugtokens) fprintf(stderr,"t=%d b=%d w=%lu\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
+
+static int funct_b(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata) {
+  uint8_t*buf=malloc(1);
+  size_t len=0;
+  char un=0;
+  uint16_t i;
+  int n;
+  if(!buf) err(1,"Allocation failed");
+  for(n=0;n<nvalues;n++) {
+    if(values[n].class) return 1;
+    if(values[n].type==ASN1_INTEGER) {
+      if(asn1_decode_number(values+n,0,&i)) return 1;
+      if(len<i/8+1) {
+        buf=realloc(buf,i/8+2);
+        if(!buf) err(1,"Allocation failed");
+        while(len<i/8+1) buf[++len]=0;
+        un=7;
+      }
+      if(len==i/8+1 && un>(7&~i)) un=7&~i;
+      buf[i/8+1]|=0x80>>(i&7);
+    } else if(values[n].type==ASN1_BIT_STRING && values[n].length) {
+      if(values[n].length-1>len) {
+        i=values[n].length-1;
+        buf=realloc(buf,i+1);
+        if(!buf) err(1,"Allocation failed");
+        while(len<i) buf[++len]=0;
+        un=values[n].data[0];
+      } else if(values[n].length-1==len && un>values[n].data[0]) {
+        un=values[n].data[0];
+      }
+      for(i=1;i<values[n].length;i++) buf[i]|=values[n].data[i];
+    } else if(values[n].type) {
+      return 1;
+    }
+  }
+  *buf=un;
+  asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_BIT_STRING,buf,len+1);
+  free(buf);
+  return 0;
+}
+
+static const Name builtins[26]={
+  ['B'-'A']={.name="$B",.kind=NK_FUNCTION,.call=funct_b},
+};
 
 static void do_one_item(void);
 
@@ -350,7 +404,7 @@ static int nexttok(void) {
       ReturnT(TOK_START_HEX_STRING);
     case '>':
       c=getchar();
-      if(c=='>') ReturnT(TOK_KV_END); else errx(1,"Improper token: >");
+      if(c=='>') ReturnT(TOK_KV_END); else errx(1,"Improper token");
     case '(': ReturnTW(TOK_START_TEXT_STRING,ASN1_IA5STRING);
     case '~': ReturnT(TOK_WRAP);
     case '=': ReturnT(TOK_EQUAL);
@@ -375,11 +429,14 @@ static int nexttok(void) {
       return wordtok(c==':');
     case '$':
       tokenw=0;
+      c=getchar();
+      if(c>='A' && c<='Z') ReturnTB(TOK_FUNCTION,c);
+      if(c<'0' || c>'9') errx(1,"Improper token");
       for(;;) {
-        c=getchar();
         if(c<'0' || c>'9') break;
         if(++tokenlen>6 || tokenw>6553) errx(1,"Improper field number");
         tokenw=10*tokenw+c-'0';
+        c=getchar();
       }
       if(tokenw>65535 || !tokenlen) errx(1,"Improper field number");
       if(c!=EOF) ungetc(c,stdin);
@@ -1068,6 +1125,12 @@ static int constraint_output_item(FILE*f,Schema*sch,int level) {
   switch(nexttok()) {
     case TOK_NAME:
       nam=find_name();
+      if(nam->kind==NK_FUNCTION) {
+        if(sch->function) errx(1,"A function is not allowed to occur more than once in the output list of a schema");
+        fputc(OP_FUNCTION,f);
+        sch->function=nam;
+        return 0;
+      }
       for(i=0;i<sch->nfields;i++) if((sch->fields[i].flag&FF_NAMED) && nam==sch->fields[i].fname) break;
       if(i==sch->nfields) errx(1,"Wrong field name in output list");
       fputc(OP_FIELD,f);
@@ -1107,6 +1170,11 @@ static int constraint_output_item(FILE*f,Schema*sch,int level) {
     case TOK_WRAP:
       fputc(OP_WRAP,f);
       goto again;
+    case TOK_FUNCTION:
+      if(sch->function) errx(1,"A function is not allowed to occur more than once in the output list of a schema");
+      fputc(OP_FUNCTION,f);
+      if(!(sch->function=builtins+tokenb-'A')) errx(1,"Undefined built-in function: $%c",tokenb);
+      return 0;
     case TOK_SEQ_END: case TOK_SET_END: return 1;
     default: errx(1,"Wrong token in schema output item");
   }
@@ -1274,6 +1342,7 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
     unsigned long w;
     fprintf(stderr,"Schema: \"%s\" (%p)\n",nam0->name,sch);
     fprintf(stderr,"  Type = %d\n  Num. fields = %d\n",sch->type,sch->nfields);
+    if(sch->function) fprintf(stderr,"  Function = \"%s\" (%p)\n",sch->function->name,sch->function);
     for(i=0;i<sch->nfields;i++) {
       fprintf(stderr,"  Field %d:\n    Flags = 0x%02X\n    String type = %d\n",i,sch->fields[i].flag,sch->fields[i].stringtype);
       if(sch->fields[i].flag&FF_NAMED) fprintf(stderr,"    Name = \"%s\"\n",sch->fields[i].fname->name);
@@ -1293,6 +1362,22 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
 typedef struct {
   size_t start,length;
 } FieldData;
+
+static void output_by_function(const Schema*sch,uint8_t*data,size_t datalen,FieldData*fid) {
+  ASN1*asn=calloc(sizeof(ASN1),sch->nfields);
+  uint32_t n;
+  if(!asn) errx(1,"Allocation failed");
+  for(n=0;n<sch->nfields;n++) if(fid[n].start && asn1_parse(data+fid[n].start,fid[n].length,asn+n,0)) errx(1,"ASN.1 parse error");
+  if(fid[sch->nfields].start) {
+    data+=fid[sch->nfields].start;
+    datalen-=fid[sch->nfields].start;
+  } else {
+    data=0;
+    datalen=0;
+  }
+  if(sch->function->call(enc,asn,sch->nfields,data,datalen,sch->function->userdata)) errx(1,"Function call error");
+  free(asn);
+}
 
 static void do_schema_item(const Schema*sch) {
   static uint8_t oid[512];
@@ -1499,6 +1584,7 @@ static void do_schema_item(const Schema*sch) {
   }
   if(tokent==endtok) nexttok();
   if(sch->type==ASN1_KEY_VALUE_LIST) {
+    if(!cf) errx(1,"Improper number of items in key/value list");
     asn1_end(enc);
   } else {
     for(cf=0;cf<sch->nfields;cf++) {
@@ -1561,6 +1647,7 @@ static void do_schema_item(const Schema*sch) {
       case OP_BEGIN_SEQUENCE: asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0); imp=0; break;
       case OP_BEGIN_SET: asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SET,ASN1_SORT); imp=0; break;
       case OP_END_CONSTRUCT: asn1_end(enc); imp=0; break;
+      case OP_FUNCTION: output_by_function(sch,data,datalen,fid); imp=0; break;
       default: errx(1,"Unexpected output opcode");
     }
     endout:
@@ -1656,7 +1743,11 @@ static void do_one_item(void) {
       break;
     case TOK_KV_BEGIN:
       asn1_construct(enc,ASN1_UNIVERSAL,ASN1_KEY_VALUE_LIST,ASN1_KVSORT);
-      while(nexttok()!=TOK_KV_END) do_one_item();
+      while(nexttok()!=TOK_KV_END) {
+        do_one_item();
+        if(nexttok()==TOK_KV_END) errx(1,"Improper number of items in key/value list");
+        do_one_item();
+      }
       asn1_end(enc);
       break;
     case TOK_WRAP:

@@ -207,6 +207,14 @@ be followed by . and further numbers, to make a longer OID.
 
 * Schema: See the below section about schema definitions.
 
+* Function: An extension name followed by a dot and then the name of a
+function within that extension, and then {} with the values in between
+(there might not be any values in between). How the extension names are
+defined, and what function names are used by those extensions, is
+implementation-dependent; for example, some implementations might use
+command-line arguments to load .so files, or use a configuration file
+to list the extensions.
+
 
 === Schema definitions ===
 
@@ -234,7 +242,8 @@ schema. This means that all following fields can occur zero or more times.
 mentioned in the above section. This causes any text string used as the
 value to use the specified type by default if not specified with the value,
 instead of using IA5: by default. This may also be OID: in which case the
-value must be specified as an object identifier.
+value must be specified as an object identifier (in this case, the name in
+the constraint (if present) must be defined as a OID).
 
 * The field designation, which can either be a name (which must be a name
 that is not used for any other kind of definition, although it may match
@@ -300,6 +309,10 @@ result in a null value instead, if it cannot be omitted).
 asterisk in the input part will be included, as many times as they are.
 For a { } schema, it means whichever field is selected.
 
+* A function name. This can be either a built-in function (see below)
+or an extension function (which has been defined as such; see the above
+section about definitions of names).
+
 * A [ ] or <[ ]> block containing zero or more output items; this will
 make a sequence or set containing the data.
 
@@ -328,4 +341,14 @@ without the { } around each one individually).
 * If the schema type is << >> then you need either { } or << >> around
 the list of key/value pairs, like an ordinary << >> data item, but the
 fields can be handled like the { } and [ ] schema type.
+
+
+=== Built-in functions ===
+
+$B makes a bit string from all designated fields. The value of the field
+must be either a nonnegative integer or a bit string. If it is a integer
+then it is the bit position (where 0 means the first bit, which will be
+the high bit of the second byte). If it is a bit string then it will set
+all of the bits that are set in that bit string in the one being made,
+as well as increase the length to to the length of that one if longer.
 
