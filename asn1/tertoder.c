@@ -1,8 +1,9 @@
 #if 0
-gcc -g -O0 -o ./tertoder tertoder.c asn1.o
+gcc -g -O0 -o ./tertoder tertoder.c asn1.o -ldl -rdynamic
 exit
 #endif
 
+#include <dlfcn.h>
 #include <err.h>
 #include <search.h>
 #include <stdint.h>
@@ -116,6 +117,7 @@ enum {
   NK_SCHEMA,
   NK_BUSY,
   NK_FUNCTION,
+  NK_EXTENSION,
 };
 
 typedef struct {
@@ -133,7 +135,10 @@ typedef struct {
     struct {
       int(*call)(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata);
       void*userdata;
+      uint32_t option;
     };
+    // NK_EXTENSION
+    void*handle;
   };
 } Name;
 
@@ -228,7 +233,7 @@ static int funct_b(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*
 }
 
 static const Name builtins[26]={
-  ['B'-'A']={.name="$B",.kind=NK_FUNCTION,.call=funct_b},
+  ['B'-'A']={.name="$B",.kind=NK_FUNCTION,.call=funct_b,.option=0},
 };
 
 static void do_one_item(void);
@@ -1672,6 +1677,103 @@ static void do_schema_item(const Schema*sch) {
   if(debugschema) fprintf(stderr,"End schema item (%p)\n",sch);
 }
 
+static void define_extension_function(Name*nam,void*handle) {
+  ASN1_Encoder*enc0=enc;
+  const char*(*fun)(int(**)(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata),void**userdata,const char**option,uint8_t*data,size_t length);
+  const char*x;
+  const char*opt=0;
+  uint8_t*data=0;
+  size_t length=0;
+  FILE*fp=open_memstream((char**)&data,&length);
+  int c;
+  if(!fp) errx(1,"Unexpected error");
+  if(getchar()!='.') errx(1,"Wrong token in this context");
+  strcpy(tokenstr,"extfun_");
+  for(tokenlen=7;tokenlen<TOKENMAX;) {
+    c=getchar();
+    if(c&~127) errx(1,"Unexpected character");
+    if(!wordch[c]) break;
+    tokenstr[tokenlen++]=c;
+  }
+  ungetc(c,stdin);
+  tokenstr[tokenlen]=0;
+  fun=dlsym(handle,tokenstr);
+  if(!fun) errx(1,"Cannot load function");
+  nam->kind=NK_FUNCTION;
+  nam->call=0;
+  nam->userdata=0;
+  enc=asn1_create_encoder(fp);
+  if(!enc) errx(1,"Unexpected error");
+  if(nexttok()!=TOK_BRACE_BEGIN) errx(1,"Expected brace");
+  while(nexttok()!=TOK_BRACE_END) do_one_item();
+  fputc(0,fp);
+  asn1_finish_encoder(enc);
+  fclose(fp);
+  if(!data) errx(1,"Unexpected error");
+  enc=enc0;
+  if(x=fun(&nam->call,&nam->userdata,&opt,data,length-1)) errx(1,"Error loading function: %s",x);
+  free(data);
+  if(!nam->call) errx(1,"Error loading function: Extension did not assign a function pointer");
+  if(opt) nam->option=(*opt=='-'?0:*opt&0x7F);
+  if(debugschema) fprintf(stderr,"Extension function \"%s\": (%p,%p,%p,0x%lX)\n",nam->name,handle,nam->call,nam->userdata,(unsigned long)nam->option);
+}
+
+static void data_function_call_1(const Name*nam,int mul) {
+  ASN1_Encoder*enc0=enc;
+  uint8_t*data=0;
+  size_t len=0;
+  FILE*fp=open_memstream((char**)&data,&len);
+  enc=asn1_create_encoder(fp);
+  if(!fp || !enc) errx(1,"Unexpected error");
+  if(mul) {
+    if(nexttok()!=TOK_BRACE_BEGIN) errx(1,"Expected brace");
+    while(nexttok()!=TOK_BRACE_END) do_one_item();
+    asn1_flush(enc);
+    fputc(0,fp);
+  } else {
+    nexttok();
+    do_one_item();
+  }
+  asn1_finish_encoder(enc);
+  fclose(fp);
+  if(!data) errx(1,"Unexpected error");
+  enc=enc0;
+  if(nam->call(enc,0,0,data,len-mul,nam->userdata)) errx(1,"Function call failed");
+  free(data);
+}
+
+static void data_function_call_A(const Name*nam,uint32_t type) {
+  ASN1 asn;
+  ASN1_Encoder*enc0=enc;
+  uint8_t*data=0;
+  size_t len=0;
+  FILE*fp=open_memstream((char**)&data,&len);
+  enc=asn1_create_encoder(fp);
+  if(!fp || !enc) errx(1,"Unexpected error");
+  switch(nexttok()) {
+    case TOK_START_TEXT_STRING: do_text_string(type); break;
+    case TOK_START_HEX_STRING: asn1_implicit(enc,ASN1_UNIVERSAL,type); do_hex_string(); break;
+    case TOK_START_BASE64_STRING: asn1_implicit(enc,ASN1_UNIVERSAL,type); do_base64_string(); break;
+    default: errx(1,"Wrong token in this context");
+  }
+  asn1_finish_encoder(enc);
+  fputc(0,fp);
+  fclose(fp);
+  if(!data) errx(1,"Unexpected error");
+  enc=enc0;
+  asn1_parse(data,len,&asn,0);
+  if(nam->call(enc,&asn,1,0,0,nam->userdata)) errx(1,"Function call failed");
+  free(data);
+}
+
+static void data_function_call_T(const Name*nam) {
+  ASN1 asn={.class=ASN1_UNIVERSAL,.type=ASN1_VISIBLE_STRING,.data=tokenstr};
+  nexttok();
+  if(tokent!=TOK_NAME && tokent!=TOK_INTEGER && tokent!=TOK_REAL && tokent!=TOK_OID && tokent!=TOK_IMPLICIT) errx(1,"Wrong token in this context");
+  asn.length=tokenlen;
+  if(nam->call(enc,&asn,1,0,0,nam->userdata)) errx(1,"Function call failed");
+}
+
 static int do_name(void) {
   Name*nam=find_name();
   Name*nam2;
@@ -1691,9 +1793,15 @@ static int do_name(void) {
           break;
         case TOK_NAME:
           nam2=find_name();
-          if(nam2->kind!=NK_OBJECT) errx(1,"Wrong name in this context");
-          if(getchar()!='.') errx(1,"Wrong token in this context");
-          goto longoid;
+          if(nam2->kind==NK_OBJECT) {
+            if(getchar()!='.') errx(1,"Wrong token in this context");
+            goto longoid;
+          } else if(nam2->kind==NK_EXTENSION) {
+            define_extension_function(nam,nam2->handle);
+          } else {
+            errx(1,"Wrong name in this context");
+          }
+          break;
         case TOK_BRACE_BEGIN: define_schema(nam,ASN1_ENUMERATED,TOK_BRACE_END); break;
         case TOK_SEQ_BEGIN: define_schema(nam,ASN1_SEQUENCE,TOK_SEQ_END); break;
         case TOK_KV_BEGIN: define_schema(nam,ASN1_KEY_VALUE_LIST,TOK_KV_END); break;
@@ -1736,6 +1844,21 @@ static int do_name(void) {
     case NK_SCHEMA:
       do_schema_item(nam->schema);
       repeattoken=1;
+      return 0;
+    case NK_FUNCTION:
+      switch(nam->option&0x7F) {
+        case 0: errx(1,"Cannot use function \"%s\" directly",nam->name); break;
+        case '0': if(nam->call(enc,0,0,0,0,nam->userdata)) errx(1,"Function call failed"); break;
+        case '1': data_function_call_1(nam,0); break;
+        case '2': data_function_call_1(nam,1); break;
+        case 'A': data_function_call_A(nam,ASN1_IA5_STRING); break;
+        case 'O': data_function_call_A(nam,ASN1_OCTET_STRING); break;
+        case 'P': data_function_call_A(nam,ASN1_PRINTABLE_STRING); break;
+        case 'T': data_function_call_T(nam); break;
+        case 'V': data_function_call_A(nam,ASN1_VISIBLE_STRING); break;
+        case 'i': if(nam->call(enc,0,0,0,0,nam->userdata)) errx(1,"Function call failed"); break;
+        default: errx(1,"Function \"%s\" contains an improper option",nam->name); break;
+      }
       return 0;
     default: errx(1,"Wrong name in this context");
   }
@@ -1818,11 +1941,26 @@ static void do_one_item(void) {
   }
 }
 
+static void do_load_extension(char*arg) {
+  char*p;
+  Name*nam;
+  strncpy(tokenstr,arg,TOKENMAX);
+  p=strchr(tokenstr,'=');
+  if(!p) errx(1,"Improper command-line switch");
+  *p++=0;
+  nam=find_name();
+  if(nam->kind) errx(1,"Extension name \"%s\" is already defined",tokenstr);
+  nam->kind=NK_EXTENSION;
+  nam->handle=dlopen(p,RTLD_LAZY);
+  if(!nam->handle) errx(1,"Cannot open extension \"%s\": %s",tokenstr,dlerror());
+}
+
 int main(int argc,char**argv) {
   int c;
-  while((c=getopt(argc,argv,"+St"))>0) switch(c) {
+  while((c=getopt(argc,argv,"+Stx:"))>0) switch(c) {
     case 'S': debugschema=1; break;
     case 't': debugtokens=1; break;
+    case 'x': do_load_extension(optarg); break;
     default: errx(1,"Improper command-line switch");
   }
   if(optind!=argc) errx(1,"Wrong number of arguments");

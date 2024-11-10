@@ -273,7 +273,10 @@ relative to the specified OID if possible (but it will be encoded as
 absolute if it cannot be encoded as relative). If the definition of that
 name is a schema, then the value always uses that schema and the name of
 that schema does not need to be specified with the value when making a
-data item using this schema.
+data item using this schema. If the definition of the name is a function,
+then the function is called with the single value (after all other
+constraints are handled, regardless of their order) to transform the
+value into the output value or to fail the constraint.
 
 * OF: followed by a string, which restricts the set of characters that
 are allowed in this field. This is only valid for the ASCII-based string
@@ -294,6 +297,11 @@ The possible types are integer, enumerated, and real.
 
 * SMIN: or SMAX: followed by a nonnegative integer means the minimum or
 maximum size of the data in bytes.
+
+If a constraint of an optional numbered field fails, then it will
+automatically try the next numbered field; however, named constraints
+other than functions will be ignored and the string type prefix is also
+ignored for such attempts.
 
 Constraints are ignored if the default value of a field is used.
 
@@ -351,4 +359,7 @@ then it is the bit position (where 0 means the first bit, which will be
 the high bit of the second byte). If it is a bit string then it will set
 all of the bits that are set in that bit string in the one being made,
 as well as increase the length to to the length of that one if longer.
+Using it as a constraint function will require that the value is either
+a integer or a bit string, and transforms a integer into a bit string
+with only one bit set.
 

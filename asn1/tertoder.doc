@@ -1,0 +1,107 @@
+This TER->DER conversion program implements most of ASN.1X TER; it expects
+TER from stdin and writes DER to stdout. (ASCII is the only supported input
+character set, although you can represent strings with non-ASCII characters
+in the usual ways.)
+
+
+=== Command-line switches ===
+
+-S  Debug schema.
+
+-t  Debug tokens.
+
+-x  Followed by the extension name and then a equal sign and then the file
+name of the extension, will load it as an extension that can be used with
+a name definition to make extension functions.
+
+
+=== Extensions ===
+
+The extension can define function names which are "extfun_" and then the
+function name given in the TER definition, e.g. if the extension is
+called "abc" and the C function in the .so file is "extfun_xyz" and you
+want to call it "qqq" then you can write "qqq=abc.xyz{}".
+
+The C type of this function is expected to be:
+  const char*fun(int(**)(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata),void**userdata,const char**option,uint8_t*data,size_t length);
+
+The first argument is a pointer where you will write the function pointer
+of the function to call when the function is used. Assigning it is
+mandatory; if you do not, then it is an error.
+
+The second argument is a pointer where you will write the user data pointer
+to use (it will be null if you do not assign it).
+
+The third argument is the option string pointer, which can be ignored if
+you want to use the default options. See the description of option strings
+in the below section.
+
+The fourth and fifth arguments are the ASN.1 DER data from the inside of
+the {} block when defining the name of the function in the TER file. The
+data is freed after your function returns, so you must make a copy of it
+if you want to keep it.
+
+It returns null if successful, or an error message if unsuccessful.
+
+When the function is actually called, according to the circumstances:
+
+* A schema constraint function: After all other constraints for the field
+are handled, it will call the function, with a single value (being the
+value that was input for that field), and zero data/length. The value that
+the function encodes will be used in its place. If the function fails, then
+the constraint that called this function will fail (which is not necessary
+an error, if the field is an optional non-named field, and there is another
+non-named field that it could match instead).
+
+* A schema output function: The values passed to the function will be the
+fields in the order that they appear in the input list of the schema
+definition (which is not necessarily the same order that they have been
+entered in the data). The class and type will both be zero if that field
+is not present. The data/length will be the DER encoding of all of the
+data of the fields after the asterisk, if any. The value that this function
+encodes will be in the place of this function in the output list.
+
+* Within the data: The way that it is handled depends on the option string.
+If the option string is omitted then it cannot be used in this way.
+
+In all cases, if the function is successful, it must write a single ASN.1
+item to the encoder, and then return zero; if it is unsuccessful then it
+must return nonzero.
+
+
+=== Extension option strings ===
+
+The first character specifies what kind of arguments are expected when
+used directly in the data:
+
+* '-' means that it cannot be used in this way.
+
+* '0' means that no argument is expected.
+
+* '1' means that a single argument is expected, passed as data/length.
+
+* '2' means that {} with any number of arguments is expected, and this is
+passed as data/length.
+
+* 'A' means that a IA5 String is expected. It is written as a text string
+token, hex string token, or base64 string token, in all cases without a
+prefix. It is passed as a single value. It will automatically ensure that
+this value is null-terminated (although the null-termination will not be
+counted in the length).
+
+* 'O' means that a Octet String is expected; it otherwise works like 'A'.
+
+* 'P' means that a PC String is expected; it otherwise works like 'A'.
+
+* 'T' means that a single token is expected. It is passed as the only ASN.1
+value with the ASN1_VISIBLE_STRING type. This can be a name token or any
+kind of numeric token.
+
+* 'V' means that a Visible String is expected; it otherwise works like 'A'.
+
+* 'i' means that the function reads the argument from stdin.
+
+None others are currently defined. In all cases, '-' means to use the
+default setting, and if the string is too short then the rest will also
+use the default setting.
+
