@@ -36,6 +36,7 @@ int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next) {
   if(at>=length) return ASN1_TOO_SHORT;
   if(data[at]<0x80) {
     out->length=data[at++];
+    if(at+out->length>length) return ASN1_TOO_SHORT;
   } else {
     if(data[at]==0x80) {
       if(!out->constructed) return ASN1_IMPROPER_ENCODING;
@@ -97,6 +98,7 @@ int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*ne
   if(at>=length) return ASN1_TOO_SHORT;
   if(data[at]<0x80) {
     out->length=data[at++];
+    if(at+out->length>length) return ASN1_TOO_SHORT;
   } else {
     if(data[at]==0x80 || data[at]==0xFF) return ASN1_IMPROPER_ENCODING;
     x=data[at++]&0x7F;
