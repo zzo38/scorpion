@@ -288,6 +288,7 @@ static const char wordch[128]={
 
 static int wordtok(int colon) {
   int i,j;
+  if(debugtokens) fprintf(stderr,"Token \"%s\"\n",tokenstr);
   // Name, prefix
   if(wordch[*tokenstr]==3) {
     for(i=1;i<tokenlen && (wordch[tokenstr[i]]&1);i++);
@@ -1503,6 +1504,8 @@ static void do_schema_item(const Schema*sch) {
       } else if(nam->kind==NK_SCHEMA) {
         repeattoken=1;
         do_schema_item(nam->schema);
+        asn1_flush(enc);
+        fid[cf].length=ftell(fp)-fid[cf].start;
         goto endv;
       } else if(nam->kind==NK_FUNCTION && sch->type!=ASN1_KEY_VALUE_LIST) {
         // This case is handled later
@@ -1613,7 +1616,7 @@ static void do_schema_item(const Schema*sch) {
               goto nextoption;
           }
         }
-        if(nam->kind==NK_FUNCTION) {
+        if(nam && nam->kind==NK_FUNCTION) {
           fid[cf].start=ftell(fp);
           if(nam->call(enc,&asn,1,0,0,nam->userdata)) goto mismatch;
           asn1_flush(enc);
@@ -1665,7 +1668,7 @@ static void do_schema_item(const Schema*sch) {
           }
         }
         if(fid[cf].start) {
-          asn1_parse(data+fid[cf].start,fid[cf].length,&asn,0);
+          if(asn1_parse(data+fid[cf].start,fid[cf].length,&asn,0)) errx(1,"Unexpected error decoding output parts of schema");
           asn1_encode(enc,&asn);
         } else if(imp) {
           asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_NULL,"",0);
