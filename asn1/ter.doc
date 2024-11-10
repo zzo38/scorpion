@@ -363,3 +363,9 @@ Using it as a constraint function will require that the value is either
 a integer or a bit string, and transforms a integer into a bit string
 with only one bit set.
 
+$E can be used as a output item, and means that the first field which is
+present will be encoded, with an explicit type. The first field listed in
+the input list has number 0, second has number 1, etc.
+
+$I is like $E but uses implicit types instead of explicit types.
+

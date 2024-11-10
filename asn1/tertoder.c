@@ -232,8 +232,32 @@ static int funct_b(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*
   return 0;
 }
 
+static int funct_e(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata) {
+  int n;
+  for(n=0;n<nvalues;n++) if(values[n].class || values[n].type) {
+    asn1_explicit(enc,ASN1_CONTEXT_SPECIFIC,n);
+    asn1_encode(enc,values+n);
+    return 0;
+  }
+  asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_NULL,"",0);
+  return 0;
+}
+
+static int funct_i(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata) {
+  int n;
+  for(n=0;n<nvalues;n++) if(values[n].class || values[n].type) {
+    asn1_implicit(enc,ASN1_CONTEXT_SPECIFIC,n);
+    asn1_encode(enc,values+n);
+    return 0;
+  }
+  asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_NULL,"",0);
+  return 0;
+}
+
 static const Name builtins[26]={
   ['B'-'A']={.name="$B",.kind=NK_FUNCTION,.call=funct_b,.option=0},
+  ['E'-'A']={.name="$E",.kind=NK_FUNCTION,.call=funct_e,.option=0},
+  ['I'-'A']={.name="$I",.kind=NK_FUNCTION,.call=funct_i,.option=0},
 };
 
 static void do_one_item(void);
@@ -1218,6 +1242,7 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
   while(tokent!=endtok) {
     if(sch->nfields==0xFFFF) errx(1,"Too many fields");
     memset(&fie,0,sizeof(Field));
+    if(sch->type==ASN1_ENUMERATED) fie.flag=FF_OPTIONAL;
     if(tokent==TOK_ASTERISK) {
       if(mu++) errx(1,"Improper use of * in schema");
       fie.flag|=FF_MULTI;

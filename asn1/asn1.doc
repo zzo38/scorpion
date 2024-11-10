@@ -604,7 +604,8 @@ way (and the numbers are not restricted like a object identifier).
 
 * Set (17 C): A set of ASN.1 items that do not have an order. DER requires
 that the items are in the order that the encoded representations (including
-the type/length headers) have when sorted as byte strings.
+the type/length headers) have when sorted as byte strings. (Note: This is
+not the same as a mathematical "set"; it is more like a "multiset".)
 
 * Numeric string (18 S): A ASCII string with only digits and/or spaces.
 
@@ -835,7 +836,9 @@ is OK for fields within a INLINE to have implicit or explicit types),
 and cannot be a field of a SET. A field of a CHOICE can be of a INLINE
 or INLINE OF type, but fields of that CHOICE type are then subject to
 the same restrictions as fields of a INLINE type. The last field of a
-INLINE type cannot be optional and cannot have a default value.
+INLINE type cannot be optional and cannot have a default value. (The
+COMPONENTS OF command is similar than INLINE OF, although there are a
+few differences noted above.)
 
 * ANY: This has been removed from ASN.1 but is usable in ASN.1X. It
 means that an item of any type can be used for this field, except for
