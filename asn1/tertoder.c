@@ -1632,6 +1632,7 @@ static void do_schema_item(const Schema*sch) {
           }
         }
         if(nam && nam->kind==NK_FUNCTION) {
+          if(sch->type==ASN1_SEQUENCE && mult>=0 && cf>=mult) errx(1,"Function constraints cannot be used in the multiple part of a schema");
           fid[cf].start=ftell(fp);
           if(nam->call(enc,&asn,1,0,0,nam->userdata)) goto mismatch;
           asn1_flush(enc);
@@ -1657,6 +1658,7 @@ static void do_schema_item(const Schema*sch) {
       fid[cf].length=ftell(fp)-fid[cf].start;
     }
     if(sch->type==ASN1_ENUMERATED) {
+      fid[sch->nfields]=fid[cf];
       if(endtok && tokent!=endtok) errx(1,"Missing ending delimiter");
       break;
     }
