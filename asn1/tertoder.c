@@ -157,6 +157,8 @@ struct Field {
   Name*xname;
   uint32_t constraint;
   uint32_t value;
+  uint32_t im_type;
+  uint8_t im_class;
   uint8_t stringtype;
   uint8_t flag;
 };
@@ -1335,6 +1337,19 @@ static void define_schema(Name*nam0,int schtype,int endtok) {
           } else if(tokenlen==2 && tokenstr[0]=='O' && tokenstr[1]=='F') {
             if(nexttok()!=TOK_START_TEXT_STRING) errx(1,"Prefix \"OF\" must be followed by a text string");
             define_charset_constraint(prg,fie.stringtype);
+          } else if(tokenlen==3 && tokenstr[2]=='P') {
+            if(sch->type==ASN1_KEY_VALUE_LIST || (sch->type==ASN1_SEQUENCE && mu)) errx(1,"Cannot use IMP: and EXP: here");
+            if(fie.im_class) errx(1,"Cannot use IMP: and EXP: multiple times in one field");
+            if(tokenstr[0]=='I' && tokenstr[1]=='M') {
+              fie.im_class=0x80;
+            } else if(tokenstr[0]=='E' && tokenstr[1]=='X') {
+              fie.im_class=0xC0;
+            } else {
+              errx(1,"Prefix \"%s\" is not valid in constraints",tokenstr);
+            }
+            if(nexttok()!=TOK_IMPLICIT) errx(1,"Expected implicit type token");
+            fie.im_class+=tokenb;
+            fie.im_type=tokenw;
           } else {
             errx(1,"Prefix \"%s\" is not valid in constraints",tokenstr);
           }
@@ -1625,6 +1640,22 @@ static void do_schema_item(const Schema*sch) {
       fid[cf].length=ftell(fp)-fid[cf].start;
     }
     endv:
+    if(fid[cf].start && fid[cf].length && sch->fields[cf].im_class) {
+      c=sch->fields[cf].im_class;
+      at=fid[cf].start;
+      if(!(c&0x40)) {
+        asn1_flush(enc);
+        if(!data) errx(1,"Unexpected error");
+        asn1_parse(data+at,fid[cf].length,&asn,0);
+      }
+      fid[cf].start=ftell(fp);
+      asn1_write_type(c&0x40?:data[at]&0x20,c&3,sch->fields[cf].im_type,fp);
+      asn1_write_length(c&0x40?fid[cf].length:asn.length,fp);
+      fflush(fp);
+      if(!data) errx(1,"Unexpected error");
+      fwrite(c&0x40?(const uint8_t*)data+at:asn.data,1,c&0x40?fid[cf].length:asn.length,fp);
+      fid[cf].length=ftell(fp)-fid[cf].start;
+    }
     if(sch->type==ASN1_ENUMERATED) {
       if(endtok && tokent!=endtok) errx(1,"Missing ending delimiter");
       break;

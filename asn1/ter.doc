@@ -298,6 +298,13 @@ The possible types are integer, enumerated, and real.
 * SMIN: or SMAX: followed by a nonnegative integer means the minimum or
 maximum size of the data in bytes.
 
+* IMP: followed by a implicit type token will make the field have the
+specified implicit type. This is not allowed after an asterisk in a
+schema that has an asterisk.
+
+* EXP: is like IMP: but makes a explicit type instead of implicit. You
+cannot have both in one field.
+
 If a constraint of an optional numbered field fails, then it will
 automatically try the next numbered field; however, named constraints
 other than functions will be ignored and the string type prefix is also
