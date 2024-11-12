@@ -119,6 +119,24 @@ asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next)
   been read is added to the variable that it points to, so that you may
   know where to start reading from next.
 
+asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*length,uint64_t*remain)
+  Parses the type/length header of a ASN.1 BER value from a file.
+
+  fp = The file to read from. It does not need to be seekable.
+
+  constructed = Will write 1 to this pointer if the value is constructed
+  or 0 if it is primitive.
+
+  class = Will write the class (0 to 3) of the value.
+
+  type = Will write the type of the value.
+
+  length = Will write the length of the value.
+
+  remain = It may be null. If it is not null, then it points to the maximum
+  number of bytes to be read, and will update it by subtracting the number
+  of bytes that have been read.
+
 asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out)
   Converts UNIX time to a ASN1_DateTime structure.
 

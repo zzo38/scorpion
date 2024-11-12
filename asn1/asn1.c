@@ -93,7 +93,7 @@ int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*ne
       out->type<<=7;
       out->type|=data[at]&0x7F;
     } while(data[at++]&0x80);
-    if(out->type>30) return ASN1_IMPROPER_ENCODING;
+    if(out->type<31) return ASN1_IMPROPER_ENCODING;
   }
   if(at>=length) return ASN1_TOO_SHORT;
   if(data[at]<0x80) {
@@ -115,6 +115,46 @@ int asn1_distinguished_parse(const uint8_t*data,size_t length,ASN1*out,size_t*ne
   }
   out->data=data+at;
   if(next) *next+=at+out->length;
+  return ASN1_OK;
+}
+
+int asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*length,uint64_t*remain) {
+  int x,n;
+  uint64_t y=0;
+  uint64_t re=(-1LL);
+  if(remain) re=*remain;
+  if(re<2) return ASN1_TOO_SHORT;
+  x=fgetc(fp); --re; if(x==EOF) return ASN1_ERROR;
+  *class=x>>6;
+  *constructed=(x>>5)&1;
+  if((x&31)==31) {
+    *type=0;
+    do {
+      if(*type&0xFE000000L) return ASN1_IMPROPER_ENCODING;
+      *type<<=7;
+      if(!re--) return ASN1_TOO_SHORT; x=fgetc(fp); if(x==EOF) return ASN1_ERROR;
+      *type|=x&0x7F;
+    } while(x&0x80);
+  } else {
+    *type=x&31;
+  }
+  if(!re--) return ASN1_TOO_SHORT; x=getc(fp); if(x==EOF) return ASN1_ERROR;
+  if(x<0x80) {
+    *length=x;
+  } else {
+    if(x==0x80 || x==0xFF) return ASN1_IMPROPER_ENCODING;
+    n=x&0x7F;
+    if(re<n) return ASN1_TOO_SHORT;
+    re-=n;
+    while(n--) {
+      x=getc(fp); if(x==EOF) return ASN1_ERROR;
+      y=(y<<8)|x;
+      if(y&0xFFF0000000000000ULL) return ASN1_TOO_BIG;
+    }
+    if(y!=(size_t)y) return ASN1_IMPROPER_ENCODING;
+    *length=y;
+  }
+  if(remain) *remain=re;
   return ASN1_OK;
 }
 
