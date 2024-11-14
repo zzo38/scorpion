@@ -624,6 +624,54 @@ int asn1_decode_float(const ASN1*asn,uint32_t type,float*out) {
   return ASN1_OK;
 }
 
+int asn1_decode_double(const ASN1*asn,uint32_t type,double*out) {
+  uint8_t num[32];
+  char text[128];
+  int64_t ex;
+  uint8_t dec;
+  int8_t sg;
+  uint8_t inf;
+  union {
+    double f;
+    uint64_t i;
+  } v;
+  int x=asn1_decode_real_parts(asn,type,num,32,&sg,&dec,&ex,&inf,0);
+  int y;
+  if(x) {
+    return x;
+  } else if(inf) {
+    v.i=(sg<0?0xFF800000ULL:sg==0?0xFFC00001ULL:0x7F800000ULL);
+  } else if(dec) {
+    *text=sg<0?'-':'+';
+    for(x=0;x<32;x++) sprintf(text+x+x+1,"%02d",num[x]);
+    sprintf(text+65,"E%lld",(long long)(ex-64));
+    v.f=strtod(text,0);
+  } else {
+    v.i=(sg<0?0x8000000000000000ULL:0ULL);
+    for(x=0;x<32 && !num[x];x++);
+    if(x!=32) {
+      ex-=x*8LL;
+      for(y=0;y<8 && !(num[x]&(0x80>>y));y++);
+      ex-=y;
+      if(ex>-1022) {
+        if(ex>1023) {
+          v.i|=0x7FF0000000000000ULL;
+          *out=v.f;
+          return ASN1_OVERFLOW;
+        }
+        y+=45;
+        while(x<32 && y>-8) v.i|=(y>0?(uint64_t)num[x]<<y:(uint64_t)num[x]>>-y)&0x000FFFFFFFFFFFFFULL,y-=8,x++;
+        v.i|=(ex+1022LL)<<52;
+      } else {
+        // subnormal
+        //TODO
+      }
+    }
+  }
+  *out=v.f;
+  return ASN1_OK;
+}
+
 #define TWO_DIGITS(M,V) do { \
   if(asn->length<M+2 || asn->data[M]<'0' || asn->data[M]>'9' || asn->data[(M)+1]<'0' || asn->data[(M)+1]>'9') return ASN1_IMPROPER_VALUE; \
   V=(asn->data[M]-'0')*10+asn->data[(M)+1]-'0'; \
@@ -1134,14 +1182,14 @@ int asn1_encode_int16(ASN1_Encoder*enc,int16_t value) {
 int asn1_encode_int32(ASN1_Encoder*enc,int32_t value) {
   uint8_t x[4]={value>>030,value>>020,value>>010,value};
   int y=0;
-  while(y!=3 && !x[y]) y++;
+  while(y!=3 && x[y]==(x[y+1]<0x80?0x00:0xFF)) y++;
   return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,4-y);
 }
 
 int asn1_encode_int64(ASN1_Encoder*enc,int64_t value) {
   uint8_t x[8]={value>>070,value>>060,value>>050,value>>040,value>>030,value>>020,value>>010,value};
   int y=0;
-  while(y!=7 && !x[y]) y++;
+  while(y!=7 && x[y]==(x[y+1]<0x80?0x00:0xFF)) y++;
   return asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_INTEGER,x+y,8-y);
 }
 
@@ -1231,6 +1279,7 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
   char buf[64];
   int len;
   uint32_t g,n,i;
+  time_t t;
   if(x->month<1 || x->month>12 || x->day<1 || x->day>31 || x->hours>23 || x->minutes>59 || x->seconds>62 || x->nano>=1000000000) return ASN1_IMPROPER_VALUE;
   switch(type) {
     case ASN1_UTCTIME:
@@ -1260,10 +1309,9 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
     case ASN1_DATE_TIME:
       len=snprintf(buf,64,"%04d-%02d-%02dT%02d:%02d:%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
       break;
-//    case ASN1_UTC_TIMESTAMP:
-//      //TODO
-//      
-//      break;
+    case ASN1_UTC_TIMESTAMP:
+      if(i=asn1_date_to_time(x,&t,&n)) return i;
+      return asn1_encode_time(enc,ASN1_UTC_TIMESTAMP,t,n,0);
     default: return ASN1_IMPROPER_TYPE;
   }
   return asn1_primitive(enc,ASN1_UNIVERSAL,type,buf,len);
@@ -1275,7 +1323,7 @@ int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,i
   if(type==ASN1_UTC_TIMESTAMP || type==ASN1_SI_TIMESTAMP) {
     value-=ASN1_TRON_EPOCH;
     if(nano) {
-      uint8_t signif[5];
+      uint8_t signif[15];
       if(type==ASN1_UTC_TIMESTAMP) {
         if(nano>=1000000000ULL && ((value+1)%60)) return ASN1_IMPROPER_VALUE;
         if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_UTC_TIMESTAMP,0)) return ASN1_ERROR;
@@ -1285,14 +1333,32 @@ int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,i
         signif[2]=(nano/10000ULL)%100;
         signif[3]=(nano/100ULL)%100;
         signif[4]=(nano/1ULL)%100;
-        asn1_encode_real_parts(enc,signif,5,1,1,2,0);
-        if(asn1_end(enc)) return ASN1_ERROR;
+        return asn1_encode_real_parts(enc,signif,5,1,1,1,0)?:asn1_end(enc);
       } else {
+        int8_t sg=1;
         if(nano>=1000000000ULL) return ASN1_IMPROPER_VALUE;
         if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SI_TIMESTAMP,0)) return ASN1_ERROR;
-        //TODO
-        
-        if(asn1_end(enc)) return ASN1_ERROR;
+        if(value<0) {
+          value=~value;
+          nano=1000000000ULL-nano;
+          sg=-1;
+        }
+        signif[0]=(value/1000000000000000000ULL)%100;
+        signif[1]=(value/10000000000000000ULL)%100;
+        signif[2]=(value/100000000000000ULL)%100;
+        signif[3]=(value/1000000000000ULL)%100;
+        signif[4]=(value/10000000000ULL)%100;
+        signif[5]=(value/100000000ULL)%100;
+        signif[6]=(value/1000000ULL)%100;
+        signif[7]=(value/10000ULL)%100;
+        signif[8]=(value/100ULL)%100;
+        signif[9]=(value/1ULL)%100;
+        signif[10]=(nano/10000000ULL)%100;
+        signif[11]=(nano/100000ULL)%100;
+        signif[12]=(nano/1000ULL)%100;
+        signif[13]=(nano/10ULL)%100;
+        signif[14]=(nano*10ULL)%100;
+        return asn1_encode_real_parts(enc,signif,15,sg,1,20,0)?:asn1_end(enc);
       }
     } else {
       if(!enc->class || !enc->type) enc->class=ASN1_UNIVERSAL,enc->type=type;

@@ -200,7 +200,9 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
   asn1__decode_number__(C,uint16_t,uint16) \
   asn1__decode_number__(C,uint32_t,uint32) \
   asn1__decode_number__(C,uint64_t,uint64) \
-  (void)0 )))))))))(A,B,C) )
+  asn1__decode_number__(C,double,double) \
+  asn1__decode_number__(C,float,float) \
+  (void)0 )))))))))))(A,B,C) )
 
 #define asn1__encode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E),asn1_encode_##F,
 #define asn1_encode_integer(A,C) (( \

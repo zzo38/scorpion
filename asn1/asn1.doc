@@ -189,6 +189,14 @@ asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out)
   structure for the ASN.1 types that only specify date or only time of day,
   in which case the time of day or the date is kept as it is.
 
+asn1_decode_double(const ASN1*asn,uint32_t type,double*out)
+  Decodes a 64-bit floating point number. This assumes IEEE format, and
+  might not work correctly for a computer with non-IEEE floating point.
+
+asn1_decode_float(const ASN1*asn,uint32_t type,float*out)
+  Decodes a 32-bit floating point number. This assumes IEEE format, and
+  might not work correctly for a computer with non-IEEE floating point.
+
 asn1_decode_int8(const ASN1*asn,uint32_t type,int8_t*out)
   Decodes a signed 8-bit integer. Returns ASN1_OVERFLOW if the value is
   not in the range of a signed 8-bit integer.
