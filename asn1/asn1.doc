@@ -137,6 +137,19 @@ asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*length,
   number of bytes to be read, and will update it by subtracting the number
   of bytes that have been read.
 
+asn1_read_item(FILE*fp,ASN1*item,uint64_t*remain)
+  Reads a single ASN.1 BER item from a file. If the item's length is
+  nonzero then it will allocate memory automatically; use asn1_free
+  to free the memory.
+
+  fp = The file to read from. It does not need to be seekable.
+
+  item = The storage to write it to.
+
+  remain = It may be null. If it is not null, then it points to the maximum
+  number of bytes to be read, and will update it by subtracting the number
+  of bytes that have been read.
+
 asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out)
   Converts UNIX time to a ASN1_DateTime structure.
 

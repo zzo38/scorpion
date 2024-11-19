@@ -183,6 +183,7 @@ int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*da
 FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_print_decimal_oid(const ASN1*data,uint32_t type,FILE*stream);
 int asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*length,uint64_t*remain);
+int asn1_read_item(FILE*fp,ASN1*item,uint64_t*remain);
 int asn1_rewind(ASN1_Iterator*iter,const ASN1*value);
 int asn1_sorter_mark(ASN1_Encoder*enc);
 int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out);

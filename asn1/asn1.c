@@ -158,6 +158,24 @@ int asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*len
   return ASN1_OK;
 }
 
+int asn1_read_item(FILE*fp,ASN1*item,uint64_t*remain) {
+  int i;
+  uint8_t*d;
+  if(i=asn1_read(fp,&item->constructed,&item->class,&item->type,&item->length,remain)) return i;
+  if(item->length) {
+    if(remain && *remain<item->length) return ASN1_TOO_SHORT;
+    d=malloc(item->length);
+    if(!d) return ASN1_ERROR;
+    item->own=1;
+    item->data=d;
+    if(!fread(d,item->length,1,fp)) return ASN1_ERROR;
+  } else {
+    item->data=0;
+    item->own=0;
+  }
+  return ASN1_OK;
+}
+
 void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream) {
   fputc((type>30?31:type)|(class<<6)|(constructed?0x20:0x00),stream);
   if(type>30) {
