@@ -114,3 +114,7 @@ void fd_configure(FdStatus*x,uint32_t v);
 void fd_clean(void);
 int do_event_loop(int timeout);
 
+WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy,void*data);
+void win_destroy(WindowStatus*ws);
+WindowStatus*win_status(Window id);
+

@@ -210,7 +210,7 @@ int do_event_loop(int timeout) {
 }
 
 WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy,void*data) {
-  Window id;
+  Window id=0;
   WindowStatus*ws=calloc(1,sizeof(WindowStatus)+cl->data_size);
   if(!ws) err(1,"Allocation failed");
   ws->class=cl;
@@ -225,15 +225,15 @@ WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy
     if(ws->prev=pa->last) ws->prev->next=ws; else pa->first=ws;
     pa->last=ws;
   }
-  
+  if(!(ws->flag&WF_CUSTOM_CREATE)) id=ws->id=XCreateSimpleWindow(display,pa->id,xy->x,xy->y,xy->width,xy->height,1,colors.border_color,colors.back_color);
   if(ws->flag&WF_OWN_GC) {
     ws->gc=XCreateGC(display,id,0,0);
     //if(pa) XCopyGC(display,pa->gc,x,0x3FFFFF);
   } else {
     ws->gc=pa?pa->gc:DefaultGC(display,DefaultScreen(display));
   }
-  
-  if(!(ws->flag&WF_NO_AUTO_MAP)) XMapWindow(display,id);
+  if(cl->create) cl->create(ws);
+  if(!(ws->flag&WF_NO_AUTO_MAP)) XMapWindow(display,ws->id);
   return ws;
 }
 
