@@ -256,10 +256,19 @@ static int funct_i(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*
   return 0;
 }
 
+static int funct_z(ASN1_Encoder*enc,const ASN1*values,int nvalues,const uint8_t*data,size_t length,void*userdata) {
+  int n;
+  asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+  for(n=0;n<nvalues;n++) if(values[n].class || values[n].type) asn1_encode(enc,values+n);
+  asn1_end(enc);
+  return 0;
+}
+
 static const Name builtins[26]={
   ['B'-'A']={.name="$B",.kind=NK_FUNCTION,.call=funct_b,.option=0},
   ['E'-'A']={.name="$E",.kind=NK_FUNCTION,.call=funct_e,.option=0},
   ['I'-'A']={.name="$I",.kind=NK_FUNCTION,.call=funct_i,.option=0},
+  ['Z'-'A']={.name="$Z",.kind=NK_FUNCTION,.call=funct_z,.option=0},
 };
 
 static void do_one_item(void);

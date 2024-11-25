@@ -376,3 +376,6 @@ the input list has number 0, second has number 1, etc.
 
 $I is like $E but uses implicit types instead of explicit types.
 
+$Z as a output item makes a sequence containing all of the fields in the
+same order in the input list.
+
