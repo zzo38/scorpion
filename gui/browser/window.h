@@ -75,8 +75,8 @@ struct WindowClass {
   void(*create)(WindowStatus*);
   void(*destroy)(WindowStatus*);
   int(*event)(WindowStatus*,XEvent*);
-  int(*configure)(WindowStatus*,XRectangle*);
   uint32_t flag;
+  uint8_t cursor;
 };
 
 struct WindowStatus {
@@ -93,11 +93,13 @@ struct WindowStatus {
   char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__),may_alias));
 };
 
-#define WF_USER_STATE      0x00000001
-#define WF_OWN_GC          0x00000002
-#define WF_DESTROYED       0x00000004
-#define WF_NO_AUTO_MAP     0x00000008
-#define WF_CUSTOM_CREATE   0x00000010
+#define WF_USER_STATE        0x00000001
+#define WF_OWN_GC            0x00000002
+#define WF_DESTROYED         0x00000004
+#define WF_NO_AUTO_MAP       0x00000008
+#define WF_CUSTOM_CREATE     0x00000010
+#define WF_NO_BORDER         0x00000020
+#define WF_NO_MAP_CHILDREN   0x00000040
 
 extern Display*display;
 extern Window rootwindow;

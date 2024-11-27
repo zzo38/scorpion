@@ -1,4 +1,5 @@
 
+#define _GNU_SOURCE
 #include "window.h"
 #include "scogem.h"
 

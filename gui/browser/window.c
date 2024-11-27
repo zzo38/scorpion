@@ -86,9 +86,9 @@ static Visual*visual_from_id(VisualID id) {
 Pixel color_from_name(const char*name) {
   XColor c;
   if(privatecolor) {
-    return XAllocNamedColor(display,colormap,name,&c,&c)?c.pixel:0;
+    return XAllocNamedColor(display,colormap,name,&c,&c)?c.pixel:(warnx("Cannot convert color name: %s",name),0);
   } else {
-    return XLookupColor(display,colormap,name,&c,&c)?c.pixel:0;
+    return XLookupColor(display,colormap,name,&c,&c)?c.pixel:(warnx("Cannot convert color name: %s",name),0);
   }
 }
 
@@ -202,6 +202,7 @@ int do_event_loop(int timeout) {
   if((p->events&EPOLLPRI) && !p->closed && p->class->pri) i|=p->class->pri(p);
   if((p->events&EPOLLERR) && !p->closed && p->class->err) i|=p->class->err(p);
   if((p->events&EPOLLHUP) && !p->closed && p->class->hup) i|=p->class->hup(p);
+  p->events=0;
   if(i) {
     fd_clean();
     return i;
@@ -225,7 +226,15 @@ WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy
     if(ws->prev=pa->last) ws->prev->next=ws; else pa->first=ws;
     pa->last=ws;
   }
-  if(!(ws->flag&WF_CUSTOM_CREATE)) id=ws->id=XCreateSimpleWindow(display,pa->id,xy->x,xy->y,xy->width,xy->height,1,colors.border_color,colors.back_color);
+  if(ws->flag&WF_CUSTOM_CREATE) {
+    if(!pa) errx(1,"Internal confusion: The first subwindow cannot use WF_CUSTOM_CREATE");
+  } else if(pa) {
+    id=ws->id=XCreateSimpleWindow(display,pa->id,xy->x,xy->y,xy->width,xy->height,ws->flag&WF_NO_BORDER?0:1,colors.border_color,colors.back_color);
+  } else {
+    if(win_status(mainwindow)) errx(1,"Internal confusion: Cannot have multiple subwindows with no parent");
+    id=mainwindow;
+    XSetWindowBackground(display,id,colors.back_color);
+  }
   if(ws->flag&WF_OWN_GC) {
     ws->gc=XCreateGC(display,id,0,0);
     //if(pa) XCopyGC(display,pa->gc,x,0x3FFFFF);
@@ -233,7 +242,11 @@ WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy
     ws->gc=pa?pa->gc:DefaultGC(display,DefaultScreen(display));
   }
   if(cl->create) cl->create(ws);
-  if(!(ws->flag&WF_NO_AUTO_MAP)) XMapWindow(display,ws->id);
+  id=ws->id;
+  XSaveContext(display,id,window_data_context,(XPointer)ws);
+  if(cl->cursor) set_window_cursor(id,cl->cursor);
+  XSelectInput(display,id,cl->mask|StructureNotifyMask);
+  if(!(ws->flag&WF_NO_AUTO_MAP) && (!pa || !(pa->flag&WF_NO_MAP_CHILDREN))) XMapWindow(display,id);
   return ws;
 }
 

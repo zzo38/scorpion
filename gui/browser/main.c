@@ -52,19 +52,23 @@ static void load_config_from_file(FILE*f) {
   char*line=0;
   size_t line_len=0;
   int i;
-#define X(n) for(;;) { if(config_getline(&line,&line_len,f)) goto end; if(strncmp(line,#n"=",sizeof(#n))) break;
-#define B(n,t,d) X(n) i=line[sizeof(#n)]; if(i=='0') config.n=0; if(i=='1') config.n=1; break; }
-#define C(n,t,d) X(n) config.n=strdup(line+sizeof(#n)); break; }
-#define I(n,t,d) X(n) config.n=strtol(line+sizeof(#n),0,0); break; }
-#define S(n,t,d) X(n) config.n=strdup(line+sizeof(#n)); break; }
+  for(;;) {
+    if(config_getline(&line,&line_len,f)) break;
+    *strchrnul(line,'\n')=0;
+    if(*line=='#' || !*line) continue;
+#define X(n) if(!strncmp(line,#n"=",sizeof(#n))) { // {{{ /
+#define B(n,t,d) X(n) i=line[sizeof(#n)]; if(i=='0') config.n=0; if(i=='1') config.n=1; continue; }
+#define C(n,t,d) X(n) config.n=strdup(line+sizeof(#n)); continue; }
+#define I(n,t,d) X(n) config.n=strtol(line+sizeof(#n),0,0); continue; }
+#define S(n,t,d) X(n) config.n=strdup(line+sizeof(#n)); continue; }
 #include "config.inc"
 #undef B
 #undef C
 #undef I
 #undef S
 #undef X
-  errx(1,"Unrecognized command or incorrect order in configuration file:  %s",line);
-  end:
+    errx(1,"Unrecognized configuration option: %s",line);
+  }
   free(line);
 }
 
@@ -93,6 +97,15 @@ static void initialize(int argc,char**argv) {
   wc.depth=config.depth;
   wc.private_colors=config.private_colors;
   init_window_system(&wc);
+#define B(n,t,d)
+#define C(n,t,d) colors.n=config.n?color_from_name(config.n):d;
+#define I(n,t,d)
+#define S(n,t,d)
+#include "config.inc"
+#undef B
+#undef C
+#undef I
+#undef S
 }
 
 int main(int argc,char**argv) {
@@ -103,5 +116,6 @@ int main(int argc,char**argv) {
     default: errx(1,"Improper switch");
   }
   initialize(argc,argv);
+  
   return 0;
 }
