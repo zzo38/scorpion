@@ -86,6 +86,7 @@ static const Prefix prefix[]={
   {"GRAPHIC",ASN1_GRAPHIC_STRING},
   {"GT",ASN1_GENERALIZED_TIME},
   {"IA5",ASN1_IA5_STRING},
+  {"MORSE",ASN1_MORSE_STRING},
   {"NUMERIC",ASN1_NUMERIC_STRING},
   {"O",ASN1_OCTET_STRING},
   {"OCTET",ASN1_OCTET_STRING},
@@ -691,10 +692,90 @@ static void do_relative_oid(void) {
   asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,x.data+1,x.length-1);
 }
 
+static const char morsebits[128]={
+  [0]=0, [1 ... 2]=1, [3 ... 6]=2, [7 ... 14]=3,
+  [15 ... 30]=4, [31 ... 62]=5, [63 ... 126]=6, [127]=7,
+};
+
+static const char morsecode[128]={
+  [' ']=0,
+  ['A']=0b01+0b11, ['a']=0b01+0b11,
+  ['B']=0b1000+0b1111, ['b']=0b1000+0b1111,
+  ['C']=0b1010+0b1111, ['c']=0b1010+0b1111,
+  ['D']=0b100+0b111, ['d']=0b100+0b111,
+  ['E']=0b0+0b1, ['e']=0b0+0b1,
+  ['F']=0b0010+0b1111, ['f']=0b0010+0b1111,
+  ['G']=0b110+0b111, ['g']=0b110+0b111,
+  ['H']=0b0000+0b1111, ['h']=0b0000+0b1111,
+  ['I']=0b00+0b11, ['i']=0b00+0b11,
+  ['J']=0b0111+0b1111, ['j']=0b0111+0b1111,
+  ['K']=0b101+0b111, ['k']=0b101+0b111,
+  ['L']=0b0100+0b1111, ['l']=0b0100+0b1111,
+  ['M']=0b11+0b11, ['m']=0b11+0b11,
+  ['N']=0b10+0b11, ['n']=0b10+0b11,
+  ['O']=0b111+0b111, ['o']=0b111+0b111,
+  ['P']=0b0110+0b1111, ['p']=0b0110+0b1111,
+  ['Q']=0b1101+0b1111, ['q']=0b1101+0b1111,
+  ['R']=0b010+0b111, ['r']=0b010+0b111,
+  ['S']=0b000+0b111, ['s']=0b000+0b111,
+  ['T']=0b1+0b1, ['t']=0b1+0b1,
+  ['U']=0b001+0b111, ['u']=0b001+0b111,
+  ['V']=0b0001+0b1111, ['v']=0b0001+0b1111,
+  ['W']=0b011+0b111, ['w']=0b011+0b111,
+  ['X']=0b1001+0b1111, ['x']=0b1001+0b1111,
+  ['Y']=0b1011+0b1111, ['y']=0b1011+0b1111,
+  ['Z']=0b1100+0b1111, ['z']=0b1100+0b1111,
+  ['0']=0b11111+0b11111, ['1']=0b01111+0b11111, ['2']=0b00111+0b11111, ['3']=0b00011+0b11111, ['4']=0b00001+0b11111,
+  ['5']=0b00000+0b11111, ['6']=0b10000+0b11111, ['7']=0b11000+0b11111, ['8']=0b11100+0b11111, ['9']=0b11110+0b11111,
+  ['.']=0b010101+0b111111,
+  [',']=0b110011+0b111111,
+  ['?']=0b001100+0b111111,
+  ['\'']=0b011110+0b111111,
+  ['!']=0b101011+0b111111,
+  ['/']=0b10010+0b11111,
+  ['(']=0b10110+0b11111, ['[']=0b10110+0b11111,
+  [')']=0b101101+0b111111, [']']=0b101101+0b111111,
+  ['&']=0b01000+0b11111,
+  [':']=0b111000+0b111111,
+  [';']=0b101010+0b111111,
+  ['=']=0b10001+0b11111,
+  ['+']=0b01010+0b11111,
+  ['-']=0b100001+0b111111,
+  ['_']=0b001101+0b111111,
+  ['"']=0b010010+0b111111,
+  ['@']=0b011010+0b111111,
+};
+
+static void do_prosign(FILE*f) {
+  uint8_t w[64];
+  uint8_t q[64]={};
+  uint8_t n=0;
+  uint8_t o=0;
+  int b,c,i,j,k;
+  for(;;) {
+    c=getchar();
+    if(c=='>') break;
+    if(c==EOF) errx(1,"Unexpected end of file");
+    if(c<32 || c>126) errx(1,"Unexpected literal character in text string");
+    if(c=='(' || c==')' || !morsecode[c]) errx(1,"Improper character in Morse string");
+    if(n==64) errx(1,"Prosign is too long");
+    w[n++]=morsecode[c];
+  }
+  for(b=0,i=n-1;i>=0;i--) {
+    k=q[o]+(w[i]<<b),q[o]=k&0x7F,k>>=7;
+    for(j=o+1;k && j<64;j++) k+=q[j],q[j]=k&0x7F,k>>=7;
+    if(k) errx(1,"Prosign is too long");
+    b+=morsebits[w[i]];
+    if(b>=7) o++,b-=7;
+  }
+  while(o<63 && q[o+1]) o++;
+  for(i=o;i>=0;i--) fputc(q[i]|(i?0x80:0x00),f);
+}
+
 static void do_text_string(uint32_t type) {
   // ISO 2022 is not fully handled yet, but it is usable
-  const char bcd[]="0123456789*#+-. ";
-  const char printable[128]={
+  static const char bcd[]="0123456789*#+-. ";
+  static const char printable[128]={
     [32]=1, [65 ... 90]=1, [97 ... 122]=1, [48 ... 57]=1,
     [39 ... 41]=1, [43 ... 47]=1, [58]=1, [61]=1, [63]=1,
   };
@@ -742,6 +823,14 @@ static void do_text_string(uint32_t type) {
           goto direct;
         case ASN1_BMP_STRING: fputc(0,f); fputc(c,f); break;
         case ASN1_UNIVERSAL_STRING: fputc(0,f); fputc(0,f); fputc(0,f); fputc(c,f); break;
+        case ASN1_MORSE_STRING:
+          if(c=='<') {
+            do_prosign(f);
+          } else {
+            if((c&~127) || (c!=' ' && !morsecode[c])) errx(1,"Improper character in Morse string");
+            fputc(morsecode[c],f);
+          }
+          break;
         default: direct: fputc(c,f);
       }
     } else {

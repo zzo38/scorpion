@@ -850,6 +850,12 @@ file descriptor) with whatever transport mechanism is being used. The
 transport mechanism defines how a value of this type is supposed to be
 encoded with whatever ASN.1 encoding is being used.
 
+* ASN1_MORSE_STRING (73): Represents a string of characters in the
+Morse character set. The encoding is like a relative object identifier,
+where 0 means an empty space, and others is like bijective base 2 with
+1 for dots and 2 for dashes, with the high bit for the first dot/dash,
+e.g. 4 means A and 8 means U.
+
 The encoding of the new time types can be any one of:
 
 * A primitive encoding, same as the INTEGER type. This represents a

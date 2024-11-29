@@ -124,6 +124,9 @@ appropriate time.
 one semicolon, represents nothing; it can be used to divide text by lines
 in the text representation.
 
+* < > in a Morse string will make the letters inside to be encoded without
+gaps (e.g. <KA> or <CT> for the starting signal).
+
 The following prefixes can be used to specify string types:
   OCTET:       Octet string
   O:           Octet srting
@@ -148,6 +151,7 @@ The following prefixes can be used to specify string types:
   BCD:         BCD string
   PC:          PC string
   TRON:        TRON string
+  MORSE:       Morse code
   DESCRIPTOR:  Object descriptor
   DESC:        Object descriptor
 
