@@ -78,6 +78,7 @@
 #define ASN1_SI_TIME_INTERVAL 71
 #define ASN1_OUT_OF_BAND 72
 #define ASN1_MORSE_STRING 73
+#define ASN1_REFERENCE 74
 
 // Classes
 #define ASN1_UNIVERSAL 0
