@@ -45,6 +45,7 @@ typedef struct {
 typedef struct FdClass FdClass;
 typedef struct FdStatus FdStatus;
 typedef struct WindowClass WindowClass;
+typedef struct WindowSize WindowSize;
 typedef struct WindowStatus WindowStatus;
 
 struct FdClass {
@@ -75,6 +76,7 @@ struct WindowClass {
   void(*create)(WindowStatus*);
   void(*destroy)(WindowStatus*);
   int(*event)(WindowStatus*,XEvent*);
+  void(*size)(WindowStatus*,WindowSize*);
   uint32_t flag;
   uint8_t cursor;
 };
@@ -93,6 +95,11 @@ struct WindowStatus {
   char unused[0] __attribute__((aligned(__BIGGEST_ALIGNMENT__),may_alias));
 };
 
+struct WindowSize {
+  char vert,fill;
+  int32_t size;
+};
+
 #define WF_USER_STATE        0x00000001
 #define WF_OWN_GC            0x00000002
 #define WF_DESTROYED         0x00000004
@@ -100,6 +107,12 @@ struct WindowStatus {
 #define WF_CUSTOM_CREATE     0x00000010
 #define WF_NO_BORDER         0x00000020
 #define WF_NO_MAP_CHILDREN   0x00000040
+#define WF_SIZE_SEPARATOR    0x00000080
+#define WF_HBOX              0x00000100
+#define WF_VBOX              0x00000200
+#define WF_DISABLED          0x00000400
+#define WF_FOCUSABLE         0x00000800
+#define WF_RESIZED           0x00001000
 
 extern Display*display;
 extern Window rootwindow;
@@ -116,7 +129,7 @@ void fd_configure(FdStatus*x,uint32_t v);
 void fd_clean(void);
 int do_event_loop(int timeout);
 
-WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy,void*data);
+WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,void*data);
 void win_destroy(WindowStatus*ws);
 WindowStatus*win_status(Window id);
 

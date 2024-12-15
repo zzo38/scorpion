@@ -210,7 +210,7 @@ int do_event_loop(int timeout) {
   goto loop;
 }
 
-WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy,void*data) {
+WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,void*data) {
   Window id=0;
   WindowStatus*ws=calloc(1,sizeof(WindowStatus)+cl->data_size);
   if(!ws) err(1,"Allocation failed");
@@ -229,7 +229,7 @@ WindowStatus*win_create(const WindowClass*cl,WindowStatus*pa,const XRectangle*xy
   if(ws->flag&WF_CUSTOM_CREATE) {
     if(!pa) errx(1,"Internal confusion: The first subwindow cannot use WF_CUSTOM_CREATE");
   } else if(pa) {
-    id=ws->id=XCreateSimpleWindow(display,pa->id,xy->x,xy->y,xy->width,xy->height,ws->flag&WF_NO_BORDER?0:1,colors.border_color,colors.back_color);
+    id=ws->id=XCreateSimpleWindow(display,pa->id,0,0,8,8,ws->flag&WF_NO_BORDER?0:1,colors.border_color,colors.back_color);
   } else {
     if(win_status(mainwindow)) errx(1,"Internal confusion: Cannot have multiple subwindows with no parent");
     id=mainwindow;
