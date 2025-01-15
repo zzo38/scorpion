@@ -14,7 +14,8 @@ null if nothing is applicable).
 * The date/time (UTC Time or Generalized Time) when it was exported.
 
 * A sequence of certificate configurations. Zero-based index numbers can
-be used to refer to items in this sequence.
+be used to refer to items in this sequence. Any item in this sequence may
+be null in case that index number is not used.
 
 * A (possibly empty) sequence of client configurations.
 
@@ -100,7 +101,8 @@ Each bookmark is a sequence with fields:
 which types are valid is implementation-dependent, but Visible string
 should always be valid.
 
-* The URL, which is a Visible string.
+* The URL, which is a Visible string. Alternatively, this may be a group of
+bookmarks in which case this is a sequence of bookmarks instead.
 
 * An optional key/value list for nonstandard extensions.
 
