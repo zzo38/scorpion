@@ -3,6 +3,9 @@ This document describes a possible file format for exporting the
 configuration of X.509 certificates and TLS options, as well as possibly
 other things such as bookmarks.
 
+Implementations MUST allow importing or exporting only a subset of the
+available data; it MUST NOT require to do "all or nothing".
+
 The file format is a sequence with fields:
 
 * An identifier (which can be a single value of any type; you can specify
