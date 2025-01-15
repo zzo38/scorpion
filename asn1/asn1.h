@@ -174,6 +174,7 @@ int asn1_end(ASN1_Encoder*enc);
 int asn1_explicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_finish_encoder(ASN1_Encoder*enc);
 int asn1_flush(ASN1_Encoder*enc);
+void asn1_free(ASN1*obj);
 int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out);
 int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
 int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
