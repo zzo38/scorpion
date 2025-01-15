@@ -13,34 +13,39 @@ null if nothing is applicable).
 
 * The date/time (UTC Time or Generalized Time) when it was exported.
 
+* A sequence of certificate configurations. Zero-based index numbers can
+be used to refer to items in this sequence.
+
 * A (possibly empty) sequence of client configurations.
 
 * A (possibly empty) sequence of server configurations.
 
-* A (possibly empty) sequence of bookmarks. (The specification of this is
-not written yet)
+* A (possibly empty) sequence of bookmarks.
 
 * Optionally, a key/value list (see ../asn1/asn1.doc for the defintion of
 this ASN.1X type) for adding nonstandard extensions. The keys are object
 identifiers and the value is a type that depends on the object identifier.
 
-Each item in the client configurations is a sequence with fields:
+Each item in the certificate configurations is a sequence with fields:
 
 * A private name for the user to refer to this certificate. This can be of
 any ASN.1X character string type; which types are valid depends on the
-implementation, but Visible string should always be valid (implementations
-that are specifically for Gemini should also allow UTF-8 string).
+implementation, but Visible string should always be valid.
 
-* A set of URL patterns (see below for the format of these).
+* The X.509 certificate.
 
-* The client's X.509 certificate.
+* The private key, or null if it is not recorded.
 
-* The client's private key. This may be null if the private key is stored
-separately for reasons of security.
+* The index number of the issuer certificate. If this is a self-signed
+certificate, then it is this entry's own index number. This can be null
+if the issuer certificate is not recorded in this file.
 
-* An optional key/value list for nonstandard extensions.
+* An optional key/value list for nonstandard extensions. (This is not used
+for X.509 extensions, which are a part of the certificate.)
 
-Each URL pattern is a sequence with fields:
+Each item in the client configurations is a sequence with fields:
+
+* The URL, which is a Visible string.
 
 * The type of pattern matching, which is an enumerated value, where 0
 means only the fragment part may differ, 1 means the fragment part and/or
@@ -48,13 +53,30 @@ query string part may differ, and 2 means that the specified URL may be
 followed by / or ? or # and anything (if it already ends with / then it
 may be followed by anything).
 
-* The URL, which is a Visible string.
-
 * An optional date/time for when the identity expires (if this is not
 present, then it expires at the same time as the certificate).
 
-* (I don't know if any other fields are needed; maybe none are, but maybe
-I forgot some)
+* A bit string to specify the usage of this client configuration; see
+below for the possible bits.
+
+* The index number of the client certificate, or null if there isn't one.
+
+* An optional key/value list for nonstandard extensions.
+
+The usage of client configuration has:
+
+* 0 = Used for receiving files/data.
+
+* 1 = Used for sending files/data. (With Gemini, this would correspond to
+Titan; this allows Gemini and Titan to be specified in a single entry
+without needing a separate URL in this file.)
+
+* 2 = Used for interactive connections. (This is not applicable to Gemini,
+but is applicable to Scorpion.)
+
+* 3 = Use the username/password in the URL to authenticate by default.
+
+* 4 = Only use the certificate if the username in the URL is also used.
 
 Each item in the server configurations is a sequence with fields:
 
@@ -68,7 +90,17 @@ optional in case only the domain name is recorded.
 
 * TLS options. (TODO)
 
-* The server's X.509 certificate, or null if it is not recorded.
+* The index number of the server's certificate, or null if there isn't one.
+
+* An optional key/value list for nonstandard extensions.
+
+Each bookmark is a sequence with fields:
+
+* The title of the bookmark. This may be any ASN.1X character string type;
+which types are valid is implementation-dependent, but Visible string
+should always be valid.
+
+* The URL, which is a Visible string.
 
 * An optional key/value list for nonstandard extensions.
 
