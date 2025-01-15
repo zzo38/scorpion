@@ -188,11 +188,10 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
 Most of these functions have the first two arguments being "asn" and
 "type", where "asn" is the value to decode, and "type" specifies the ASN.1
 universal type of the value. If the type is ASN1_AUTO then it will decide
-the type automatically from the ASN1 structure; in this case, the class
-must be ASN1_UNIVERSAL or ASN1_CONTEXT_SPECIFIC (in which case it assumes
-it is an explicit type). If the type passed to the function is not
-ASN1_AUTO then it assumes that it is an implicit type and uses the type
-you specified instead.
+the type automatically from the ASN1 structure; in this case, it is an
+error if the class is not ASN1_UNIVERSAL. If the type passed to the
+function is not ASN1_AUTO then it assumes that it is an implicit type and
+uses the type you specified instead.
 
 asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out)
   Decodes one of the ASN.1 date/time types. The time zone in the output is

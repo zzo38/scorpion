@@ -203,23 +203,7 @@ void asn1_write_length(uint64_t length,FILE*stream) {
     while(n--) fputc(length>>(n*8),stream);
   }
 }
-
-static int convert_type(const ASN1*asn,ASN1*rel) {
-  size_t s=0;
-  int x;
-  if(asn->class==ASN1_UNIVERSAL) {
-    return 0;
-  } else if(asn->class==ASN1_CONTEXT_SPECIFIC) {
-    // Assume explicit type
-    if(!asn->constructed) return ASN1_IMPROPER_TYPE;
-    if(x=asn1_parse(asn->data,asn->length,rel,&s)) return x;
-    if(s!=asn->length) return ASN1_IMPROPER_TYPE;
-    return (rel->class==ASN1_UNIVERSAL?-1:ASN1_IMPROPER_TYPE);
-  } else {
-    return ASN1_IMPROPER_TYPE;
-  }
-}
-#define CONVERT_TYPE ASN1 rel; if(!type) { int x=convert_type(asn,&rel); if(x>0) return x; if(x==-1) asn=&rel,type=rel.type; else type=asn->type; }
+#define CONVERT_TYPE if(!type) { if(asn->class!=ASN1_UNIVERSAL) return ASN1_IMPROPER_TYPE; type=asn->type; }
 
 static size_t print_base128(const uint8_t*data,uint32_t adjust,FILE*stream) {
   uint8_t u[80];
