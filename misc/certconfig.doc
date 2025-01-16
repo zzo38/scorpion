@@ -1,10 +1,11 @@
 (DRAFT)
 This document describes a possible file format for exporting the
-configuration of X.509 certificates and TLS options, as well as possibly
-other things such as bookmarks.
+configuration of X.509 certificates and TLS options, as well as other
+things such as bookmarks.
 
-Implementations MUST allow importing or exporting only a subset of the
-available data; it MUST NOT require to do "all or nothing".
+An implementation will not necessarily support all features of this file.
+A browser might or might not use this as its own format; if it does not,
+then external programs may be used for conversion.
 
 The file format is a sequence with fields:
 
@@ -89,7 +90,7 @@ optional in case only the domain name is recorded.
 
 * The port number, which is a integer.
 
-* TLS options. (TODO)
+* TLS options (see below). This can be null if it is not available.
 
 * The index number of the server's certificate, or null if there isn't one.
 
@@ -102,7 +103,11 @@ which types are valid is implementation-dependent, but Visible string
 should always be valid.
 
 * The URL, which is a Visible string. Alternatively, this may be a group of
-bookmarks in which case this is a sequence of bookmarks instead.
+bookmarks in which case this is a sequence of bookmarks instead. (If an
+implementation does not support grouped bookmarks, then it should read each
+item in the group and treat them as not being in the group.)
 
 * An optional key/value list for nonstandard extensions.
+
+(The format of the TLS options is not specified yet)
 
