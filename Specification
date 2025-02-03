@@ -644,7 +644,25 @@ The possible character encodings are:
 
 * 0x10 = PC (left to right)
 
+* 0x20 = ISO 2022 (left to right; see notes below)
+
 * 0x80 = TRON-8 (right to left)
+
+* 0xA0 = ISO 2022 (right to left)
+
+For ISO 2022, C0 and C1 are not used (the control codes specified below are
+used instead), the initial G0 set at the beginning of each block is ASCII,
+and the other initial G sets at the beginning of each block are undefined.
+The only ISO 2022 escape sequences which are allowed are IRR and those for
+designating G sets. DOCS is discouraged (and might not be implemented for
+all clients), but is allowed in case it is necessary to copy text from
+existing documents that use those other character sets; however, the only
+DOCS codes that are allowed are those with standard return (but it is not
+actually required to return), and the C0 control range always uses the
+codes specified below. Some browsers might only partially implement ISO
+2022 or not at all; it is best not to use it for text that can be encoded
+better by using the other encodings (specifically, ASCII is a subset of
+the PC character code and JIS is a subset of the TRON character code).
 
 The control codes are:
 
@@ -712,7 +730,15 @@ would not be common when using PC character codes).
 or more bytes in range 0x30 to 0x3B except 0x3A, and then one byte
 which is 0x6D. This is allowed only in preformatted blocks, although its
 use is discouraged. Clients should skip over the SGR code entirely, but
-MAY have an option to interpret them.
+MAY have an option to interpret them. For ISO 2022 character encoding,
+this has another use, which is valid in any blocks; see above.
+
+* 0x8E = Only with ISO 2022 character encoding; must be immediately
+followed by a GR character which is interpreted as G2 instead of G1
+(further GR characters are interpreted as G1). (In PC and TRON encodings,
+this code represents a graphic character or a part of one.)
+
+* 0x8F = Like 0x8E but G3 instead of G2.
 
 It is not required to implement most of the control codes, except as
 specified above.
