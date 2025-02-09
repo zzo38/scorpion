@@ -63,6 +63,13 @@ below for the possible bits.
 
 * The index number of the client certificate, or null if there isn't one.
 
+* A boolean to indicate whether or not this configuration is active. If
+multiple configurations are active (which will not be possible in all
+implementations), then the most specific active configuration which is
+applicable should be used. Longer URLs are more specific than shorter
+URLs, and lower numbers of types of pattern matching are more specific
+than higher numbers of types of pattern matching.
+
 * An optional key/value list for nonstandard extensions.
 
 The usage of client configuration has:
