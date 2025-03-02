@@ -220,6 +220,6 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
   asn1__encode_number__(C,uint64_t,uint64) \
   (void)0 )))))))))(A,C) )
 
-#define asn1_foreach(A,B,C,D) for(A=asn1_rewind(B,C)?:asn1_next(B,D);A;A=asn1_next(B,D))
-#define asn1_foreach2(A,B,C,D,E) for(A=asn1_rewind(B,C)?:asn1_next(B,D)?:asn1_next(B,E);A;A=asn1_next(B,D)?:asn1_next(B,E))
+#define asn1_foreach(A,B,C,D) for(A=asn1_rewind(B,C)?:asn1_next(B,D);!(A);A=asn1_next(B,D))
+#define asn1_foreach2(A,B,C,D,E) for(A=asn1_rewind(B,C)?:asn1_next(B,D)?:asn1_next(B,E);!(A);A=asn1_next(B,D)?:asn1_next(B,E))
 
