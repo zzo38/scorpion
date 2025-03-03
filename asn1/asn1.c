@@ -56,6 +56,7 @@ int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next) {
   }
   out->data=data+at;
   if(indef) {
+#if 0
     ASN1 rel;
     for(out->length=0;;) {
       if(at<length && !data[at]) {
@@ -67,6 +68,9 @@ int asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next) {
       }
       if(x=asn1_parse(data+at+out->length,length-at-out->length,&rel,&out->length)) return x;
     }
+#else
+    return ASN1_IMPROPER_ENCODING; // indefinite mode is disabled for now
+#endif
   }
   if(next) *next+=at+out->length;
   return ASN1_OK;
