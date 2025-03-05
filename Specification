@@ -1010,7 +1010,10 @@ The crawling policy file is not allowed to be retroactive.
 
 === Conversion ===
 
-This part of the specification is optional.
+This part of the specification is optional. (Some parts also might be
+changed in future. For example, when displaying a file, it would help to
+output the URLs of links to stdout so that they can be followed by the
+host system.)
 
 Conversion between file formats is possible, and can be specified by the
 file called "/.special/conversion". Clients MUST NOT try to download this
