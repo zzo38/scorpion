@@ -45,6 +45,7 @@ enum {
   TOK_START_HEX_STRING,
   TOK_START_BASE64_STRING,
   TOK_START_TEXT_STRING,
+  TOK_DIRECTIVE,
 };
 
 enum {
@@ -186,6 +187,7 @@ static void*names;
 static char repeattoken;
 static char debugschema;
 static char debugtokens;
+static uint32_t normal_string_type=ASN1_IA5_STRING;
 
 #define ReturnT(x) do{ if(debugtokens) fprintf(stderr,"t=%d (b=%d w=%lu)\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
 #define ReturnTB(x,y) do{ tokenb=y; if(debugtokens) fprintf(stderr,"t=%d b=%d (w=%lu)\n",x,tokenb,(unsigned long)tokenw); return tokent=x; }while(0)
@@ -474,6 +476,13 @@ static int nexttok(void) {
     case '$':
       tokenw=0;
       c=getchar();
+      if(c=='$') {
+        c=getchar();
+        while(tokenlen<16 && c>='A' && c<='Z') tokenstr[tokenlen++]=c,c=getchar();
+        if(c!=EOF) ungetc(c,stdin);
+        tokenstr[tokenlen]=0;
+        ReturnT(TOK_DIRECTIVE);
+      }
       if(c>='A' && c<='Z') ReturnTB(TOK_FUNCTION,c);
       if(c<'0' || c>'9') errx(1,"Improper token");
       for(;;) {
@@ -2079,7 +2088,7 @@ static void do_one_item(void) {
       do_base64_string();
       break;
     case TOK_START_TEXT_STRING:
-      do_text_string(imp?ASN1_OCTET_STRING:ASN1_IA5_STRING);
+      do_text_string(imp?ASN1_OCTET_STRING:normal_string_type);
       break;
     case TOK_START_BIT_STRING:
       do_bit_string();
@@ -2096,6 +2105,23 @@ static void do_one_item(void) {
         nexttok(); goto again;
       }
       break;
+    case TOK_DIRECTIVE:
+      if(imp || wrap) errx(1,"A definition is not supposed to be preceded by an implicit type");
+      if(!strcmp(tokenstr,"STRINGS")) {
+        Prefix key={tokenstr};
+        Prefix*item;
+        nexttok();
+        if(tokent==TOK_EQUAL) nexttok();
+        if(tokent!=TOK_NAME) errx(1,"Wrong token in this context");
+        item=bsearch(&key,prefix,sizeof(prefix)/sizeof(*prefix),sizeof(Prefix),prefix_compare);
+        if(!item) errx(1,"Unrecognized prefix");
+        normal_string_type=item->type;
+        if(item->type>128 || item->type==ASN1_REAL || item->type==ASN1_UTC_TIMESTAMP) errx(1,"Wrong token in this context");
+        if(item->type==ASN1_BIT_STRING || item->type==ASN1_UTCTIME || item->type==ASN1_GENERALIZED_TIME) errx(1,"Wrong token in this context");
+      } else {
+        errx(1,"Unimplemented directive (%s)",tokenstr);
+      }
+      nexttok(); goto again;
     default: errx(1,"Wrong token in this context");
   }
 }

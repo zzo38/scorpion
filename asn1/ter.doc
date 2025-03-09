@@ -383,3 +383,11 @@ $I is like $E but uses implicit types instead of explicit types.
 $Z as a output item makes a sequence containing all of the fields in the
 same order in the input list.
 
+
+=== Directives ===
+
+Directives start with $$ and then further text. The directives are:
+
+$$STRINGS followed by a optional equal sign and then one of the string
+type names to override the default string type (instead of using IA5).
+
