@@ -36,7 +36,9 @@ implementation, but Visible string should always be valid.
 
 * The X.509 certificate.
 
-* The private key, or null if it is not recorded.
+* The private key, or null if it is not recorded. (This private key may be
+passworded; if so, the password is not stored in this file, and must be
+entered by the user when the user wishes to use this certificate.)
 
 * The index number of the issuer certificate. If this is a self-signed
 certificate, then it is this entry's own index number. This can be null
@@ -112,7 +114,9 @@ should always be valid.
 * The URL, which is a Visible string. Alternatively, this may be a group of
 bookmarks in which case this is a sequence of bookmarks instead. (If an
 implementation does not support grouped bookmarks, then it should read each
-item in the group and treat them as not being in the group.)
+item in the group and treat them as not being in the group.) This may also
+be null, if it is a separator; or it can be a object identifier if it is
+some special kind of item (the extensions will specify the parameters).
 
 * An optional key/value list for nonstandard extensions.
 
