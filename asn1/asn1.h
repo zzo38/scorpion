@@ -223,3 +223,9 @@ void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream
 #define asn1_foreach(A,B,C,D) for(A=asn1_rewind(B,C)?:asn1_next(B,D);!(A);A=asn1_next(B,D))
 #define asn1_foreach2(A,B,C,D,E) for(A=asn1_rewind(B,C)?:asn1_next(B,D)?:asn1_next(B,E);!(A);A=asn1_next(B,D)?:asn1_next(B,E))
 
+#define asn1_first_of(A,B) \
+  ({ ASN1*asn1__A=A; const ASN1*asn1__B=B; asn1__B->length?asn1_parse(asn1__B->data,asn1__B->length,asn1__A,0):ASN1_DONE; })
+#define asn1_next_of(A,B) \
+  ({ ASN1*asn1__A=A; const ASN1*asn1__B=B; \
+   asn1__A->data+asn1__A->length==asn1__B->data+asn1__B->length?ASN1_DONE:asn1_parse(asn1__A->data+asn1__A->length,asn1__B->length-asn1__A->length-(asn1__A->data-asn1__B->data),asn1__A,0); })
+

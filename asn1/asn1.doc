@@ -72,6 +72,10 @@ asn1_distinguished_parse(const uint8_t*,size_t,ASN1*,size_t*)
   Same as asn1_parse but does not allow indefinite encoding, and requires
   that the type and length are encoded in the minimum number of bytes.
 
+asn1_first_of(ASN1*inner,const ASN1*outer)
+  This is a macro. It will set inner to the first item of outer. If outer
+  is empty, then ASN1_DONE is returned.
+
 asn1_free(ASN1*obj)
   Frees dynamic memory belonging to the ASN1 structure. (Most functions
   don't allocate dynamic memory in a ASN1 structure, although some do.)
@@ -103,6 +107,11 @@ asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out)
   maxlen = The maximum size of the buffer.
 
   out = Pointer to ASN1 structure to write the result to.
+
+asn1_next_of(ASN1*inner,const ASN1*outer)
+  This is a macro. It expects inner to point to an item within the outer,
+  and will update inner to the next item; if there are no more left,
+  ASN1_DONE is returned.
 
 asn1_parse(const uint8_t*data,size_t length,ASN1*out,size_t*next)
   Parses a ASN.1 BER value from memory. This does not decode the value.
