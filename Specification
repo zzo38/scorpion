@@ -881,7 +881,8 @@ files, especially if they use recurring intervals, and to public search
 engines and mirrors that work automatically. It does not apply to users
 that manually download files or that only download a single list of files
 once, nor does it apply to proxies, gateway services, etc (but see below
-about proxies that are themself available to be crawled).
+about proxies and gateway services; there are special considerations for
+such things).
 
 Note that this does not prohibit anyone from making links to any files
 regardless of whether or not crawling is allowed.
@@ -992,6 +993,15 @@ or to set up its own policy which prohibits access to the proxied files
 to automated crawlers (either conditionally (according to which Scorpion
 server is being accessed) or unconditionally (for all proxied files,
 regardless of which server it is accessing through the proxy)).
+
+Due to badly behaved scraping botnets, any services that allow public
+access by WWW (or that is publicly available by WWW indirectly) MUST
+require user authentication for access, and not allow access otherwise.
+Agreements with specific server operators may be made explicitly if they
+want to allow it without user authentication, but do not assume that just
+because it was allowed at one time that it will be permanently allowed,
+and there is the possibility that an address may later be managed by
+someone else than it did before and that the permission no longer applies.
 
 Clients MAY add a query string when requesting the crawling policy file
 which identifies the crawler. (This is only for the crawling policy file;
