@@ -920,6 +920,9 @@ int asn1_decode_real_parts(const ASN1*asn,uint32_t type,uint8_t*significand,size
 
 // Encoding
 
+#define AUTOCLOSE 0x01
+#define VALUEENCODING 0x02
+
 typedef struct Sorter {
   FILE*file;
   size_t*mem;
@@ -937,10 +940,12 @@ typedef struct Encoder {
 
 struct ASN1_Encoder {
   FILE*file;
+  ASN1*val;
   Encoder*sub;
   uint32_t type;
   uint8_t class;
   uint8_t mode;
+  uint8_t mode2;
 };
 
 #define SorterItem1 if(enc->mode&ASN1_SORT) { size_t t=ftell(enc->file); fwrite(&t,1,sizeof(size_t),enc->sub->sort->file); }
@@ -955,9 +960,26 @@ ASN1_Encoder*asn1_create_encoder(FILE*file) {
   return enc;
 }
 
+ASN1_Encoder*asn1_start_encoding_value(ASN1*out) {
+  ASN1_Encoder*enc;
+  if(!out) return 0;
+  enc=calloc(1,sizeof(ASN1_Encoder));
+  if(!enc) return 0;
+  enc->val=out;
+  enc->mode=ASN1_ONCE;
+  return enc;
+}
+
+ASN1_Encoder*asn1_start_encoding_constructed_value(ASN1*out,uint8_t class,uint32_t type,uint8_t mode) {
+  ASN1_Encoder*enc=asn1_start_encoding_value(out);
+  if(enc) asn1_construct(enc,class,type,mode);
+  return enc;
+}
+
 int asn1_finish_encoder(ASN1_Encoder*enc) {
   int x;
-  if(enc->sub) return ASN1_IMPROPER_MODE;
+  if(enc->sub || enc->val) return ASN1_IMPROPER_MODE;
+  if(enc->mode2&AUTOCLOSE) fclose(enc->file);
   free(enc);
   return ASN1_OK;
 }
@@ -979,6 +1001,16 @@ int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
   Sorter*y;
   FILE*f;
   if(mode&0xF0) return ASN1_IMPROPER_ARGUMENT;
+  if(enc->val) {
+    if(enc->class || enc->type) class=enc->class,type=enc->type;
+    enc->val[0]=(ASN1){.constructed=1,.data=0,.length=0,.class=class,.type=type,.own=1};
+    mode&=~ASN1_INDEFINITE;
+    enc->file=open_memstream((char**)&enc->val->data,&enc->val->length);
+    if(!enc->file) return ASN1_ERROR;
+    enc->val=0;
+    enc->mode2=AUTOCLOSE|VALUEENCODING;
+    goto pass;
+  }
   if(!(p=malloc(sizeof(Encoder)))) return ASN1_ERROR;
   if(mode&(ASN1_SORT|ASN1_KVSORT)) {
     mode|=ASN1_SORT;
@@ -1010,6 +1042,7 @@ int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode) {
   if(enc->class || enc->type) asn1_write_type(1,enc->class,enc->type,enc->file); else asn1_write_type(1,class,type,enc->file);
   if(mode&ASN1_INDEFINITE) fputc(128,enc->file); else enc->file=f;
   enc->sub=p;
+  pass:
   enc->mode=mode;
   enc->class=0;
   enc->type=0;
@@ -1057,7 +1090,14 @@ int asn1_end(ASN1_Encoder*enc) {
   Encoder*p;
   again:
   p=enc->sub;
-  if(!p) return ASN1_IMPROPER_MODE;
+  if(!p) {
+    if(enc->mode2&VALUEENCODING) {
+      if(enc->file) fflush(enc->file);
+      enc->mode2&=~VALUEENCODING;
+      return ASN1_OK;
+    }
+    return ASN1_IMPROPER_MODE;
+  }
   if(enc->mode&ASN1_INDEFINITE) {
     fwrite("\0",1,2,enc->file);
   } else {
@@ -1101,6 +1141,10 @@ int asn1_sorter_mark(ASN1_Encoder*enc) {
 
 int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*data,size_t length) {
   SorterItem2;
+  if(enc->val) {
+    ASN1 v={.constructed=0,.data=data,.length=length,.class=class,.type=type};
+    return asn1_encode(enc,&v);
+  }
   if(enc->class || enc->type) asn1_write_type(0,enc->class,enc->type,enc->file);
   else if(!class && !type) return ASN1_IMPROPER_TYPE;
   else asn1_write_type(0,class,type,enc->file);
@@ -1112,6 +1156,18 @@ int asn1_primitive(ASN1_Encoder*enc,uint8_t class,uint32_t type,const uint8_t*da
 }
 
 int asn1_encode(ASN1_Encoder*enc,const ASN1*value) {
+  if(enc->val) {
+    enc->val[0]=*value;
+    if(enc->class || enc->type) enc->val->class=enc->class,enc->val->type=enc->type;
+    if(value->data) {
+      enc->val->data=malloc(value->length);
+      if(!enc->val->data) return ASN1_ERROR;
+      memcpy((char*)enc->val->data,value->data,value->length);
+    }
+    enc->val->own=1;
+    enc->val=0;
+    return ASN1_OK;
+  }
   SorterItem2;
   if(enc->class || enc->type) asn1_write_type(value->constructed,enc->class,enc->type,enc->file);
   else if(!value->class && !value->type) return ASN1_IMPROPER_TYPE;
@@ -1127,6 +1183,7 @@ int asn1_wrap(ASN1_Encoder*enc) {
   Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
   Encoder*p;
   FILE*f;
+  if(enc->val) return ASN1_IMPROPER_MODE;
   if(!(p=malloc(sizeof(Encoder)))) return ASN1_ERROR;
   *p=e;
   f=open_memstream(&p->mem,&p->size);
@@ -1148,6 +1205,14 @@ FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
   Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
   Encoder*p;
   FILE*f;
+  if(enc->val) {
+    if(enc->class || enc->type) enc->val->class=enc->class,enc->val->type=enc->type;
+    enc->val[0]=(ASN1){.constructed=0,.data=0,.length=0,.class=class,.type=type,.own=1};
+    enc->file=open_memstream((char**)&enc->val->data,&enc->val->length);
+    enc->val=0;
+    enc->mode2=AUTOCLOSE|VALUEENCODING;
+    return enc->file;
+  }
   if(!(p=malloc(sizeof(Encoder)))) return 0;
   *p=e;
   f=open_memstream(&p->mem,&p->size);

@@ -189,10 +189,14 @@ int asn1_read(FILE*fp,uint8_t*constructed,uint8_t*class,uint32_t*type,size_t*len
 int asn1_read_item(FILE*fp,ASN1*item,uint64_t*remain);
 int asn1_rewind(ASN1_Iterator*iter,const ASN1*value);
 int asn1_sorter_mark(ASN1_Encoder*enc);
+ASN1_Encoder*asn1_start_encoding_constructed_value(ASN1*out,uint8_t class,uint32_t type,uint8_t mode);
+ASN1_Encoder*asn1_start_encoding_value(ASN1*out);
 int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out);
 int asn1_wrap(ASN1_Encoder*enc);
 void asn1_write_length(uint64_t length,FILE*stream);
 void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream);
+
+#define asn1_start_encoding_file asn1_create_encoder
 
 #define asn1__decode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E*),asn1_decode_##F,
 #define asn1_decode_number(A,B,C) (( \

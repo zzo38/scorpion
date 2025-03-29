@@ -510,6 +510,18 @@ asn1_sorter_mark(ASN1_Encoder*enc)
   beginning of each item. This function is not needed and has no effect
   if the construction being made does not use sorting.
 
+ASN1_Encoder*asn1_start_encoding_constructed_value(ASN1*out,uint8_t class,uint32_t type,uint8_t mode)
+  This has the same effect as asn1_start_encoding_value followed by
+  immediately asn1_construct. The ASN1_INDEFINITE flag is not meaningful
+  in this case (and will be ignored if it is provided).
+
+ASN1_Encoder*asn1_start_encoding_file(FILE*file)
+  This is a macro with the same meaning as asn1_create_encoder.
+
+ASN1_Encoder*asn1_start_encoding_value(ASN1*out)
+  Creates a ASN1_Encoder object that writes its output to the specified
+  ASN1 value structure. Only a single value can be encoded.
+
 asn1_wrap(ASN1_Encoder*enc)
   Like asn1_construct(enc,ASN1_UNIVERSAL,ASN1_OCTET_STRING,ASN1_ONCE) but
   the primitive/constructed bit is clear (indicating primitive) instead of
