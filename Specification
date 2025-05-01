@@ -320,20 +320,20 @@ specifications are merely a hint, and are not mandatory to be implemented.
 Unrecognized hints shouldn't prevent the user from specifying a client
 certificate anyways, but in that case the client MAY require that the user
 explicitly specify which set of URLs it applies to; if it does not then
-there will be a implementation-dependent default setting.
+there will be a implementation-dependent default setting. Note that it is
+not required to implement all types of pattern matching; matching by domain
+and port is sufficient as a minimal implementation, although matching by
+path is better.
 
 Client certificates normally apply to all subprotocols used with that URL,
 although the user may be allowed to override this. Alternatively, a client
 might apply it to all subprotocols if the subprotocol in the request is R,
 but limit it to the requested subprotocol if it is S or I.
 
-If the server requires a client certificate and a user name, it should use
-a 54 response first, and then 60 once a valid username has been provided.
 If the server requires either a client certificate or a user name (of the
 client's choice), but does not need both, then it should provide a 54
 response if the connection is not using TLS, or 60 if it is using TLS. A
-server SHOULD NOT require both a password and a client certificate at the
-same time. (TODO: Possibly change this paragraph.)
+server SHOULD NOT require both at the same time.
 
 A client may have any UI its author wishes, but an example of a GUI which
 might be used to manage client certificates would be:
@@ -418,10 +418,15 @@ it with its own version specification.
 
 * 51 or 52 = Delete a file.
 
-A server does not need to implement all of the above possibilities.
+A server does not need to implement all of the above possibilities. (Other
+possibilities may make sense for some specialized applications, but in no
+cases is 0x, 7x, or 8x allowed here.)
 
 After the client finishes sending, the server sends the status line, which
-will be a 8x code if successful or a different code if it is an error.
+will be a 8x code if successful or a different code if it is an error. The
+response may also be 20 if if the response needs to include a payload, but
+this does not guarantee that the request created or modified a file. The
+status code after the upload MUST NOT be 0x or 1x.
 
 Note that if the client disconnects before sending its own status line or
 before sending the amount of data of the file that it said it was going to
@@ -1226,52 +1231,8 @@ vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 === Superseding certificates ===
 
-(The below seems like it wold work, but there is some difficulty to get
-it to work, since it requires computing signatures of the certificate
-with some fields cleared. I had considered an alternative that uses the
-issuer certificate, as well as the subject certificate; this means that
-the public key field and list of excluded extensions field are both
-unnecessary, since the key is specified in the issuer certificate and
-excluding extensions is unnecessary. However, it then requires that
-both the issuer certificate and subject certificate must be changed.)
-
-The format of this extension is a sequence consisting of the fields:
-
-* The public key for other certificates to supersede this one, or null.
-If it is null, or if this extension is not present, then the certificate's
-own key will be used for this purpose.
-
-* The Algorithm Identifier for the hash algorithm which is used for
-identifying older certificates which are being superseded. (TODO: Make
-the recommendation of which hash algorithm should be used.)
-
-* A bit string which specifies which extensions (where the first bit
-corresponds to the first extension in this certificate, etc) should have
-their values replaced with all bits clear for the purpose of calculating
-the signature of this certificate with the old certificate's keys. If any
-bits are present, then the last bit that is present must be set; all
-further bits are implied to be clear. This bit string should never specify
-that the superseding certificates extension is itself excluded, and any
-implementation that understands an extension should not allow excluding it
-if such an exclusion is unnecessary. (This is present in order to avoid a
-mess with potential future defined extensions which would conflict.)
-
-* A sequence of the Superseding Item structures, explained below. They
-should be listed in order from oldest to newest. It is not necessary to
-list all of the older certificates, but you should list the few most
-recent, especially if they have been changed recently.
-
-The Superseding Item structure is a sequence of the fields:
-
-* The hash of the older certificate.
-
-* The signature (a bit string) of this certificate with the older
-certificate's key. For the purpose of computing the signature, use
-only the tbsCertificate (not the stuff that comes afterward), but with
-all bits cleared in the value (not the type/length header) of the
-signatures within all Superseding Items, and all bits cleared within
-the value (the octet string data, which wraps ASN.1 DER data) of all
-extensions that are excluded.
+(This section used to contain something but is not available. It will
+probably need to be changed to something that would work better.)
 
 
 === Recommendations and other notes ===
@@ -1292,7 +1253,8 @@ TLS or non-TLS (except files which require a client certificate to access).
 
 Unicode is no good. Clients SHOULD NOT automatically convert TRON code
 into Unicode, except as a fallback in case suitable fonts are not available
-or a similar problem, and such fallbacks should be avoided if possible.
+or a similar problem (e.g. limitations in UI libraries or in badly designed
+programming langauges), and such fallbacks should be avoided if possible.
 
 Redirects should not be overused.
 
@@ -1419,14 +1381,14 @@ some further information about security issues of TLS.
 Security is important as well as simplicity and interoperability.
 Therefore, servers and clients are required to support the non-TLS
 protocol, while TLS is optional (but is recommended). There is no
-requirement of which versions, ciphers, extensions, etc of TLS will be
-implemented; an implementation can do whatever it is able to do.
+requirement of which versions, ciphers, extensions, etc of TLS will
+be implemented; an implementation can do whatever it is able to do.
 
 In cases where improved security is required, users might be able to
 determine the required public keys ahead of time before connecting to
 the server, and may install those keys in the computer. (The method for
 acquiring those keys is deliberately not specified in this document; it
-is something that each user will have ti figure out by themself.)
+is something that each user will have to figure out by themself.)
 
 The recommended way to handle TLS cipher suites, TLS validation, etc, is
 whatever way the client software uses for any protocols that it already
@@ -1482,6 +1444,26 @@ have an option to auto-generate favicons.
 Client certificates are not encrypted with TLS 1.2, but are encrypted
 with TLS 1.3. Therefore, clients SHOULD warn when using a client
 certificate with a TLS version 1.2 or less.
+
+Note that a file on one server may link (or redirect) to any file on
+another server (or to another user's file on the same server, if it serves
+files set up by multiple users on a multi-user system), and this request
+may have client authentication associated with it. The specifications in an
+above section about R requests not changing the state of the server (and of
+I requests only doing so once the client sends additional data to the
+server) should be used in order to avoid these issues.
+
+TLS session resumption and similar things which can be used to allow the
+server to track the client should only be used if all of those requests are
+using the same client certificate, and should not be used if a client
+certificate has not been selected by the user. However, it should still
+allow the user to disable this feature even in that case.
+
+It should also probably warn about redirects from internet to LAN or
+from internet to localhost by default (but might allow it by a user
+configuration setting), and displaying a warning if a DNS resolves to
+LAN or localhost (again with user configuration settings to allow it
+in specific cases without a warning).
 
 
 === Missing details ===
