@@ -1,0 +1,30 @@
+This document describes formats called Basic Streaming Encoding Rules
+(BSER) and Distinguished Streaming Encoding Rules (DSER), which are
+variants of BER and DER (but are not compatible with them; a different
+decoder must be used to decode them). These formats may be useful when
+the program producing the data needs to do so without knowing how long
+it is before it is finished (like the indefinite length encoding in BER
+is, although I think this way is a bit simpler and cleaner).
+
+The ASN.1 and ASN.1X types work like they do in BER and DER except that
+strings must be primitive rather than constructed.
+
+An item in BSER starts with the type, which is encoded the same as BER.
+
+If it is constructed, then the length is omitted but then the items inside
+follow and then a single byte 0x00 terminates the construction.
+
+If it is primitive, then it consists of zero or more segments and then a
+single byte 0x00 to terminate the value. Each segment has a length from 1
+to 255 bytes, and consists of one byte specifying the length and then the
+data of that length. The value is the concatenation of all segments.
+
+DSER is BSER with the additional restrictions of DER, and another
+additional restriction that a segment of a primitive value that is
+not the last segment must have length 255.
+
+My opinion is that CER is not very good. DSER is more compact than CER as
+well as simpler than CER, and does not need construced strings.
+
+Note that you can always losslessly convert between DER and DSER without
+needing the schema.

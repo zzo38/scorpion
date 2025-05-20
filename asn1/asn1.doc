@@ -714,8 +714,12 @@ but cannot have control characters.
 
 * Universal string (28 S): A string of 32-bit ISO 10646 characters.
 
-* Character string (29 C): An unrestricted character string. The
-definition is a bit complicated and is not mentioned here.
+* Character string (29 C): An unrestricted character string. It is
+constructed and contains two items. The first is either a object identifier
+which identifies the character set and encoding, or a sequence of two
+object identifiers where the first identifies the character set and the
+second identifies the character encoding. The second item is a octet string
+which is the encoding of the character string value.
 
 * BMP string (30 S): A string of 16-bit Unicode characters.
 
@@ -807,28 +811,19 @@ of the field is equal to the default value.
 * ISO 2022 strings are not allowed to use redundant escape codes to select
 character sets that are already selected, and must be designated as the
 smallest numbered G or C set that is allowed (e.g. G0 must be used instead
-of G1 if the character set is allowed to be G0).
+of G1 if the character set is allowed to be G0). The character set is only
+to be selected immediately before the character using that set.
+
+* ISO 8601 encodings are also restricted (they are not currently specified
+in this document).
 
 
 === ASN.1X ===
 
 ASN.1X is a variant of ASN.1 which adds some additional universal types and
-schema types, and removes some, deprecates some, and adds a few other
-restrictions as well. (Most of this is not implemented yet, and may be
-changed before the implementation is made.)
-
-The following universal typse are not used in ASN.1X:
-  ASN1_TIME (14)
-  ASN1_DATE (31)
-  ASN1_TIME_OF_DAY (32)
-  ASN1_DATE_TIME (33)
-  ASN1_DURATION (34)
-  ASN1_OID_IRI (35)
-  ASN1_RELATIVE_OID_IRI (36)
-
-The following types are deprecated in ASN.1X:
-  ASN1_NUMERICSTRING (18)
-  ASN1_UTCTIME (23)
+schema types, and deprecates some, and adds a few other restrictions as
+well. (Most of this is not implemented yet, and may be changed before the
+implementation is made.)
 
 New universal types:
 
@@ -886,6 +881,19 @@ primitive or constructed node of a BER file, but you cannot specify a
 child index for a child of a primitive node, since primitive nodes cannot
 have child nodes. At least one number (how many levels of parents) is
 required, but any number of numbers is potentially possible.
+
+* ASN1_IDENTIFIED_DATA (75): Data which has a format and/or meaning which
+is identified within the data. The encoding is always constructed and
+consists of two or three items. The first item is a set of object
+identifiers, object descriptors (used only for display), and/or sequences
+where the first item of the sequence is a object identifier. The receiver
+ignores any items in this set that it does not understand. The second
+item in a ASN1_IDENTIFIED_DATA can be any single item of any type; it is
+interpreted according to the object identifiers in the first set that the
+receiver understands. The third item is optional, and if it is present it
+is a key/value list of extensions; the keys are object identifiers and
+the values are of any type according to the object identifiers. The default
+value of this key/value list is an empty key/value list.
 
 The encoding of the new time types can be any one of:
 
@@ -948,10 +956,18 @@ number can be any non-negative integer).
 * UTF16String: This type uses the same type number and encoding as the
 BMPString type, but allows surrogates to represent non-BMP characters.
 
+* Scientific number: Same as REAL, but in DER encoding there must be
+exactly one digit to the left of the decimal-mark, and that digit must
+not be zero unless all of the digits are zero, and trailing zeros are
+allowed (therefore indicating the number of significant figures).
+
 The following additional restrictions exist:
 
 * If a string uses a constructed encoding, then the segments of the
 string must use the primitive encoding; they cannot also be constructed.
+It is recommended that strings do not use constructed encoding (BSER or
+DSER should be used instead in cases where this is useful), and some
+implementations might not support constructed encoding for strings.
 
 * Optional and default fields are not allowed unless it is possible to
 determine its presence or absence without needing to look ahead. For
@@ -969,5 +985,7 @@ one of the ASCII-based string types.
 defined as a separate file if this is desired.
 
 * PATTERN constraints have some additional restrictions as well as some
-additional possible notations, compared with standard ASN.1.
+additional possible notations, compared with standard ASN.1. The PATTERN
+is only Unicode if the string type being matched is Unicode, but can be
+ISO 2022 or ASCII if the string being matched is ISO 2022 or ASCII.
 

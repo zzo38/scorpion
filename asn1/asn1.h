@@ -79,6 +79,7 @@
 #define ASN1_OUT_OF_BAND 72
 #define ASN1_MORSE_STRING 73
 #define ASN1_REFERENCE 74
+#define ASN1_IDENTIFIED_DATA 75
 
 // Classes
 #define ASN1_UNIVERSAL 0
