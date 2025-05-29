@@ -1025,6 +1025,9 @@ The crawling policy file is not allowed to be retroactive.
 
 === Conversion ===
 
+(This format may be changed in future, possibly to a DER-based format
+rather than using a custom format.)
+
 This part of the specification is optional. (Some parts also might be
 changed in future. For example, when displaying a file, it would help to
 output the URLs of links to stdout so that they can be followed by the
@@ -1231,8 +1234,28 @@ vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 === Superseding certificates ===
 
-(This section used to contain something but is not available. It will
-probably need to be changed to something that would work better.)
+(Request for comment)
+
+A issuer certificate is required (although the issuer certificate does not
+need to be someone trusted by others; it is good enough to make up your own
+self-signed certificate). The OID for this extension must occur in the
+"extended public key usage" extension of the issuer certificate.
+
+The format of the extension is a sequence with the following fields:
+
+* A OID identifying a hash algorithm which will be used to identify this
+certificate for the purpose of superseding it.
+
+* A sequence of Octet strings, being the hashes of certificates that this
+one supersedes; all of the certificates being superseded must have the same
+issuer as the present certificate. They are listed from oldest to newest,
+and it is not mandatory to list all of them, but at least the newest one
+should be included, and at least a few more recent ones if the certificate
+has been changed multiple times recently.
+
+* (One or more additional optional fields may be added in future, for
+external superseding, but this is not written yet. Implementations are
+not required to support external superseding.)
 
 
 === Recommendations and other notes ===
@@ -1398,7 +1421,9 @@ include the possibility for the user to change the options, and for the
 user to manually add and remove certificates. It should also be possible
 for the user to specify the security levels when manually adding
 certificates (in order to prevent downgrading attacks). Regardless of
-the default settings, the user MUST be allowed to override them.
+the default settings, the user MUST be allowed to override them. (There
+will be a separate document written with further specifications about the
+handling of certificate validation and of certificate chains.)
 
 TLS session tickets can also be used for tracking, although they can speed
 up transfers. By default, clients SHOULD NOT reuse tickets for multiple
@@ -1464,6 +1489,10 @@ from internet to localhost by default (but might allow it by a user
 configuration setting), and displaying a warning if a DNS resolves to
 LAN or localhost (again with user configuration settings to allow it
 in specific cases without a warning).
+
+An implementation might wish to display a visual representation of a hash
+of the server's certificate. (The specification for doing this is not
+written yet, and will be written later.)
 
 
 === Missing details ===
