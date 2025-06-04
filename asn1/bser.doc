@@ -27,4 +27,49 @@ My opinion is that CER is not very good. DSER is more compact than CER as
 well as simpler than CER, and does not need construced strings.
 
 Note that you can always losslessly convert between DER and DSER without
-needing the schema.
+needing the schema, and if you convert one way and then back other way it
+will be the same as it was before.
+
+This file also defines SDER (Semi-Distinguished Encoding Rules) and DSDER.
+SDER is a subset of BER but a superset of DER, which is usable in case you
+do not need canonical form but do not want the complexity of handling BER.
+DSDER is to SDER as DSER is to DER, and removes the requirement that the
+length of segments other than the last segment must be 255.
+
+The rules for SDER are:
+
+* Sets and key/value lists are not required to be in canonical order (but
+the keys must be with the corresponding values in a key/value list).
+
+* TRON strings are allowed to have redundant shifts.
+
+* ISO 2022 strings are allowed to have redundant escape codes to designate
+C and G sets, and are allowed even if not immediately before the character
+being encoded as a part of that set. Furthermore, a 94-set is allowed to be
+designated as G0 or G1 rather than only G0.
+
+* Default values are not required to be omitted.
+
+* For decimal numbers, plus signs are allowed (but not mandatory, even for
+the exponent), and the decimal-mark is allowed to (but not required to)
+have extra digits afterward, and trailing zeros are allowed.
+
+* For binary real numbers, the significand is not required to be an odd
+number, and it is not required to use the smallest number of bytes. (It
+is still required to use base 2; base 8 and 16 are not allowed.)
+
+* For Generalized time, a fractional number of seconds is allowed even if
+the fractional number is zero, and trailing zeros are allowed.
+
+* Bit strings with named bits is allowed to have trailing zeros, but the
+total number of bits cannot exceed the maximum number of bits defined in
+the schema, rounded up to a multiple of eight bits, unless the schema is
+intended to be extensible.
+
+* The number of bytes for encoding the length (not applicable for SDSER)
+is not required to be the smallest possible number of bytes, but it is
+not allowed to be more bytes than would be needed for the longest allowed
+length of that item, or for the entire file if that would be smaller.
+(Some of these limits may be implementation-dependent, or may depend on
+the application in ways that are not specified in the schema.)
+

@@ -959,7 +959,36 @@ BMPString type, but allows surrogates to represent non-BMP characters.
 * Scientific number: Same as REAL, but in DER encoding there must be
 exactly one digit to the left of the decimal-mark, and that digit must
 not be zero unless all of the digits are zero, and trailing zeros are
-allowed (therefore indicating the number of significant figures).
+allowed and are considered significant.
+
+* CANONICAL and DISTINGUISHED: These modifiers force the field with this
+modifier (and anything it contains) to be encoded in canonical form. (If
+the file is already in canonical form, then this makes no difference.)
+
+* WITH TIME ZONE: Can be specified after the name of any date/time type
+that allows time zone specification in BER. If this is specified, then
+the time zone is mandatory, even in DER, and the time zone is considered
+significant (so should not be changed).
+
+* Constraint types as though it is a different type: A constraint may be
+defined as being as though the value is of a type other than the actual
+type of the field. See below for the rules about this.
+
+Constraint types as though it is of a different type have these rules:
+
+* The type being constrained by must be OCTET STRING, INTEGER, one of
+the ASCII-based string types, BCD string, or SEQUENCE (which is treated
+as SEQUENCE OF for this purpose). It cannot be a derived type.
+
+* The constraint must be a single value constraint, value range constraint,
+size constraint, permitted alphabet constraint, or pattern constraint.
+
+* If the actual type is a primitive type, then the type being constrained
+by is not allowed to be SEQUENCE.
+
+* If the actual type is a constructed type, then the type being constrained
+by can be OCTET STRING or SEQUENCE, and if it is OCTET STRING then the only
+constraint allowed is a size constraint.
 
 The following additional restrictions exist:
 
