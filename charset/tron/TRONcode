@@ -1,0 +1,66 @@
+The ordinary TRON Code uses planes 0x21 to 0x40 (although not all of these
+are defined). "Extended TRON Code" defines some of the planes outside of
+that range as well; the ordinary TRON planes are also used in Extended TRON
+Code and no additions are made to them. (The Unicode-based planes are
+deprecated in Extended TRON Code, but remain available for working with
+data which is originally in Unicode format.)
+
+The arrangement of the TRON code is 0xVVPPXXXX where VV is the volume, PP
+is the plane, and XXXX is the character code within the plane. The plane
+and both bytes of the character code within the plane must be in the range
+0x21 to 0xFD except 0x7F; the volume number can be anything (and it is a
+part of the plane number, so the plane is within the volume).
+
+Character codes within each plane and are split into four zones:
+ A zone: High byte and low byte are both in range 0x21 to 0x7E.
+ B zone: High byte in range 0x80 to 0xFD and low byte in range 0x21 to 0x7E.
+ C zone: High byte in range 0x21 to 0x7E and low byte in range 0x80 to 0xFD.
+ D zone: High byte and low byte are both in range 0x80 to 0xFD.
+
+The encodings of TRON character set are:
+
+* TRON-8: A character is represented by small-endian two-byte character
+code, while a plane shift is one more byte 0xFE than the volume number,
+followed by the one byte plane number; all further characters up to the
+next plane shift will use the specified plane. Codes 0x00 to 0x20 and 0x7F
+are reserved for control functions (which are not a part of TRON code).
+
+* TRON-16: There is big-endian and small-endian variant. A plane shift is
+0xFE21 to 0xFEFD for volume 0, or it can be any number of 0xFEFE followed
+by either 0x0021 to 0x00FD (for odd volumes) or 0xFE21 to 0xFEFD (for even
+volumes). A character code is 0x2121 to 0xFDFD. Control codes are in the
+range 0x0000 to 0x0020 or 0x007F, and 0xFF21 to 0xFF7E are special codes.
+The TRON Application Databus format also uses 0xFF80 to 0xFFFD.
+
+* TRON-32: There is big-endian and small-endian variant. The codes are
+simply the 32-bit code explained above, so the lowest normal character code
+ix 0x00212121 and the highest is 0xFFFDFDFD. Other codes are not a part of
+TRON code but may be used in other applications.
+
+Some encodings in some planes use the "linear2hilo" function, which works
+as follows:
+
+* If 0 to 8836: Divide by 94. The high byte is 0x21 plus the quotient and
+the low byte is 0x21 plus the remainder.
+
+* If 8837 to 20679: Divide by 94. The high byte is 0x80 plus the quotient
+and the low byte is 0x21 plus the remainder.
+
+* If 20680 to 32523: Divide by 126. The high byte is 0x80 plus the quotient
+and the low byte is 0x80 plus the remainder.
+
+* If 32524 to 48399: Divide by 126. The high byte is 0x80 plus the quotient
+and the low byte is 0x80 plus the remainder.
+
+The other files in this directory are named as follows:
+
+* The hexadecimal plane number (including volume number as well if it is
+nonzero), if it is a file describing the characters (and other properties,
+if applicable) of that plane. Some sets will span multiple planes; in this
+case, the name will be hyphenated.
+
+* X followed by other numbers for a draft specification. Sometimes an
+extended plane may be partially defined, and the draft specification files
+will be used for the parts that are not assigned yet. (For non-extended
+planes, any drafts will be managed by separate Japanese organizations, and
+are unlikely to be made available here or anywhere else.)
