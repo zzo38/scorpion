@@ -9,6 +9,7 @@ Table of contents:
   Receive subprotocol
   Send subprotocol
   Interactive subprotocol
+  Meta subprotocol
   Hashed URI scheme
   Document file format
   Extended link attributes
@@ -518,6 +519,21 @@ some cases, some or all of them might be not applicable, e.g. if it is not
 a terminal emulation.)
 
 
+=== Meta subprotocol ===
+
+This subprotocol is coded as "M".
+
+It works like "R" with the following differences:
+
+* It accesses a file containing information about the specified file,
+rather than accessing the contents of the file itself.
+
+* Range requests are not possible.
+
+This can be used in a similar way like the item attribute information of
+Gopher+, or the metadata request of Scroll, although it is not the same.
+
+
 === Hashed URI scheme ===
 
 The "hashed:" URI scheme has the format "hashed:X/Y,Z" where X is the
@@ -777,6 +793,10 @@ code. This is not valid for block type 0x0A.
 
 * 0x49 = A hint for the capability string to use with interactive mode.
 This is only valid for block type 0x0A.
+
+* 0x4D = Means that the "M" request is usable with the linked file. (This
+does not cause the link itself to use the "M" request.) The value of this
+attribute is optional and is the ULFI type of the metadata file.
 
 * 0x72 = Relation types. The value is any number of bytes; if the bytes are
 0x01 to 0x7F then they are the relation type from this file to the target
