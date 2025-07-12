@@ -80,6 +80,7 @@
 #define ASN1_MORSE_STRING 73
 #define ASN1_REFERENCE 74
 #define ASN1_IDENTIFIED_DATA 75
+#define ASN1_RATIONAL 76
 
 // Classes
 #define ASN1_UNIVERSAL 0
