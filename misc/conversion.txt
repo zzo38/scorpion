@@ -1,0 +1,131 @@
+(DRAFT for new version of format of conversion file)
+
+Conversion between file formats is possible, and can be specified by the
+file called "/.special/conversion". Clients MUST NOT try to download this
+file unless the user explicitly commands the computer to do so; it is not
+supposed to do so merely by finding a file that is not known how to handle.
+(Client software also MUST allow the user to override them, and to remove
+any such files that have already been downloaded.)
+
+Furthermore, any client that is able to understand it MUST NOT require that
+it comes from the same server as the file; it can also be a local file
+which has been written by the end user, a file from another server (or the
+same server but a different path) etc, and once a conversion has been
+enabled by the user then the same conversion might be used with other
+servers too if appropriate (not all kinds of conversions are appropriate
+for using with other servers (e.g. if file name rewriting is used then it
+is not appropriate for arbitrary servers), but some can). If it does use
+it with other servers, the user MUST be able to configure this feature,
+e.g. so that it does not work with other servers.
+
+Clients might also have their own mechanisms for conversion beyond what are
+written here, e.g. allowing to use local programs with pipes (which is a
+recommended way of doing so); such ways can only be used if set up by the
+end user or the system administrator and cannot be specified by servers.
+(This is possible even if the rest of the specification in this section of
+this document is not implemented.)
+
+It is a DER file with a sequence of records, where each record is a
+sequence with two fields, being the Match field and then the Effect field.
+Each of these two fields is a implicit typed sequence, with the type number
+specifying which kind of match or effect to use.
+
+In addition, where a uxn program is expected, it may be either a Visible
+string (which is the URL of the program) or a Octet string (which is the
+uxn program itself).
+
+Match types are:
+
+* 0 = Contains one Visible string being the ULFI type to match. The ULFI
+type may be partial, and should normally be a single piece.
+
+* 1 = Contains two Visible strings, the first being a URL prefix and the
+second being a URL suffix. The prefix must start with a forward slash if
+it does not begin with the scheme. The suffix excludes any query string
+and fragment name that may be present in the original URL. If the scheme
+is included, it must include the entire scheme including the colon.
+
+* 2 = Used for interactive mode. Contains one Visible string, being the
+capability string to match.
+
+* 3 = Like type 1 but used for interactive mode instead of normal files.
+
+Effect types are:
+
+* 0 = File name rewriting. Contains two Visible strings, the first being
+the suffix to match and the second being the suffix to replace it with.
+
+* 1 = Contains two Visible strings; the first being the URL for a document
+which describes the file format, and the second being the ULFI type of the
+documentation file (plain text or Scorpion format is preferred).
+
+* 2 = Use a uxn program to convert the file into another format. The first
+field is a Visible string being the target ULFI type. The second field is
+the uxn program. The third field is a bit string which specifies how the
+uxn program operates; see below.
+
+* 3 = Use a uxn program to display the file in GUI mode. The only field is
+the uxn program.
+
+* 4 = Use interactive mode, with the same URL. The only field is a Visible
+string being the recommended capability string, and it is optional.
+
+* 5 = Contains a Visible string, which is a full URL (either absolute, or
+beginning with a forward slash), which must end with a query string. The
+original full absolute URL is percent-encoded and appended to this one, to
+make the URL to use instead.
+
+* 6 = Combines types 4 and 5. The first field is the URL as in type 5, and
+the second (optional) field is the capability string.
+
+* 7 = Use a uxn program to display a front-end GUI for a interactive mode
+connection (type I request). The only field is the uxn program; the
+standard I/O of the uxn program is connected to the interactive session of
+the server, and EOF is received if the server disconnects. Standard error
+is not connected to the server (implementations should display anything
+written to stderr in an independent window, but this is not required).
+
+(Not all combinations of match types with effect types are meaningful.)
+
+The bit string for how the uxn program operates is a bit field with the
+following bits available (an implementation might not support all of these
+combinations; if it sees any bits set which are not understood or are not
+mentioned below, then it will ignore the entire record that contains it):
+
+* Clear for stdin/stdout, or set if the first file device is the input file
+(which is read only) and the second file device is the output file.
+
+* Set if the input file is seekable and can be closed and reopened (this
+requires some features of uxn38, although the implementation does not have
+to be uxn38 and can be any implementation supporting these features).
+
+* Set if the output file is seekable and can be closed and reopened, and
+can also be read as well as written. (This may also require some of the
+features of uxn38.)
+
+* Set if the first (and only) command-line argument is the desired picture
+size, with two numbers with "x" in between, e.g. "640x480". This is only
+valid if the output format is a picture format. The actual picture size may
+be different from the desired picture size.
+
+Note that it is OK if there are multiple records which match the same file.
+In this case, the first one that matches and that has an effect that can be
+used is normally preferred, although any matching record may be used, even
+if the first one is usable, a different one may be used instead anyways.
+
+Recommended output formats for pictures are farbfeld (true colours) and
+XPM2 (indexed colours, which also allows specifying symbolic colours which
+can be specified by user preferences). In the XPM2 format, you should not
+use X11 colour names; only hex, "black", "white", "None", and symbolic
+names (with the "s" colour type) should be used (although monochrome and
+grey scales are usable too, in addition to full colours and symbolic).
+
+Note that farbfeld should not be used for disk storage nor for transfer; it
+should only be used as the output format of a conversion program that runs
+on the client side, and the output should be read as it is being made,
+rather than being saved to disk.
+
+Implementations should ignore any records it does not understand or cannot
+use, except possibly to display them if you want to display all records
+including those which are not usable.
+
