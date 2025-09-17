@@ -1,0 +1,24 @@
+G 94 single byte sets:
+(none)
+
+G 96 single byte sets:
+<1B 24 2D 23 40> EIA-708 G0 set
+<1B 24 2D 23 42> EIA-708 G2 set
+<1B 24 2D 23 43> EIA-708 G3 set
+<1B 24 2D 23 44> First PC extension (0xA0-0xC0=PC 0x00-0x20, 0xDF-0xFF=PC 0x7F-0x9F)
+<1B 24 2D 23 45> Second PC extension (0xA0-0xFF=PC 0xA0-0xFF)
+
+G 94 multi byte sets:
+(none)
+
+G 96 multi byte sets:
+(none)
+
+C0 sets:
+(none)
+
+C1 sets:
+(none)
+
+DOCS:
+<1B 25 23 40> TRON-8

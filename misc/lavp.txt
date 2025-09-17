@@ -40,7 +40,8 @@ be used and not only numbers). A space or end of string means "Enter",
 and if "Enter" is used without being preceded by other characters then
 that "Enter" command has no meaning.
 
-* Null: No operation.
+* Null: No operation. (This is used merely in case you want to send
+something using the connection but there is no command that is needed.)
 
 * Key/value list: Extension. The keys are OIDs and the values can be
 any arbitrary types.
@@ -241,7 +242,7 @@ The shows must be listed in chronological order.
 
 ...1.0 (Time) [Sequence]
   A sequence with two fields, being the start time (Generalized time) and
-  then the duration in minutes (Integer).
+  then the duration in seconds (SI-based time interval).
 
 ...1.1 (Show identification) [Sequence]
   Show identification from least to most specific. Generally, this should
@@ -249,7 +250,7 @@ The shows must be listed in chronological order.
   but any number of items is allowed (a special or movie might have only
   the show ID). The show ID should be a OID and the season and episode
   numbers should be Integers, but sometimes this will not necessarily be
-  the case.
+  the case; they may potentially be any types.
 
 ...1.2.0 (Movie Decimal identification) [Set of BCD strings]
 
@@ -263,6 +264,13 @@ The shows must be listed in chronological order.
 
 ...1.4 (Original broadcast date) [Generalized time]
 
+...1.5.0 (Description of show) [General string]
+  A description of the show. This may include line breaks.
+
+...1.5.1 (Description of episode) [General string]
+  A description of this episode of this show, which has the same format
+  than the description of the show.
+
 
 === Movie Decimal Classification ===
 
@@ -275,7 +283,8 @@ A user interface may display a menu of what next digits are possible at the
 current time and what each one means, therefore allowing understanding what
 it means easily; numbers can then be entered using the numbers on the
 keyboard or the numbers on the remote control, for quick selection of TV
-shows, movies, and classifications.
+shows, movies, and classifications. It SHOULD use one of the buttons on the
+control to mean a "don't care" digit.
 
 When using DER format, the data type for a Movie Decimal string should be
 BCD string for ASN.1X or Numeric string for standard ASN.1.
