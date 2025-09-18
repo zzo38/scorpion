@@ -1,5 +1,20 @@
 G 94 single byte sets:
-(none)
+<1B 28 22 34> DEC Hebrew (without NRCS)
+<1B 28 22 3E> DEC Greek (with NRCS)
+<1B 28 22 3F> DEC Greek (without NRCS)
+<1B 28 25 32> DEC Turkish (with NRCS)
+<1B 28 25 33> SCS NRCS
+<1B 28 25 30> DEC Turkish (without NRCS)
+<1B 28 25 35> DEC Supplemental Graphics
+<1B 28 25 36> DEC Portuguese (with NRCS)
+<1B 28 25 3D> DEC Hebrew (with NRCS)
+<1B 28 26 34> DEC Cyrillic (without NRCS)
+<1B 28 26 35> DEC Russian
+<1B 28 34> DEC Dutch (NRCS)
+<1B 28 30> DEC Special Character and Line Drawing Set
+<1B 28 3C> DEC Supplemental or User Preferred Selection Set
+<1B 28 3D> DEC Swiss (NRCS)
+<1B 28 3E> DEC Technical
 
 G 96 single byte sets:
 <1B 24 2D 23 40> EIA-708 G0 set
@@ -22,3 +37,15 @@ C1 sets:
 
 DOCS:
 <1B 25 23 40> TRON-8
+<1B 25 2F 30> X Window System Extended Segment - variable bytes per character
+<1B 25 2F 31> X Window System Extended Segment - one byte per character
+<1B 25 2F 32> X Window System Extended Segment - two bytes per character
+<1B 25 2F 33> X Window System Extended Segment - three bytes per character
+<1B 25 2F 34> X Window System Extended Segment - four bytes per character
+
+Single controls:
+<1B 23 33> DEC top half of double height line
+<1B 23 34> DEC bottom half of double height line
+<1B 23 35> DEC single width line
+<1B 23 36> DEC double width line
+<1B 23 38> DEC screen alignment test
