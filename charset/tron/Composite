@@ -1,0 +1,54 @@
+This is describe the composite characters of the Extended TRON Code. (This
+is currently a draft and may be changed in future; others may write
+comments about it if you have something to write, please.)
+
+Composite character groups may be defined; each group is limited to
+one plane, and the character codes within a group are designated as
+Beginning Codes, Middle Codes, and Ending Codes (only one each; a
+single code cannot be more than one of these). Also, each character
+code can only belong to up to one group (although a character code
+might not belong to any group, in which case it is a Isolated Code).
+
+A composite character sequence of two or more character codes that all
+belong to the same group, of which the first is a Beginning Code, the last
+is a Ending Code, and the rest are Middle Codes. Nothing else is allowed
+between these codes, including control characters and plane shifts.
+
+Composite character rendering can be enabled or disabled (usually it will
+be disabled if Reveal Codes is active or enabled otherwise), and can be
+done independently from kerns and ligatures (although, probably you could
+not control kerns independently from ligatures; either both are enabled or
+both are disabled). When the composite character rendering is enabled, then
+a composite character as defined above is considered as a single character,
+for moving cursor, deleting, etc; otherwise, they are separate characters.
+
+A font will contains additional information based on this:
+
+* The font will contain the definition of composite character groups which
+are included in that font.
+
+* Each character will also have a "composite width" flag; if the flag is
+set, then the width is considered to be zero when measuring the width of a
+string if composite character rendering is enabled.
+
+* Each kern will have a "composite kern" flag; if the flag is set, then the
+kern is ignored except for measuring the width of a string when composite
+character rendering is enabled.
+
+* For each composite character group in the font, also a program (using
+some simple and very limited VM code) for converting the sequence of
+character codes into a set of glyphs to draw (which may include private
+glyphs) and the relative positions of the glyphs, using the measurements
+of other characters in the font as the units of measurement.
+
+Note that the font will also have to specify text direction, which can be
+any direction, and may have different glyphs for different directions. The
+text direction is set by separate control characters and/or formatting
+codes which are not a part of the character set and not set by the font.
+So, the advancements in the font are "forward" in whatever text direction
+is the current text direction, which is not necessarily to the right.
+
+(Combining characters and stuff like that are not used; European alphabets
+will have separate character codes for accented vs non-accented alphabets
+andare not considered to be composite characters. However, composite
+characters might possibly be useful for Cangjie, Blissymbols, etc.)
