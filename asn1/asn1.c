@@ -513,6 +513,25 @@ void asn1_free(ASN1*obj) {
   obj->own=0;
 }
 
+uint64_t asn1_count(const ASN1*x) {
+  int i;
+  uint64_t r;
+  const uint8_t*a;
+  const uint8_t*e;
+  uint64_t s;
+  if(!x || !x->constructed || !x->data || !x->length) return 0;
+  r=0; a=x->data; e=a+x->length;
+  while(a!=e) {
+    if((*a++&31)==31) while(a!=e && *a++&0x80);
+    if(a==e) break;
+    if((s=i=*a++)&0x80) for(s=0;i>0x80 && a!=e;i--) s=*a++|(s<<8ULL);
+    if(a+s>e || a+s<a) break;
+    a+=s;
+    r++;
+  }
+  return r;
+}
+
 // Decoding
 
 #define UNSIGNED_DECODE(M) \

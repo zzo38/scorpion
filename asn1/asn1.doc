@@ -56,6 +56,10 @@ zero means OK and nonzero means error.
 
 === General functions ===
 
+uint64_t asn1_count(const ASN1*x)
+  Count the number of items it contains, and return that number. If it is
+  primitive, then the return value will always be zero.
+
 asn1_date_to_time(const ASN1_DateTime*in,time_t*out,uint32_t*nano)
   Convert a ASN1_DateTime structure to UNIX time.
 
