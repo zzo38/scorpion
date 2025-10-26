@@ -289,27 +289,6 @@ asn1_decode_uint64(const ASN1*asn,uint32_t type,uint64_t*out)
   Decodes a unsigned 64-bit integer. Returns ASN1_OVERFLOW if the value is
   not in the range of a 64-bit integer.
 
-asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out)
-  Reads a single bit from a value.
-
-  which = Which bit to read. How this number is interpreted depends on
-  the type, as follows:
-
-  ASN1_BIT_STRING: The high bit of the first byte (although this is not
-  the first byte of the encoded value) is bit 0.
-
-  ASN1_OCTET_STRING: The low bit of the first byte is bit 0.
-
-  ASN1_INTEGER: The low bit of the last byte is bit 0. If the bit
-  position number is out of range, then it uses the high bit of the
-  first byte (the sign bit), instead of leaving it unchanged.
-
-  ASN1_BOOLEAN: The bit position number is ignored.
-
-  out = Where to store the bit that has been read. If the requested bit
-  number is out of range then it remains unchanged (therefore allowing
-  the use of default values, which is usually zero).
-
 asn1_print_decimal_oid(const ASN1*asn,uint32_t type,FILE*stream)
   Prints a object identifier in decimal format. If any part has a number
   bigger than 160 digits then a question mark is printed instead.
@@ -431,6 +410,9 @@ asn1_encode_integer_base(ASN1_Encoder*enc,int base,const uint8_t*digits,size_t l
   trans = If zero, the digits array is the values directly, but if nonzero
   then they are ASCII characters 0-9, and A-Z or a-z.
 
+asn1_encode_null(ASN1_Encoder*enc)
+  This is a macro to encode a null value.
+
 asn1_encode_oid(ASN1_Encoder*enc,const char*t)
   Encodes a object identifier (OID).
 
@@ -533,6 +515,10 @@ asn1_wrap(ASN1_Encoder*enc)
 
 
 === Iteration functions ===
+
+(It might be better to use asn1_first_of and asn1_next_of instead. Due to
+that, it is possible that these may be removed in future, if the programs
+that use them are changed to use asn1_first_of and asn1_next_of instead.)
 
 asn1_foreach(int error,ASN1_Iterator*iter,const ASN1*in,ASN1*out)
   A macro, which can be followed by a statement or {} block which will

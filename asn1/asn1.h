@@ -179,7 +179,6 @@ int asn1_finish_encoder(ASN1_Encoder*enc);
 int asn1_flush(ASN1_Encoder*enc);
 void asn1_free(ASN1*obj);
 int asn1_from_c_string(uint8_t class,uint32_t type,const char*data,ASN1*out);
-int asn1_get_bit(const ASN1*asn,uint32_t type,uint64_t which,int*out);
 int asn1_implicit(ASN1_Encoder*enc,uint8_t class,uint32_t type);
 int asn1_make_oid(const char*text,ASN1*out);
 int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out);
@@ -199,6 +198,7 @@ int asn1_wrap(ASN1_Encoder*enc);
 void asn1_write_length(uint64_t length,FILE*stream);
 void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream);
 
+#define asn1_encode_null(A) asn1_primitive(A,ASN1_UNIVERSAL,ASN1_NULL,0,0)
 #define asn1_start_encoding_file asn1_create_encoder
 
 #define asn1__decode_number__(D,E,F) __builtin_choose_expr(__builtin_types_compatible_p(typeof(D),E*),asn1_decode_##F,
