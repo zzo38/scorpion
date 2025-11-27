@@ -347,10 +347,11 @@ static int wordtok(int colon) {
     if(i==tokenlen) ReturnT(TOK_OID);
   }
   // Relative object identifier
-  if(tokenlen>5 && tokenstr[0]=='.' && tokenstr[1]=='.' && tokenstr[2]=='.' && tokenstr[3]>='0' && tokenstr[3]<='2' && tokenstr[4]=='.') {
-    for(i=5;i<tokenlen && ((tokenstr[i]>='0' && tokenstr[i]<='9') || tokenstr[i]=='.');i++);
+  if(tokenlen>3 && tokenstr[0]=='.' && tokenstr[1]=='.' && tokenstr[2]=='.' && tokenstr[3]>='0' && tokenstr[3]<='9') {
+    for(i=4;i<tokenlen && ((tokenstr[i]>='0' && tokenstr[i]<='9') || tokenstr[i]=='.');i++);
     if(i==tokenlen) ReturnT(TOK_RELATIVE_OID);
   }
+  if(tokenlen==3 && tokenstr[0]=='.' && tokenstr[1]=='.' && tokenstr[2]=='.') ReturnT(TOK_RELATIVE_OID);
   // Integer with base number, real with base number
   if(tokenlen>2 && *tokenstr>='1' && *tokenstr<='9') {
     tokenb=*tokenstr-'0';
@@ -695,10 +696,14 @@ static void send_unicode(FILE*f,uint32_t t,uint32_t v) {
 static void do_relative_oid(void) {
   uint8_t buf[257];
   ASN1 x;
-  memmove(tokenstr+1,tokenstr,++tokenlen);
-  *tokenstr=tokenstr[2]='0';
-  if(asn1_make_static_oid(tokenstr,buf,257,&x)) errx(1,"Unexpected error");
-  asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,x.data+1,x.length-1);
+  if(tokenlen>3) {
+    memmove(tokenstr+1,tokenstr,++tokenlen);
+    *tokenstr=tokenstr[2]='0';
+    if(asn1_make_static_oid(tokenstr,buf,257,&x)) errx(1,"Unexpected error");
+    asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,x.data+1,x.length-1);
+  } else {
+    asn1_primitive(enc,ASN1_UNIVERSAL,ASN1_RELATIVE_OID,"",0);
+  }
 }
 
 static const char morsebits[128]={
