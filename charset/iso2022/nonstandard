@@ -31,6 +31,7 @@ G 96 multi byte sets:
 
 C0 sets:
 <1B 21 23 40> Controls for body of Scorpion document file format
+<1B 21 23 41> Client controls for Internet Relay Chat
 
 C1 sets:
 (none)

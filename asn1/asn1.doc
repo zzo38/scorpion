@@ -811,7 +811,7 @@ in this document).
 === ASN.1X ===
 
 ASN.1X is a variant of ASN.1 which adds some additional universal types and
-schema types, and deprecates some, and adds a few other restrictions as
+schema types. and deprecates some, and adds a few other restrictions as
 well. (Most of this is not implemented yet, and may be changed before the
 implementation is made.)
 
@@ -889,6 +889,11 @@ value of this key/value list is an empty key/value list.
 the numerator and the denominator. The denominator must be greater than
 zero. If it is canonical form, then it must be lowest terms.
 
+* ASN1_TRANSLATION_LIST (77): A key/value list where the keys identify
+languages. If the key is null then it means the default in case no language
+present in this list is applicable. The types of the values depends on the
+application (usually they will be some kind of character strings).
+
 The encoding of the new time types can be any one of:
 
 * A primitive encoding, same as the INTEGER type. This represents a
@@ -905,24 +910,9 @@ than a multiple of sixty. This is only valid for ASN1_UTC_TIMESTAMP.
 
 The following additional schema types exist:
 
-* INLINE and INLINE OF: Is similar than SEQUENCE and SEQUENCE OF, but
-it is not encoded as a single item but instead as all of the items it
-contains directly within whatever container it is in. A field of type
-INLINE or INLINE OF cannot have an implicit type (although explicit
-is OK, in which case it is encoded like a implicit typed SEQUENCE) (it
-is OK for fields within a INLINE to have implicit or explicit types),
-and cannot be a field of a SET. A field of a CHOICE can be of a INLINE
-or INLINE OF type, but fields of that CHOICE type are then subject to
-the same restrictions as fields of a INLINE type. The last field of a
-INLINE type cannot be optional and cannot have a default value. (The
-COMPONENTS OF command is similar than INLINE OF, although there are a
-few differences noted above.)
-
 * ANY: This has been removed from ASN.1 but is usable in ASN.1X. It
 means that an item of any type can be used for this field, except for
-INLINE and INLINE OF types. Except for ANY DEFINED BY, a field of ANY
-type cannot have an implicit type (but explicit is OK), and its class
-cannot be context-specific. If the type is SEQUENCE OF ANY DEFINED BY
+INLINE and INLINE OF types. If the type is SEQUENCE OF ANY DEFINED BY
 then it can also be defined by a sequence of object identifiers (in
 addition to being possible to be defined by a single object identifier),
 in which case each item in the sequence is defined by the the item in
@@ -939,76 +929,10 @@ DER, then it must be encoded as relative if possible, and as absolute
 only if relative is not possible. If the encoding is BER, then it can be
 encoded as absolute or relative regardless of what OID it is.
 
-* Extended character string syntax: Any character string can also be
-written in text as a hexadecimal string with the BER or DER encoding of
-the string, although the type must be explicitly specified in order to
-avoid ambiguity. Furthermore, the TRON string is allowed to use the
-"Quadruple" notation, although the plane, row, and cell numbers are
-required to be in the range 33 to 253 inclusive except 127 (the group
-number can be any non-negative integer).
-
 * UTF16String: This type uses the same type number and encoding as the
 BMPString type, but allows surrogates to represent non-BMP characters.
+(Some applications may allow mismatched surrogates (since they might be
+needed for some applications), but in general you should not use
+mismatched surrogates.)
 
-* Scientific number: Same as REAL, but in DER encoding there must be
-exactly one digit to the left of the decimal-mark, and that digit must
-not be zero unless all of the digits are zero, and trailing zeros are
-allowed and are considered significant.
-
-* CANONICAL and DISTINGUISHED: These modifiers force the field with this
-modifier (and anything it contains) to be encoded in canonical form. (If
-the file is already in canonical form, then this makes no difference.)
-
-* WITH TIME ZONE: Can be specified after the name of any date/time type
-that allows time zone specification in BER. If this is specified, then
-the time zone is mandatory, even in DER, and the time zone is considered
-significant (so should not be changed).
-
-* Constraint types as though it is a different type: A constraint may be
-defined as being as though the value is of a type other than the actual
-type of the field. See below for the rules about this.
-
-Constraint types as though it is of a different type have these rules:
-
-* The type being constrained by must be OCTET STRING, INTEGER, one of
-the ASCII-based string types, BCD string, or SEQUENCE (which is treated
-as SEQUENCE OF for this purpose). It cannot be a derived type.
-
-* The constraint must be a single value constraint, value range constraint,
-size constraint, permitted alphabet constraint, or pattern constraint.
-
-* If the actual type is a primitive type, then the type being constrained
-by is not allowed to be SEQUENCE.
-
-* If the actual type is a constructed type, then the type being constrained
-by can be OCTET STRING or SEQUENCE, and if it is OCTET STRING then the only
-constraint allowed is a size constraint.
-
-The following additional restrictions exist:
-
-* If a string uses a constructed encoding, then the segments of the
-string must use the primitive encoding; they cannot also be constructed.
-It is recommended that strings do not use constructed encoding (BSER or
-DSER should be used instead in cases where this is useful), and some
-implementations might not support constructed encoding for strings.
-
-* Optional and default fields are not allowed unless it is possible to
-determine its presence or absence without needing to look ahead. For
-this purpose, ANY DEFINED BY is treated the same as ANY.
-
-* The UTCTime and GeneralizedTime types must use the primitive encoding.
-
-* XML types and other XML-related stuff is not used.
-
-* When the ASN.1 text schema notation is used and it contains character
-string data, the character set must be explicitly specified unless it is
-one of the ASCII-based string types.
-
-* ASN1-CHARACTER-MODULE is not a built-in module, although it may be
-defined as a separate file if this is desired.
-
-* PATTERN constraints have some additional restrictions as well as some
-additional possible notations, compared with standard ASN.1. The PATTERN
-is only Unicode if the string type being matched is Unicode, but can be
-ISO 2022 or ASCII if the string being matched is ISO 2022 or ASCII.
-
+See also the definitions of SDER, DSER, and SDSER, in a separate file.
