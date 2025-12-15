@@ -56,6 +56,11 @@ zero means OK and nonzero means error.
 
 === General functions ===
 
+asn1_copy(const ASN1*in,ASN1*out)
+  Copies a ASN1 structure; the new one will be allocated if the length
+  is nonzero. It returns ASN1_ERROR if the allocation failed. (If it is
+  already allocated, you should use asn1_free first.)
+
 uint64_t asn1_count(const ASN1*x)
   Count the number of items it contains, and return that number. If it is
   primitive, then the return value will always be zero.

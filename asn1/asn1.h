@@ -139,6 +139,7 @@ typedef struct {
 typedef ASN1 ASN1_Value;
 
 int asn1_construct(ASN1_Encoder*enc,uint8_t class,uint32_t type,uint8_t mode);
+int asn1_copy(const ASN1*in,ASN1*out);
 uint64_t asn1_count(const ASN1*x);
 ASN1_Encoder*asn1_create_encoder(FILE*file);
 FILE*asn1_current_file(ASN1_Encoder*enc);

@@ -37,6 +37,7 @@ C1 sets:
 (none)
 
 DOCS:
+<1B 25 38> UTF-8 (obsolete)
 <1B 25 23 40> TRON-8
 <1B 25 2F 30> X Window System Extended Segment - variable bytes per character
 <1B 25 2F 31> X Window System Extended Segment - one byte per character

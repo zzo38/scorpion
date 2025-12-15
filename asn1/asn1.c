@@ -446,6 +446,20 @@ void asn1_free(ASN1*obj) {
   obj->own=0;
 }
 
+int asn1_copy(const ASN1*in,ASN1*out) {
+  *out=*in;
+  if(out->length) {
+    out->data=malloc(out->length);
+    if(!out->data) return ASN1_ERROR;
+    memcpy((uint8_t*)out->data,in->data,out->length);
+    out->own=1;
+  } else {
+    out->own=0;
+    out->data=0;
+  }
+  return ASN1_OK;
+}
+
 uint64_t asn1_count(const ASN1*x) {
   int i;
   uint64_t r;
