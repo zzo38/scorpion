@@ -1,0 +1,101 @@
+(DRAFT specification of Computer Payment File)
+
+The file is DER format and is a sequence with fields:
+
+* Set of seller identifiers. Each one is either a OID or a sequence with
+the format of the issuer/subject name in a X.509 certificate (except that
+you can use any string types; it is suggested to use Graphic string or
+General string instead of Teletex, and to use Printable instead of IA5
+for domain names, Visible instead of IA5 for email addresses). There
+should not be any duplicates, and it cannot be empty.
+
+* Set of buyer identifiers, like the above but it is allowed to be empty.
+
+* Possibly encrypted main section. If it is encrypted, then it is a octet
+string; if it is not encrypted, then it is a sequence.
+
+* The buyer's signature algorithm. This may be null if it is not signed.
+
+* The buyer's signature, which is a octet string. This is the signature
+of the main section, or omitted if it is not signed.
+
+The main section is a sequence with fields:
+
+* The date/time of the order, which is a Generalized time. This should
+be used to interpret the contents of the order division in case the schema
+for the ordering has been changed since that time.
+
+* The order division, which can be any type, and has a schema which is
+defined by the seller. (The seller should publish a document which explains
+the expected format of the order division.)
+
+* The payment division; see below.
+
+The payment division is a sequence with fields:
+
+* OID which identifies the payment method.
+
+* Set of payment processor identifiers, which is like the set of seller
+and buyer identifiers; it may be empty.
+
+* The date/time of the payment, which is a Generalized time. This should
+be interpreted like the date field in a cheque.
+
+* The currency code, which is a Printable string with four characters;
+this must be one of the ISO 4217 alphabetic or numeric codes. If the
+payment is using "points" specific to the seller, then this is null
+instead of a Printable string, or it can be some nonstandard type if
+there are parentheses around it.
+
+* Integer with the amount of money to be paid; this is divided by ten
+to the power of the number of digits after the decimal separator as
+specified by ISO 4217 in order to decide the fractional amount according
+to that country's currency. Some currency codes do not have a defined
+number of digits after the decimal separator; in this case, a real number
+should be used instead. This MUST match the amount which is implied by the
+order division, otherwise it is an error.
+
+* Payment information, which is one item of any type, which is defined
+according to the payment method. This might include encrypted parts, and
+it is recommended that it does so, so that only the payment processor is
+able to decrypt it (the seller cannot decrypt it).
+
+* Something to avoid replay attacks (TODO). Possibly, also to avoid other
+kind of attacks, if necessary.
+
+To use this format, the procedure should be:
+
+1. Buyer receives any necessary documents from the seller, which will
+describe the format of the order division any OIDs, what payment methods
+and currencies are accepted, etc.
+
+2. Buyer decides what to order, and makes the order division, and
+determines the total price.
+
+3. Buyer makes the payment division and rest of the payment file, and
+sends the completed file to the seller (and should also keep a copy).
+
+4. Seller verifies the contents of the file that has been received,
+after decrypting the main section if appropriate. This includes checking
+that the amount of money in the payment division matches that implied by
+the order division; if it does not match, the order is rejected.
+
+5. Seller sends the contents of the payment division to the payment
+processor, together with any additional data which is required. If
+the seller is handling payment themself (e.g. using store credit),
+then this step is skipped.
+
+6. Seller receives the response from the payment processor (if necessary;
+this step is skipped if step 5 above is skipped).
+
+7. Seller sends a receipt to the buyer, and uses the order details to
+send whatever they ordered as well.
+
+The catalog file is not defined yet, but it is also supposed to be DER
+format, and might include some things such as proof of work, signature,
+and other things to mitigate some kinds of dishonesty.
+
+(Note that there are a few things which I deliberately intend to avoid
+including, due to being opposed to such things.)
+
+I probably missed some things in this document; please tell me if so.
