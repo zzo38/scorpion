@@ -41,19 +41,18 @@ and buyer identifiers; it may be empty.
 * The date/time of the payment, which is a Generalized time. This should
 be interpreted like the date field in a cheque.
 
-* The currency code, which is a Printable string with four characters;
+* The currency code, which is a Printable string with three characters;
 this must be one of the ISO 4217 alphabetic or numeric codes. If the
 payment is using "points" specific to the seller, then this is null
 instead of a Printable string, or it can be some nonstandard type if
-there are parentheses around it.
+there are parentheses around it (and then the number of characters can
+be any number).
 
 * Integer with the amount of money to be paid; this is divided by ten
 to the power of the number of digits after the decimal separator as
 specified by ISO 4217 in order to decide the fractional amount according
-to that country's currency. Some currency codes do not have a defined
-number of digits after the decimal separator; in this case, a real number
-should be used instead. This MUST match the amount which is implied by the
-order division, otherwise it is an error.
+to that country's currency. This MUST match the amount which is implied by
+the order division, otherwise it is an error.
 
 * Payment information, which is one item of any type, which is defined
 according to the payment method. This might include encrypted parts, and
@@ -82,8 +81,8 @@ the order division; if it does not match, the order is rejected.
 
 5. Seller sends the contents of the payment division to the payment
 processor, together with any additional data which is required. If
-the seller is handling payment themself (e.g. using store credit),
-then this step is skipped.
+the seller is handling payment themself (e.g. using store credit, or
+prepaid), then this step is skipped.
 
 6. Seller receives the response from the payment processor (if necessary;
 this step is skipped if step 5 above is skipped).
