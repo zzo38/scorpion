@@ -17,11 +17,11 @@ G 94 single byte sets:
 <1B 28 3E> DEC Technical
 
 G 96 single byte sets:
-<1B 24 2D 23 40> EIA-708 G0 set
-<1B 24 2D 23 42> EIA-708 G2 set
-<1B 24 2D 23 43> EIA-708 G3 set
-<1B 24 2D 23 44> First PC extension (0xA0-0xC0=PC 0x00-0x20, 0xDF-0xFF=PC 0x7F-0x9F)
-<1B 24 2D 23 45> Second PC extension (0xA0-0xFF=PC 0xA0-0xFF)
+<1B 2D 23 40> EIA-708 G0 set
+<1B 2D 23 42> EIA-708 G2 set
+<1B 2D 23 43> EIA-708 G3 set
+<1B 2D 23 44> First PC extension (0xA0-0xC0=PC 0x00-0x20, 0xDF-0xFF=PC 0x7F-0x9F)
+<1B 2D 23 45> Second PC extension (0xA0-0xFF=PC 0xA0-0xFF)
 
 G 94 multi byte sets:
 (none)
@@ -32,9 +32,10 @@ G 96 multi byte sets:
 C0 sets:
 <1B 21 23 40> Controls for body of Scorpion document file format
 <1B 21 23 41> Client controls for Internet Relay Chat
+<1B 21 23 42> Uninterpreted transparent controls 0x00 to 0x1F (except 0x00,0x1B)
 
 C1 sets:
-(none)
+<1B 22 23 42> Uninterpreted transparent controls 0x80 to 0x9F
 
 DOCS:
 <1B 25 38> UTF-8 (obsolete)
@@ -51,3 +52,7 @@ Single controls:
 <1B 23 35> DEC single width line
 <1B 23 36> DEC double width line
 <1B 23 38> DEC screen alignment test
+<1B 23 23 40> Representation of uninterpreted transparent control 0x00
+<1B 23 23 41> Representation of uninterpreted transparent control 0x1B
+<1B 23 23 42> Representation of uninterpreted transparent control 0x7F
+
