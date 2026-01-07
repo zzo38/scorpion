@@ -73,3 +73,6 @@ length of that item, or for the entire file if that would be smaller.
 (Some of these limits may be implementation-dependent, or may depend on
 the application in ways that are not specified in the schema.)
 
+* The restrictions in DER for ISO 8601 types do not apply except that
+commas are not allowed.
+

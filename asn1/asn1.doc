@@ -652,7 +652,10 @@ relative to some unspecified object identifier. The encoding is like the
 object identifier but does not encode the first two numbers in a special
 way (and the numbers are not restricted like a object identifier).
 
-* Time (14 P): Represents a time as ISO 8601.
+* Time (14 P): Represents a time as ISO 8601. This can be any value that
+is allowed in ISO 8601, including date only, time only, intervals, etc.
+The precision, and stuff such as whether midnight is 00:00 or 24:00, are
+considered to be significant.
 
 * Sequence (16 C): A sequence of ASN.1 items.
 
@@ -669,10 +672,16 @@ apostrophe, parentheses, plus, comma, minus, full stop, forward slash,
 colon, equal sign, and question mark.
 
 * T.61 string (20 S): Also called a Teletex string. A ISO 2022 string that
-uses T.61 characters.
+uses T.61 characters. The initial state is <1B 28 75 1B 21 45 1B 22 48>;
+i.e. G0 is the T.61 primary graphic set, C0 is the T.61 primary control
+set, C1 is the T.61 supplementary control set, and G1 is initially unset.
+See below for the list of valid C and G sets in a Teletex string.
 
 * Videotex string (21 S): A ISO 2022 string with T.100 and T.101
-characters.
+characters. The initial state is <1B 28 75 1B 21 40 1B 22 41>; i.e. G0 is
+the T.61 primary graphic set, C0 is ASCII, C1 is the attribute control set
+for videotex, and G1 is initially unset. See below for the list of valid
+C and G sets in a Videotex string.
 
 * IA5 string (22 S): A unrestricted ASCII string.
 
@@ -701,11 +710,15 @@ allowed for the fractional number of seconds, and "." is omitted if the
 number of seconds is an integer (so there are no fractional seconds).
 
 * Graphic string (25 S): A ISO 2022 string can have any graphic characters
-but cannot have control characters.
+but cannot have control characters (other than escape sequences to select
+which G sets to use). The initial state is <1B 28 42>; i.e. G0 is ASCII and
+the other G sets are initially undefined.
 
 * Visible string (26 S): A ASCII string without control characters.
 
-* General string (27 S): A unrestricted ISO 2022 string.
+* General string (27 S): A unrestricted ISO 2022 string. The initial state
+is <1B 28 42 1B 21 40>; i.e. G0 and C0 are ASCII and the other C and G sets
+are undefined.
 
 * Universal string (28 S): A string of 32-bit ISO 10646 characters.
 
@@ -716,7 +729,27 @@ object identifiers where the first identifies the character set and the
 second identifies the character encoding. The second item is a octet string
 which is the encoding of the character string value.
 
-* BMP string (30 S): A string of 16-bit Unicode characters.
+* BMP string (30 S): A string of 16-bit Unicode characters. (This is not
+supposed to include non-BMP characters.)
+
+* Date (31 P): ISO 8601 limited to only a date in Year-Month-Day format,
+with a four-digit year in the Gregorian calendar between 1582 and 9999
+(inclusive), encoded in the format "YYYYMMDD". The hyphens between the
+pieces are omitted in the encoding.
+
+* Time of day (32 P): ISO 8601 limited to only a time of day in
+Hours:Minutes:Seconds format, encoded in the format "hhmmss". Midnight
+can be represented as either 00:00:00 at the beginning of the day or as
+24:00:00 at the end of the day. The time zone is not specified, and local
+time is assumed. The colons between the pieces are omitted in the encoding.
+
+* Date and time (33 P): ISO 8601 with both the date and the time of day.
+The encoding is the same as the concatenation of type 31 and 32, without
+a "T" or any other delimiter in between.
+
+* Duration (34 P): ISO 8601 time interval with the duration only. ISO 8601
+duration normally starts with "P", but the "P" is omitted when encoding a
+ISO 8601 duration as type 34.
 
 A field can have an implicit or explicit type. An implicit type means the
 specified class and type replaces the universal class and universal type
@@ -737,6 +770,9 @@ registration and use the mechanism that it requires in order to make up a
 OID. You can then use that OID and any OID that the registered one is a
 prefix of; e.g. if you have "2.999.1" then you can also use "2.999.1.15"
 and "2.999.1.42.99.0.6" as well (these numbers are examples).
+
+The first number of the OID specifies ITU (0), ISO (1), or both (2). The
+"2.999" OID arc is reserved for examples.
 
 The encoding of an object identifier must be not empty, and must consist of
 the big-endian unsigned base 128 numbers in order, with the high bit of
@@ -809,8 +845,45 @@ smallest numbered G or C set that is allowed (e.g. G0 must be used instead
 of G1 if the character set is allowed to be G0). The character set is only
 to be selected immediately before the character using that set.
 
-* ISO 8601 encodings are also restricted (they are not currently specified
-in this document).
+* For the ISO 8601 types: You cannot use commas (use a dot as the decimal
+separator). The minutes digits of a time difference component that is an
+integral number of hours is omitted. If an interval or recurring interval
+has a time difference component that is the same for the start and end,
+then those components are omitted from the end. For a duration and for a
+duration in an interval expressed with a start point and duration or a
+duration and end point, all zero time components shall be omitted except
+the least significant time component that is present in the instance of
+the value notation.
+
+ISO 2022 valid C and G sets for Teletex and Videotex:
+  ISO-IR  EscapeSequence  Allowed  Description
+     1    1B 21 40          V      ASCII control characters
+     6    1B 28 42         T       ASCII graphic characters
+    13    1B 28 49          V      JIS X 0201 (katakana)
+    72    1B 28 64          V      3rd suppl. set for videotex (mosaic)
+    73    1B 22 41          V      Videotex attribute control set
+    87    (obsolete; see 168 below)
+    89    1B 28 6B          V      ASMO-449 7-bit Arabic
+   102    1B 28 75         TV      Teletex primary graphic set
+   103    1B 28 76         T       Teletex supplementary graphic set
+   106    1B 21 45         T       Teletex primary control set
+   107    1B 22 48         T       Teletex supplementary control set
+   108    1B 25 41          V      Videotex NAPLPS
+   126    1B 2D 46         TV      ISO 8859-7 (Greek)
+   128    1B 28 7C          V      T.101 suppl. gr. set, data syntax III
+   129    1B 2D 7D          V      Suppl. mosaics, data syntax III
+   144    1B 2D 4C         TV      Cyrillic part of Latin/Cyrillic codes
+   150    1B 28 21 40      TV      Greek primary set of CCITT
+   153    1B 2D 4F         TV      Basic Cyrillic set for 8-bit codes
+   156    1B 2D 52         T       ISO 6937:1992 supplementary set
+   164    1B 2D 53         TV      CCITT Hebrew supplementary set
+   165    1B 24 28 45      TV      CCITT Chinese set
+   168    1B 24 28 42      TV      Japanese JIS X 0208
+
+(In the "Allowed" column, T means Teletex and V means Videotex. The Graphic
+string type allows any G sets including ones not listed here, and the
+General string type allows any C and G sets including ones that are not
+listed here.)
 
 
 === ASN.1X ===
@@ -898,6 +971,13 @@ zero. If it is canonical form, then it must be lowest terms.
 languages. If the key is null then it means the default in case no language
 present in this list is applicable. The types of the values depends on the
 application (usually they will be some kind of character strings).
+
+* ASN1_SCIENTIFIC (78): Same as ASN1_REAL except that the number of digits
+(or bits) is considered to be significant. Due to this, in canonical form,
+the significand is not required to be odd, and trailing zeros are allowed
+in the decimal canonical form. Also, the canonical form for decimal numbers
+is slightly different, in which there must be exactly one digit preceding
+the decimal mark instead of all of them.
 
 The encoding of the new time types can be any one of:
 
