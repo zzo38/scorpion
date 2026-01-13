@@ -39,7 +39,8 @@ length of segments other than the last segment must be 255.
 The rules for SDER are:
 
 * Sets and key/value lists are not required to be in canonical order (but
-the keys must be with the corresponding values in a key/value list).
+the keys must be with the corresponding values in a key/value list). (This
+also applies to a translation list.)
 
 * TRON strings are allowed to have redundant shifts.
 
@@ -52,7 +53,9 @@ designated as G0 or G1 rather than only G0.
 
 * For decimal numbers, plus signs are allowed (but not mandatory, even for
 the exponent), and the decimal-mark is allowed to (but not required to)
-have extra digits afterward, and trailing zeros are allowed.
+have extra digits afterward, and trailing zeros are allowed. (Scientific
+numbers are still required to have exactly one digit preceding the decimal
+mark, but ordinary real numbers are not subject to this restriction.)
 
 * For binary real numbers, the significand is not required to be an odd
 number, and it is not required to use the smallest number of bytes. (It
@@ -74,5 +77,13 @@ length of that item, or for the entire file if that would be smaller.
 the application in ways that are not specified in the schema.)
 
 * The restrictions in DER for ISO 8601 types do not apply except that
-commas are not allowed.
+commas are not allowed. (UTC time and Generalized time are not considered
+to be ISO 8601 types.)
+
+* Integers can be encoded in more than the minimum number of bytes, but it
+is not allowed to be encoded in more bytes than is required for the longest
+possible allowed value of that field (for example, a signed 32-bit integer
+can be encoded as four bytes and a unsigned 32-bit integer can be encoded
+as five bytes, regardless of the value; they may also be encoded in less
+than that many bytes if the value fits).
 

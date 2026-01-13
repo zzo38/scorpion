@@ -977,7 +977,8 @@ application (usually they will be some kind of character strings).
 the significand is not required to be odd, and trailing zeros are allowed
 in the decimal canonical form. Also, the canonical form for decimal numbers
 is slightly different, in which there must be exactly one digit preceding
-the decimal mark instead of all of them.
+the decimal mark instead of all of them. NR1 and NR2 cannot be used for a
+scientific number, even if it is not canonical form.
 
 The encoding of the new time types can be any one of:
 
