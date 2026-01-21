@@ -46,7 +46,7 @@ this must be one of the ISO 4217 alphabetic or numeric codes. If the
 payment is using "points" specific to the seller, then this is null
 instead of a Printable string, or it can be some nonstandard type if
 there are parentheses around it (and then the number of characters can
-be any number).
+be any number; this nonstandard type may depend on the payment method).
 
 * Integer with the amount of money to be paid; this is divided by ten
 to the power of the number of digits after the decimal separator as
