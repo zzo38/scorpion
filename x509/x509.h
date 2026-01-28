@@ -9,6 +9,10 @@
 #define X509_ASSUME_NOT_CA 0x0010
 #define X509_IGNORE_EXTENSIONS 0x0020
 #define X509_ROOT_LAST 0x0040
+#define X509_REVERSE_AUTHORITY 0x0080
+#define X509_NO_SIGNATURE 0x0100
+#define X509_USER1_OPTION 0x4000
+#define X509_USER2_OPTION 0x8000
 
 // Extension flags
 #define X509_IGNORE_UNLESS_CRITICAL 0x01
@@ -51,6 +55,20 @@
 #define X509_KEYUSAGE_DECIPHER_ONLY 0x0080
 #define X509_KEYUSAGE_UNRESTRICTED 0x0001
 
+// Revocation reason
+#define X509_REASON_UNSPECIFIED 0
+#define X509_REASON_KEY_COMPROMISE 1
+#define X509_REASON_CA_COMPROMISE 2
+#define X509_REASON_AFFILIATION_CHANGED 3
+#define X509_REASON_SUPERSEDED 4
+#define X509_REASON_CESSATION_OF_OPERATION 5
+#define X509_REASON_CERTIFICATE_HOLD 6
+#define X509_REASON_REMOVE_FROM_CRL 8
+#define X509_REASON_NOT_REVOKED 8
+#define X509_REASON_PRIVILEGE_WITHDRAWN 9
+#define X509_REASON_AA_COMPROMISE 10
+#define X509_REASON_WEAK_KEY 11
+
 typedef struct X509_Chain X509_Chain;
 typedef struct X509_Extension X509_Extension;
 typedef struct X509_ExtraData X509_ExtraData;
@@ -80,15 +98,14 @@ struct X509_Info {
 
 struct X509_Options {
   void*userdata;
-  int(*begin_certificate)(const X509_Info*info,const X509_Options*option);
-  int(*begin_chain)(const X509_Info*info,const X509_Options*option);
+  int(*begin_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
   int(*check_info)(const X509_Info*info,void*userdata);
+  int(*check_revoked)(const X509_Info*info,const X509_Options*option,const ASN1_Value*certificate,const ASN1_Value*serial);
   int(*check_signature)(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature);
-  int(*end_certificate)(const X509_Info*info,const X509_Options*option,int status);
-  int(*end_chain)(const X509_Info*info,const X509_Options*option,int status);
-  int(*find_authority)(const X509_Info*info);
-  int(*find_issuer)(const X509_Info*info,ASN1_Value*out);
-  int(*find_root)(const X509_Info*info);
+  int(*end_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info,int status);
+  int(*find_authority)(const X509_Info*info,const ASN1_Value*certificate);
+  int(*find_issuer)(const X509_Info*info,const ASN1_Value*certificate,ASN1_Value*out);
+  int(*find_root)(const X509_Info*info,const ASN1_Value*certificate);
   const X509_Extension*extlist;
   uint32_t extcount;
   time_t now;
@@ -106,4 +123,5 @@ uint16_t x509_get_key_usage(const X509_Info*info);
 int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
 int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
 void x509_reset_info(X509_Info*info);
+int x509_set_needed_key_usage(X509_Info*info,uint16_t usage);
 

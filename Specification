@@ -1121,7 +1121,12 @@ and if false then not.
 
 * 2.25.327847519394146920218914781995694576662.5.1 = The time zone in the
 format expected for the TZ environment variable in UNIX systems, e.g.
-"America/Vancouver". The data type is a IA5 string.
+"America/Vancouver". The data type is a IA5 string or Visible string. (It
+should probably be Visible string since the time zone is not supposed to
+have control characters, but implementations should accept IA5 string as
+well because I had previously made a mistake. Future versions of this
+specification might allow other methods of specifying the time zone as
+well; implementations should ignore it if it is not understood.)
 
 * 2.25.327847519394146920218914781995694576662.6 = This extension is meant
 for securely specifying that one certificate supersedes another, even if
@@ -1144,7 +1149,7 @@ vector icon format, except that the initial <6E 63 69 66> is omitted.
 
 === Superseding certificates ===
 
-(Request for comment)
+(Request for comment; not finalized)
 
 A issuer certificate is required (although the issuer certificate does not
 need to be someone trusted by others; it is good enough to make up your own
