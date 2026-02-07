@@ -1,0 +1,828 @@
+This document contains advice about use of ASN.1 and ASN.1X, which is
+considered to be non-normative. It does not necessarily match that of
+the official specification (in many ways it doesn't match).
+
+Some people are confused about the use of ASN.1 and use it badly, so this
+is my intention to provide some advice for using it better. (One thing that
+is sometimes found confusing is which date/time types and which character
+string types to use, and I intend to clarify it in this document. Note that
+some people will disagree with my advice.)
+
+It is intended that my other document about ASN.1 DER and ASN.1X has also
+been read when reading this one. You might also find it useful to read the
+official documents from ITU, although it is not required.
+
+
+=== Tags and classes ===
+
+Often you do not need to apply tags, since you can use the universal types.
+However, tags are sometimes useful and this part of this document intends
+to describe how they can be useful.
+
+Implicit will make the data more compact but will lose a benefit of DER
+that the data type can be known without the schema, while explicit encodes
+both the tag and the type which makes it take up more space. My suggestion
+is to use implicit for octet strings and sequences, but to use explicit for
+any other types, in order to compromise. (However, sometimes there are some
+situations where it might make sense to not always do it this way.)
+
+Context-specific tags should be used in places where a tag is helpful to
+avoid ambiguity, where the possibilities depend on the context. An example
+would be a field that can have a choice of many possible values that have
+different meanings but not all different types, or that may be extensible
+in future to other meanings that do not necessarily have different types
+even if they do now, or a sequence that has many optional fields that may
+be of different types and/or substructures and that you will want to
+indicate which ones are present by the use of tags (although it can also
+be used if some fields can occur multiple times). Context-specific tags
+are not always needed, so they should not always be used and should not
+be used too much, although sometimes it can be clearer to use them in some
+cases where they are not strictly needed.
+
+Application tags can be used if there are some types which are used by the
+entire schema (and/or multiple schemas used by that application), in more
+than one place in the file, so that a consistent type can be used anywhere
+that occurs.
+
+Some people, including the official specifications (part G.2.12), recommend
+the use of automatic tags. I do not agree with that, for several reasons.
+
+
+=== Universal types ===
+
+BOOLEAN (1)
+  Use this for data with two states, e.g. yes/no, true/false, on/off, etc.
+
+INTEGER (2)
+  Use this for integers, whether or not they are allowed to be negative,
+  and might or might not have a minimum and/or maximum. Some appropriate
+  uses of this type includes:
+
+  * Natural numbers and integers used in calculations.
+
+  * Numbers denoting how many of something there is.
+
+  * Numbers denoting the order of something.
+
+  * Index numbers for some data which is also specified in this file or
+  in something external (rather than the schema itself).
+
+  * Data converted from other formats, that use the integer type.
+
+  * Amounts of money (in cents rather than dollars, or whatever is
+  appropriate for the currency being used).
+
+  Specifications may restrict the valid range for each field.
+
+  Sometimes other types should be used instead, such as ENUMERATED (10);
+  see the descriptions of other types for details.
+
+  The integer type should not be used for strings of digits which are not
+  used as numeric values, such as telephone numbers and ISBN.
+
+BIT_STRING (3)
+  Use this when you have arbitrary data, of a format which is unspecified
+  or is specified elsewhere (which does not use ASN.1 types), which is not
+  necessarily a multiple of eight bits or is not aligned to bytes.
+
+  Generally, if concatenating unaligned bit sequences is potentially
+  helpful, or if additional bits may be added on the end when the original
+  is not necessarily a multiple of eight bits, or if bit indexing would be
+  helpful, then the use of this type is likely to be helpful.
+
+  An example is a G3 facsimile page data.
+
+  Another use is for when you have several related boolean flags and want
+  to store them compactly in one field.
+
+  Some computer file formats internally have data which is not aligned to
+  bytes but the entire format is aligned; in such cases, octet string
+  should be used instead of this one.
+
+  See also OCTET_STRING (4).
+
+OCTET_STRING (4)
+  Use this when you have arbitrary data, of a format which is unspecified
+  or is specified elsewhere (which does not use ASN.1 types), which is a
+  multiple of eight bits or is aligned to bytes; this includes most data
+  formats used in computers.
+
+  If the data has the format and meaning of another type, then that type
+  should be used instead (e.g. use UTF-8 string for JSON).
+
+  Some existing ASN.1 schemas use this type (or the bit string type,
+  which is even worse) for wrapping data that may be of any arbitrary ASN.1
+  type. I recommend avoiding this in new specifications unless you have a
+  good reason for it; usually it is sufficient to just allow a field to be
+  any type, or if that would cause ambiguity (which is the case for the
+  values of X.509 extensions, due to the optional "critical" field) then
+  you can enclose it in a sequence or set with one item (which takes the
+  same amount of space as a octet string, but being constructed allows
+  other programs to read it even if they do not know the schema).
+
+  See also BIT_STRING (3).
+
+NULL (5)
+  Use this type when a field is required (it cannot or should not be made
+  optional), but has no applicable data.
+
+  It can also be used if the presence of the field is significant but there
+  is no data needed (e.g. if a schema allows extensions to be added that
+  require data (e.g. in a key/value list), but the presence of the
+  extension is good enough, then the value of that extension can be null).
+
+OBJECT_IDENTIFIER (6)
+  This type is used for identifiers for various things, such as hash
+  algorithms, file formats, extensions, and any other things where you
+  might find this useful.
+
+  If you make up your own OID, you must do so properly, please. When a
+  OID is used for one thing, it should not later be reassigned to someone
+  else for a different use; this includes the assignment of subsequent
+  OID arcs, which you will have to ensure (either by someone keeping track
+  of them or by some specification which guarantees uniqueness in another
+  way) that they will not use the same number for different uses.
+
+  When reading values of this type (and of the relative OID type), you
+  should not usually need to decode the parts; it can be treated as an
+  opaque string for comparing with equality. In some cases you might need
+  to decode some or all of the parts, for display or because the OID
+  contains something used numerically (such as a version number, or the
+  output size of a BLAKE2 hash), but sometimes you will only need to check
+  that it is valid which can be done without decoding their numeric value.
+
+  See also RELATIVE_OID (13).
+
+OBJECT_DESCRIPTOR (7)
+  This type is used for human-readable text which is intended to describe
+  an object which is identified by a OID. This is not necessarily
+  unambiguous, but identical text for different objects is expected to be
+  uncommon. If you want your file to contain such descriptive text for the
+  identification of objects, then you might use this one in addition to the
+  object identifier type, although use of object descriptors should usually
+  be optional.
+
+EXTERNAL (8)
+  This is like the Embedded PDV type but there are not as many options for
+  the identification. However, unlike Embedded PDV, this type does allow
+  the (optional) use of object descriptors and the (optional) use of types
+  other than octet strings, therefore potentially allowing the pieces of
+  the data to be decoded even if its meaning is not fully understood.
+
+  See also EMBEDDED_PDV (11) and IDENTIFIED_DATA (75).
+
+REAL (9)
+  Use this type for floating point numbers, which may have an arbitrary
+  precision, and may have fractional parts. The number is usually
+  approximate and is not exact.
+
+  Do not use this type for money; use the integer type instead.
+
+  If the number of significant figures must be specified, then you should
+  use the scientific type instead (although it is not a standard ASN.1
+  type; the scientific number type is only for ASN.1X).
+
+ENUMERATED (10)
+  This type is useful for when where are several possibilities which are
+  specified in the schema and are identified by integers. It is potentially
+  possible that some schemas may add additional choices in future versions
+  of the schema. (There might be only two choices for now, or maybe even
+  only one, but that you will want to add more later.)
+
+  If the numeric value is not used by the implementation except for if it
+  is equal or unequal, then you should normally start with zero and then
+  use consecutive ascending numbers; however, in some applications there
+  are reasons for arithmetic which can be used to quickly find the choices
+  that belong to a group or some other property that is common among them,
+  or for other reasons, in which case any numbers may be used. However,
+  despite this, the enumerated type is not mainly for use where the numeric
+  value is the mainly significant meaning; if the mainly significant
+  meaning of the value is as a numeric value, then integer is better.
+
+  This type should not be used for indexing lists which are not a part of
+  the schema; use integer instead in that case.
+
+  If the set of possible states is unknown and may be defined externally
+  (not necessarily a part of the schema and not necessarily a part of the
+  file either), then using OIDs or other types might be preferable.
+
+EMBEDDED_PDV (11)
+  Use this type to include data whose type and format is unspecified or
+  is specified elsewhere, without additional restrictions, and to allow
+  the type of data to be specified with the data.
+
+  Note that, unlike external and identified data, this type can only be
+  used to encode the data as a octet string, and does not support the use
+  of other types. It also does not use object descriptors.
+
+  See also EXTERNAL (8) and IDENTIFIED_DATA (75).
+
+UTF8_STRING (12)
+  Use this type where text using the Unicode character set is needed
+
+  Examples where it is appropriate:
+  * Strings copied from sources that use Unicode
+
+  Examples where this should be avoided:
+  * URLs (use Visible string instead)
+  * Arbitrary file names
+  * Unicode text used with formats that use UTF-16 instead
+  * Most kind of computer commands
+  * Text that should not be restricted to one character set
+
+  Note about the use of Unicode: Some people say Unicode is a good
+  character set, or that it is the only good character set and others
+  are no good, or that you should assume that all text is Unicode or
+  should convert all text to Unicode, but they are wrong. This is not
+  generally correct; there are many problems with this.
+
+  I would suggest avoiding Unicode in newer formats if you can avoid it,
+  unless interoperability is needed with other formats that require it.
+  If you want international text, ISO 2022 or TRON code might be better;
+  TRON code has some advantages but is not used much outside of Japan. Note
+  that you can encode Unicode characters in TRON code if necessary (but it
+  should be avoided, especially for Japanese text), and also see the notes
+  about the use of DOCS codes in a General string.
+
+RELATIVE_OID (13)
+  Use this type to encode OIDs in a more compact form when most uses will
+  use a base OID which is already known for some reason, such as being a
+  constant specified by the schema or application or being specified in
+  another part of the same file as the data.
+
+  In ASN.1X, this type will probably more commonly be used as a part of the
+  "OBJECT IDENTIFIER RELATIVE TO" type, which is like part G.2.21.1(b) of
+  the official ASN.1 specification (and has the same definition). However,
+  in ASN.1X, when it is encoded in canonical form, relative OIDs must be
+  used when possible (some programs will care about this, since they will
+  not then have to check for both forms of the OID).
+
+  Do not use this type for encoding a sequence of natural numbers, since
+  that is not the meaning of this type.
+
+TIME (14)
+  This is the unrestricted ISO 8601 type. It can be used to represent a
+  date and/or time with the Gregorian calendar and time zones, and can
+  also be used for time intervals and durations using those systems. The
+  precision is considered to be significant.
+
+  This type is not suitable for calendars other than the most common
+  Gregorian calendar and UTC-based time of day (and any that are directly
+  based on it), although the international Gregorian calendar is the most
+  common kind used for international business (and you can use ISO week
+  date, which is used in business).
+
+  This type is more complicated than the simpler Generalized time type and
+  the ASN.1X types based on seconds since the epoch, although sometimes
+  this additional complexity is helpful, such as if you want to use local
+  time; your schema might define additional restrictions on the use of this
+  type, or you may use one of the predefined restricted ISO 8601 types
+  listed below.
+
+  See also the restricted ISO 8601 types: DATE (31), TIME-OF-DAY (32),
+  DATE-TIME (33), and DURATION (34).
+
+  See also GENERALIZED_TIME (24) and UTC_TIMESTAMP (68), which are simpler
+  types which are likely to be suitable for many purposes.
+
+SEQUENCE (16)
+  This type has two uses (unfortunately ASN.1 uses the same type for both
+  of them, even though I thought it would be better to have two separate
+  types, but now it is what it is).
+
+  One use is for a ordered sequence of data, like the list and array types
+  in other formats. (If the order doesn't matter, then the set type can be
+  used instead.)
+
+  The other use (a sequence with fields) is a structure that contains a
+  number of fields (and which may be extensible in future). It is possible
+  that some fields are optional, and some may have a default value (which
+  also makes it optional, but if it is omitted then it means that its value
+  will be the default value).
+
+SET (17)
+  Use this for a set of items whose order is not significant. Depending
+  on the schema, duplicate items might or might not be allowed.
+
+  Note that a set of nonnegative integers will be in the numerical order
+  if it is in canonical form, which might be useful in some applications.
+  This does not apply if negative numbers or nonintegers are used, or any
+  other types of data.
+
+  There is also a "set with fields" type in ASN.1, although I do not
+  recommend using this because usually a sequence with fields would be
+  better. (There might be some uses, but if so, it is probably rare.)
+
+NUMERIC_STRING (18)
+  Use this when only digits and spaces are required. (In many cases,
+  spaces will not be required.)
+
+  For some things, other characters are also used, such as ISBN-10 which
+  may use "X" for the checksum if it is ten, and telephone numbers which
+  may have "*" and "#" and extensions.
+
+  In ASN.1X, the BCD string type is usually better than this one, and
+  should be used instead of this one, but see the description of that
+  type for some details which may be relevant.
+
+PRINTABLE_STRING (19)
+  This type is used for a restricted subset of ASCII. Many things do not
+  need all visible ASCII characters, although even then, it is common to
+  use characters not allowed in a Printable string, in which case Visible
+  string should be used instead. If you are unsure of whether Printable or
+  Visible is appropriate, use Visible string.
+
+  Examples where it is appropriate:
+  * Internet domain names
+  * ICAO airport codes
+  * IATA airport codes
+  * ISO 3166 country codes
+  * ISO 4217 currency codes
+  * Airline codes
+  * Vehicle registration plates
+
+  Examples where it should be avoided:
+  * URLs (use Visible string instead)
+  * Email addresses (use Visible string instead)
+  * C identifiers (use Visible string instead)
+  * Telephone numbers (use BCD string or Numeric string)
+  * Multi-line text (use General string or IA5 string)
+
+TELETEX_STRING (20)
+  It is unlikely that you will need this type unless you are working with
+  T.61; you will probably instead want to use Graphic string or General
+  string types; see the notes about those types below.
+
+  If you are not working with T.61 then your requirements for what subset
+  of characters is appropriate will probably be different than T.61.
+
+  Some programs incorrectly use this type for ISO-8859-1. You should avoid
+  using it this way in new specifications.
+
+VIDEOTEX_STRING (21)
+  It is unlikely that you will need this type unless you are working with
+  T.101; you will probably instead want to use Graphic string or General
+  string types; see the notes about those types below.
+
+IA5_STRING (22)
+  This type is used for full ASCII including control characters. However,
+  in my experience, most things will want to use either a more restricted
+  type (such as Visible string) or a less restricted type (such as General
+  string), although this may be useful for some purposes.
+
+UTC_TIME (23)
+  I recommend avoiding this type in new specifications, since it is not
+  Y2K compliant.
+
+  See also GENERALIZED_TIME (24), which should be used instead of this one.
+
+GENERALIZED_TIME (24)
+  This type specifies the date/time using the Gregorian calendar for the
+  AD years from 0000 to 9999. For this type, whether midnight is at
+  00:00:00 or at 24:00:00 is not considered significant, and time zone is
+  also not considered significant, so the canonical form is always UTC and
+  midnight is always at 00:00:00.
+
+  Although the time zone can be specified, it is not considered to be
+  significant (and is not used in the canonical form). The ISO 8601 time
+  type should be used if the time zone and/or precision (as well as other
+  things considered significant in ISO 8601, such as if midnight is at
+  00:00:00 or at 24:00:00) is considered to be significant for your
+  application. However, the Generalized time type may be preferred in some
+  specifications for simplicity, in case the extra significance and other
+  features of the ISO 8601 types are not needed. If you are using ASN.1X,
+  then the ASN.1X time types might also be considered.
+
+  See also TIME (14), UTC_TIMESTAMP (68), and SI_TIMESTAMP (69).
+
+GRAPHIC_STRING (25)
+  This is used for many character sets but without control characters.
+
+  See also GENERAL_STRING (27) for notes about the use of ISO 2022.
+
+VISIBLE_STRING (26)
+  Use it when only ASCII characters are appropriate, and control characters
+  are not used. Note that schemas may further restrict the subset of
+  characters that are allowed, although if that subset is a subset of the
+  Printable string characters, then Printable string should be used instead
+  (although this is not required).
+
+  Examples where it is appropriate:
+  * URLs
+  * Email addresses
+  * Many kinds of identifiers
+
+  Examples where it should be avoided:
+  * Domain names (use Printable string instead)
+  * International text
+  * Multi-line text
+
+GENERAL_STRING (27)
+  Use this type when you want text that may use many character sets (often,
+  but not always, all graphic (G) sets), as well as control characters
+  (such as line breaks, etc).
+
+  For most applications, only some control characters will be applicable;
+  your schema should specify which control characters are applicable. The
+  implementation then will only need to include the implementations of the
+  control characters that are used by that schema, rather than all of them.
+  Using all of the control characters is going to make it very complicated
+  (unless implementation of control characters is unnecessary even if they
+  are allowed, which is sometimes the case) and unlikely to be useful, so
+  a restriction of valid control characters is generally recommended.
+
+  It is unclear if in standard ASN.1, DOCS is supposed to be allowed. It
+  probably should not be used normally, although some schemas might use it
+  and would specify which DOCS codes are allowed. For DOCS codes that use
+  standard return, and have codes reserved for control characters, the
+  control characters selected by ISO 2022 may be used, in which case you
+  might need to use 7-bit C1 controls if the codes that are normally used
+  for 8-bit C1 controls are used for other meanings in that system (both
+  TRON-8 and UTF-8 work in this way, and others also might).
+
+  Examples where it is appropriate:
+  * International text (sometimes)
+  * Bibliographic text
+  * Formatted text
+
+  Examples where it should be avoided:
+  * Text that should be restricted to ASCII (use IA5 or Visible string)
+  * Text that should be restricted to Unicode
+  * ISO 2022 without control characters (use Graphic string instead)
+  * URLs
+  * Internet domain names
+  * Most kind of computer commands
+
+UNIVERSAL_STRING (28)
+  This is a string with 32-bit Unicode characters. It might be useful with
+  applications that use UTF-32.
+
+  Most applications do not need UTF-32 (UTF-16 or UTF-8 will be a shorter
+  encoding), but there are some cases where this might be useful, such as
+  cases where indexing by Unicode code points is useful, and applications
+  that inherently use UTF-32 (such as Glk).
+
+  See also UTF8_STRING (12) for notes about the use of Unicode in general.
+
+CHARACTER_STRING (29)
+  This is the "unrestricted character string type", which allows you to use
+  any arbitrary character set and character encoding, and the data can
+  specify what character encoding is used.
+
+UTF16_STRING (30)
+  This is a string with 16-bit Unicode characters. It might be useful when
+  storing data from other sources if the application uses UTF-16 encoding
+  (in some cases, there may be mismatched surrogates, which means that it
+  is not necessarily "proper" UTF-16, in which case it is called WTF-16;
+  you can use this type in those cases too, if necessary).
+
+  Standard ASN.1 calls this the BMP string type, and only allows BMP
+  characters. In ASN.1X, the schema will call it a "BMP string" if only
+  BMP characters are allowed, or a "UTF-16 string" if it is not restricted
+  to only BMP characters.
+
+  Examples where this should be avoided:
+  * URLs (use Visible string instead)
+  * Arbitrary file names
+  * Unicode text that is mostly ASCII (use UTF-8 instead)
+  * Unicode text used with formats that use UTF-8 instead
+
+  See also UTF8_STRING (12) for notes about the use of Unicode in general.
+
+DATE (31)
+  This is a restricted ISO 8601 type that can only represent a Gregorian
+  calendar date without any time zone, from AD 1582 to AD 9999.
+
+  See also TIME (14).
+
+TIME_OF_DAY (32)
+  This is a restricted ISO 8601 type that can only represent a time of day
+  using the standard 24-hour clock, without any time zone (it is always
+  assumed to be local time, or whatever else is implied by the context;
+  it is never specified explicitly).
+
+  See also TIME (14).
+
+DATE_TIME (33)
+  This restricted ISO 8601 type combines DATE and TIME_OF_DAY; see the
+  description of those types above for details.
+
+  This might be useful for storing a date/time where the original time
+  zone is unknown and/or unimportant, such as file modification times on
+  MS-DOS and other systems that use this common date/time format but do
+  not specify or imply any time zone.
+
+  When you require an exact date/time for the purposes of your schema,
+  in UTC rather than with an unspecified time zone, or based on TAI or
+  SI seconds rather than UTC, or with fractional seconds, then you
+  should not use this type; use the Generalized time type or the ASN.1X
+  epoch-based time types instead.
+
+  See also TIME (14).
+
+DURATION (34)
+  This is a restricted ISO 8601 type that can specify a duration in years,
+  months, weeks, days, hours, minutes, and/or seconds. (ISO 8601 does not
+  allow combining weeks with any other kind of duration.)
+
+  See also TIME (14).
+
+OID_IRI (35)
+  In my opinion this type does not seem to be really useful, although
+  there is possibility that someone might have a use for it.
+
+RELATIVE_OID_IRI (36)
+  In my opinion this type does not seem to be really useful, although
+  there is possibility that someone might have a use for it.
+
+BCD_STRING (64)
+  This can be used for a more compact representation of numeric strings,
+  including some characters other than numbers; for example, it is also
+  suitable for telephone numbers.
+
+  An odd number of characters cannot be represented using this type,
+  although if trailing spaces are not significant then a trailing space
+  can be added to make it even.
+
+PC_STRING (65)
+  Used for characters on the IBM PC text mode and/or on MS-DOS. This is
+  another restricted character set which may be useful for some
+  applications. Whether the characters in range 0x00 to 0x1F are considered
+  as control characters or graphic characters depends on the application
+  (some of which might be disallowed by some schemas).
+
+TRON_STRING (66)
+  Use this for international text, or especially for Japanese text, but it
+  can be used for text in any language.
+
+  TRON code has some significant advantages over ISO 2022 and Unicode. It
+  distinguishes between e.g. Chinese and Japanese, and other things that
+  may be useful to be distinguished, and is a stateless character set but
+  with a stateful encoding (unlike Unicode which is the other way around).
+  The stateful encoding used in TRON code is simpler than that of ISO 2022.
+
+KEY_VALUE_LIST (67)
+  A key/value list has many uses, for when you want to map a potentially
+  varying set of keys (which are all different from each other) to the
+  values associated with that keys (which might not all be different,
+  although some uses might require them to be different anyways).
+
+  Examples where it may be inappropriate:
+  * List of extensions to the file format, with their values
+  * Extensible metadata lists
+  * Sparse arrays, only a few values at arbitrary positions are filled in
+
+  Examples where it should be avoided:
+  * Anything where the order of items matters
+
+  See also TRANSLATION_LIST (77) for translation into different languages.
+
+UTC_TIMESTAMP (68)
+  This type is used for representing a date/time as the number of seconds
+  since some epoch (internally it uses the TRON epoch but you can add or
+  subtract in order to use your own epoch), excluding leap seconds. This
+  can be an integer number of seconds or it can optionally include a
+  fractional number of seconds as well (although some schemas and some
+  applications might not use fractional seconds).
+
+  You might use this time if you want to use the leap seconds and those
+  features of UTC for keeping track of time but want to use it without
+  the calendar date/times. This representation is also more compact than
+  the standard ASN.1 date/time types if you use only the integer format,
+  and this type is also more suitable for doing addition and subtraction.
+
+  One example of using this format is if you have the time stored in UNIX
+  time or with software that otherwise uses UNIX time (or time in seconds
+  from some other epoch, such as the TRON epoch), and want to use the same
+  time values directly with it, without using calendar dates.
+
+  See also TIME (14), GENERALIZED_TIME (24), and SI_TIMESTAMP (69).
+
+SI_TIMESTAMP (69)
+  This type is similar to the UTC timestamp type above, although it uses
+  SI seconds instead of UTC, so leap seconds are included.
+
+  This type might be used for measurement with time standards that do not
+  use leap seconds and other features of UTC, such as TAI. This type is
+  also more useful if you want to be able to measure time elapsed by
+  subtracting them, since you do not need to deal with leap seconds.
+
+  See also UTC_TIMESTAMP (68).
+
+UTC_TIME_INTERVAL (70)
+  This type should be used when you want to specify a difference between
+  two UTC timestamps in UTC seconds. It should not be used for measuring
+  how much time has actually elapsed (use the SI time interval type
+  instead), or for differences involving months and years (which should
+  use the ISO 8601 types).
+
+  See also TIME (14), DURATION (34), and SI_TIME_INTERVAL (71).
+
+SI_TIME_INTERVAL (71)
+  This type should be used for measuring amounts of elapsed time in SI
+  seconds (or other units derived from them, such as minutes and hours),
+  without using leap seconds, months, leap years, etc. You can optionally
+  include fractional seconds.
+
+  See also UTC_TIME_INTERVAL (70).
+
+OUT_OF_BAND (72)
+  This type is rarely useful for stored data; its intended use is for
+  interprocess communication, to transmit such things as file descriptors.
+  The definition of this type depends on the transport.
+
+  Programs that understand the transport but not the entire schema (e.g.
+  part of the schema varies by application) might be able to use this for
+  some purposes, such as if the message needs to be altered or combined
+  with other one or split apart etc, in a way which might be partially
+  independent of the schema.
+
+MORSE_STRING (73)
+  This is not useful for most applications but will sometimes be useful.
+
+  Morse character set is not a superset or subset of other character sets,
+  since international characters and control characters work differently,
+  as well as other differences.
+
+  Most Morse characters can be encoded in one byte, although a few will
+  require two bytes. (As far as I know, none require three bytes, although
+  you can encode these (and longer) anyways if it is necessary to do so.)
+
+REFERENCE (74)
+  For structured data where a node may reference other nodes at many other
+  levels by their position, this type might be useful.
+
+  When using this type, you should be careful about changes in other parts
+  of the data, to ensure that the references are updated correctly.
+
+  If you are only indexing data in one sequence, then the integer type
+  might be better due to simplicity and compactness, although the reference
+  type might be used if you consider it more important to handle it with a
+  program that does not understand the schema to be able to identify what
+  is being referenced.
+
+IDENTIFIED_DATA (75)
+  This type can be useful for identifying what schema a file in DER format
+  uses, as well as if it conforms with multiple formats at the same time,
+  and possibly to attach extra data that is independent of the format (e.g.
+  the author's name in a way that is independent of what it is; this can be
+  used whether or not this extra data is a part of the schema). (External
+  is more compact but has less options.)
+
+  Another use is to identify the format of data used somewhere within the
+  file other than the top level, especially if it can potentially contain
+  multiple types of data.
+
+  Either way, the DER data can be read even without understanding the
+  schema, and the individual items can be read, but this can also be used
+  to identify the schema and read them according to the schema.
+
+  An application might optionally allow this type to be used for the outer
+  file, and if a future version adds the ability to use compressed and/or
+  encrypted files, and/or the ability to use multiple DER-based formats
+  that use this type as the wrapping, then it will be able to automatically
+  identify this, and external programs might also be able to e.g. deal with
+  the compression and/or encryption separately even without understanding
+  the data being compressed/encrypted; it may also be possible if a format
+  is made which is based on it but similar, and then someone makes a file
+  that uses the features common with both, to specify that it is conforming
+  to both formats.
+
+  This type is not useful when something is already specified by the use of
+  the other types, and can make the encoding and decoding less efficient if
+  there is only one choice or if the choice is specified in some other way
+  nearby in a simpler way that is suitable for the application (such as the
+  OID identifying a hash algorithm or something else), or if you do not
+  want all of the features that this type allows.
+
+  See also EXTERNAL (8) and EMBEDDED_PDV (11).
+
+RATIONAL (76)
+  Use this type when you want to store an exact fraction which may have an
+  arbitrary numerator and denominator. The canonical form is always lowest
+  terms, so the numbers used to represent it are not considered to be
+  significant (e.g. 4/3 is equivalent to 8/6).
+
+  (Some parts of some schemas might restrict it to a positive number.)
+
+  Examples where this might be appropriate are:
+  * Aspect ratio
+  * Tempo ratio
+
+  Examples where it should be avoided:
+  * Time signature in music
+  * Most cases where approximate numbers are desired
+
+TRANSLATION_LIST (77)
+  This type can be useful for internationalization, where you can specify
+  a different value depending on the language, such as the translation of
+  some text into English, French, Chinese, etc.
+
+  This is the same as the key/value list type except that it has the
+  special purpose described above.
+
+SCIENTIFIC (78)
+  Use this type to store numbers that are not necessarily integers and
+  which is usually approximate but where the number of significant figures
+  is considered to be significant. This includes many types of measurements
+  in science and engineering and possibly others.
+
+
+=== Frequently asked questions ===
+
+This section includes common questions about ASN.1, which are not answered
+in the other sections, and also includes some things that people claim
+about ASN.1 which are untrue, or are partially untrue, or are used with
+wrong significance, etc.
+
+CLAIM:
+  ASN.1 cannot be used without a schema.
+
+RESPONSE:
+  For some formats, such as OER and PER, this is true. However, it is not
+  true for BER and DER; you can use those formats without a schema (a
+  schema is still helpful for many uses, but is not required).
+
+CLAIM:
+  ASN.1 has too much stuff (or, ASN.1 is too complicated).
+
+RESPONSE:
+  You are not required to implement all of it; you can use only the parts
+  that you need. If you are implementing the data format such as DER, then
+  you only need to implement the parts that you are using in the parts of
+  the data file that you care about, and can easily skip past any other
+  parts; DER uses consistent framing to make this easy to do.
+
+  Having many things is helpful, because when you do want to use those
+  things, there is now a format for them with ASN.1, instead of having to
+  try to put them into a different forat where it does not work.
+
+  This document includes advice about which features you might use and
+  which things should be avoided in what circumstances, so that you will
+  not have to use all of the stuff in ASN.1.
+
+  The ASN.1 schema format is complicated, but even then there seems to be
+  many useful things it doesn't do (but it does a lot of potentially useful
+  things that other formats lack, too). However, you can work without the
+  ASN.1 schema format in many cases, and you can often use it manually.
+
+  (In other words, a lot of the complexity is optional.)
+
+CLAIM:
+  An implementation of a subset of ASN.1 is not ASN.1, but something else.
+
+RESPONSE:
+  If the implementation is made in a good way, it can be extended as needed
+  by whatever applications will use the additional features of it than what
+  that one already does.
+
+  In some cases, external libraries can be used to do some things, and the
+  DER encoder/decoder will only need to encode/decode the items in the file
+  format, rather than doing calculations with them. Examples of such things
+  include big integers, decimal floating point, character encodings, etc.
+  You can also avoid needing to convert data that you are not using, even
+  if they are types that you otherwise do implement.
+
+CLAIM:
+  DER uses signatures, but capability-based security is better.
+
+RESPONSE:
+  This is not specific to DER. Some formats that use DER, such as X.509, do
+  use signatures, but DER and ASN.1 do not require that. The file format
+  such as DER is independent of security mechanisms.
+
+CLAIM:
+  There are a lot of security problems with ASN.1.
+
+RESPONSE:
+  Most of them have to do with specific implementations, and with other
+  programs that just happen to use ASN.1; such things can occur with other
+  formats as well. In some cases, they are due to badly designed programs.
+  Most of it is not really having to do with ASN.1.
+
+  If your program uses ASN.1 badly, that is not necessarily the fault of
+  the library that you use to deal with ASN.1; it is your own fault.
+
+  There are more real problems with Unicode than with ASN.1.
+
+QUESTION:
+  Which encoding format of ASN.1 is better?
+
+RESPONSE:
+  In my opinion (and some other people, too), DER is generally better; it
+  is a good compromise between such things as: simple framing decoding,
+  simple data formats, compactness, being readable by other programs, etc.
+
+  Some people prefer OER. OER is more compact, although it requires the
+  schema to be usable, and does not use consistent framing for everything.
+
+QUESTION:
+  Why should DER be used if you do not need canonical form?
+
+RESPONSE:
+  BER has a lot of messiness due to multiple ways of encoding things, and
+  DER is therefore simpler in this way. Also, there are some circumstances
+  where it is helpful for some fields to be canonical form or nearly
+  canonical form even if not required for the entire file (there is the
+  nonstandard SDER format which might be helpful for this, which is a
+  superset of DER but is a subset of BER).

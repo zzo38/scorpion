@@ -2,6 +2,11 @@ G 94 single byte sets:
 <1B 28 22 34> DEC Hebrew (without NRCS)
 <1B 28 22 3E> DEC Greek (with NRCS)
 <1B 28 22 3F> DEC Greek (without NRCS)
+<1B 28 23 41> Symbol font (low half) (Apple)
+<1B 28 23 49> Lotus Multi-Byte Group 2 lower codes 0x00-0x1F as 0x40-0x5F
+<1B 28 23 4A> Second NEC APC (0x21-0x3F=NEC APC 0x01-0x1F, 0x40-0x5F=0x80-0x9F)
+<1B 28 23 50> Apple MouseText (original)
+<1B 28 23 51> Apple MouseText (IIGS)
 <1B 28 25 32> DEC Turkish (with NRCS)
 <1B 28 25 33> SCS NRCS
 <1B 28 25 30> DEC Turkish (without NRCS)
@@ -22,6 +27,13 @@ G 96 single byte sets:
 <1B 2D 23 43> EIA-708 G3 set
 <1B 2D 23 44> First PC extension (0xA0-0xC0=PC 0x00-0x20, 0xDF-0xFF=PC 0x7F-0x9F)
 <1B 2D 23 45> Second PC extension (0xA0-0xFF=PC 0xA0-0xFF)
+<1B 2D 23 48> Lotus Multi-Byte Group 1 lower codes 0x20-0x7F as 0xA0-0xFF
+<1B 2D 23 49> Lotus Multi-Byte Group 2 lower codes 0x20-0x7F as 0xA0-0xFF
+<1B 2D 23 4A> First NEC APC extension (0xA0-0xFF=NEC APC 0xA0-0xFF)
+<1B 2D 23 4C> First GEM extension (0xA1-0xBF=GEM 0x01-0x1F, 0xE0-0xFF=0xE0-0xFF)
+<1B 2D 23 4D> Second GEM extension (0xA0-0xFF=GEM 0x80-0xDF)
+<1B 2D 23 4E> PCL Ventura International (high half)
+<1B 2D 23 4F> Symbol font (high half) (Apple)
 
 G 94 multi byte sets:
 (none)
@@ -36,6 +48,7 @@ C0 sets:
 
 C1 sets:
 <1B 22 23 42> Uninterpreted transparent controls 0x80 to 0x9F
+<1B 22 23 44> Opaque application-specific controls
 
 DOCS:
 <1B 25 38> UTF-8 (obsolete)

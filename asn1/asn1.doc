@@ -634,7 +634,13 @@ only the last segment may have unused bits.
 object identifier. The encoding is the same as the graphic string type.
 
 * External (8 C): Like embedded PDV (see below) but the specification is
-a bit different, and is also not mentioned here.
+different. This contains a OID, integer, and object descriptor, in that
+order, all of which are optional but at least one of the first two are
+required; followed by either a type 0 explicit single item of any type
+or a type 1 implicit octet string or a type 2 implicit bit string. The
+integer is only significant for OSI presentation contexts so it is not
+normally used in other files. The OID specifies the format of the data
+that is specified by the last item.
 
 * Real (9 P): A floating point number; the explanation is below.
 
@@ -642,8 +648,11 @@ a bit different, and is also not mentioned here.
 same as a integer.
 
 * Embedded PDV (11 C): Represents a value that might not be a ASN.1 type
-and that contains identification of the type and/or format of the data.
-The specification is a bit complicated and is not mentioned here.
+and that contains identification of the type and/or format of the data,
+so that it can be used to include data in a separate protocol which is
+identified in this file. The specification of this type is different from
+the External type, and uses a different format than that type; the format
+is not described here, but you may refer to X.680 for details.
 
 * UTF-8 string (12 S): A string of Unicode characters encoded as UTF-8.
 
