@@ -1,0 +1,261 @@
+(To be added to plane 0x70 as parts are being completed; so far this
+document is a draft version. A few things already are added)
+
+0x2121 = blank space
+0x2123 = British pounds sign
+0x2124 = cents sign
+0x2127 = section sign
+0x213C = greater or equal sign (horizontal line)
+0x213D = unequal sign
+0x213E = less or equal sign (horizontal line)
+0x2141 = "AE"
+0x2143 = "C" with cedilla
+0x2144 = Eth
+0x2149 = dotless "I"
+0x214A = dotless "J"
+0x214C = dotted "L"
+0x214F = slashed "O"
+0x2153 = "S" with cedilla
+0x2159 = Thorn
+0x215C = Japanese yen sign
+0x2161 = "ae"
+0x2163 = "c" with cedilla
+0x2164 = eth
+0x2169 = dotless "i"
+0x216A = dotless "j"
+0x216C = dotted "l"
+0x216F = slashed "o"
+0x2173 = "s" with cedilla
+0x2179 = thorn
+0x217C = vertical bar with a gap in the middle
+0x217E = overline
+0x2221 to 0x227E = visible ASCII 0x21 to 0x7E
+0x2321 = feminine ordinal indicator
+0x2322 = masculine ordinal indicator
+0x2323 = trademark
+0x2324 = generic currency sign
+0x2325 = registered trademark
+0x2326 = copyright
+0x2327 = copyleft
+0x232A = multiplication sign (x)
+0x232B = plus and minus
+0x232F = division sign
+0x233C = left guillemet <<
+0x233D = equivalence sign
+0x233E = right guillemet >>
+0x2344 = "D" with stroke
+0x2348 = "H" with stroke
+0x234A = "IJ"
+0x234C = slashed "L"
+0x234F = "OE"
+0x2353 = German sharp S (uppercase)
+0x235E = degree
+0x2364 = "d" with stroke
+0x2368 = "h" with stroke
+0x236A = "ij"
+0x236C = slashed "l"
+0x236F = "oe"
+0x2373 = German sharp s
+0x237C = vertical bar without a gap in the middle
+0x2421 = double exclamation (PC 0x13)
+0x2423 = "Cz" (Brazilian cruzado)
+0x2430 to 0x2439 = superscript numbers 0 to 9
+0x243D = element of
+0x2440 = infinity
+0x245F = set intersection
+0x2521 = upsidedown exclamation mark (Spanish)
+0x2523 = euro
+0x2530 to 0x2539 = subscript numbers 0 to 9
+0x253D = not element of
+0x253F = upsidedown question mark (Spanish)
+0x3030 to 0x3033 = solid suits (heart, diamond, club, spade)
+0x3034 to 0x3037 = solid triangle pointing (right, up, left, down)
+0x3038 = solid happy face (PC 0x02)
+0x3039 = solid circle (MSX Japanese 0x85)
+0x3130 to 0x3133 = hollow suits (heart, diamond, club, spade)
+0x3134 to 0x3137 = hollow triangle pointing (right, up, left, down)
+0x3138 = hollow happy face (PC 0x01)
+0x3139 = hollow circle (MSX Japanese 0x84)
+0x3231 = fraction 1/4
+0x3232 = fraction 1/2
+0x3233 = fraction 3/4
+0x3234 to 0x3237 = arrows (right, up, left, down)
+0x3238 = arrow up and down
+0x3239 = arrow left and right
+0x323A = underlined arrow up and down (PC 0x17)
+0x323B = mirror image phi (NEC APC 0xDC)
+0x323C = left arrow above right arrow
+0x323D = hollow lozenge
+0x3321 = paragraph sign, reverse P, hollow
+0x3322 = paragraph sign, forward P, hollow
+0x3323 = paragraph sign, reverse P, solid
+0x3324 = paragraph sign, forward P, solid
+0x3338 = Face without the circle around
+0x335E = house (PC 0x7F)
+
+(For Turkish alphabets, use the dotless "I" and "i" and then apply the dot
+accent as described below if applicable.)
+
+(TODO: add Greek and Cyrillic alphabets, including the variants of some of
+the Greek alphabets)
+
+Accent marks for 0x__41 to 0x__5A and 0x__61 to 0x__7A will have the high
+nybble changed from 0x2 to one of the below (for Latin-based alphabets):
+  0x2___ = no accent mark
+  0x3___ = acute
+  0x4___ = grave
+  0x5___ = umlaut
+  0x6___ = circumflex
+  0x8___ = tilde
+  0x9___ = dot
+  0xA___ = ring
+  0xB___ = caron
+
+(Greek and Cyrillic alphabets might use a different set of accent marks.
+This does not include all accent marks because they do not all fit into
+this plane (although they might do later if some parts of the secondly
+high nybble are also used for accent marks), but other planes are available
+for more elaborate sets of accented alphabets. This plane mostly has the
+ones commonly used on older computers, but is not only limited to that.)
+
+0x2181 to 0x218F = MSX kanji 0x41 to 0x4F
+0x219D to 0x219F = MSX kanji 0x5D to 0x5F
+0x21A1 to 0x21DF = JIS X 0201 katakana
+
+0x2280 to 0x228B are the signs for planets:
+  80  Sun
+  81  Mercury
+  82  Venus (female)
+  83  Earth
+  84  Moon
+  85  Mars (male)
+  86  Jupiter
+  87  Saturn
+  88  Uranus (Herschel)
+  89  Uranus
+  8A  Pluto (PL)
+  8B  Pluto (orb)
+
+0x8080 to 0x80BF = solid mosaics:
+  [02] [01]
+  [08] [04]
+  [20] [10]
+
+0x81A1 to 0x81BF = ISO-IR-137 mosaics 0x21 to 0x3F
+0x81E0 to 0x81FD = ISO-IR-137 mosaics 0x60 to 0x7D
+
+(The ISO-IR 137 mosaics 0x60 to 0x7D are the same as the ISO-IR 173 mosaics
+0x60 to 0x7D, but ISO-IR 137 does not use positions 0x6E and 0x6F.)
+
+0x8280 to 0x82BF and 0x8380 to 0x83BF = seven segment displays:
+     [001]
+  [004]  [002]
+     [008]
+  [020]  [010]
+     [200]
+
+0x8A80 to 0x8ABF and 0x8B80 to 0x8BBF are also the seven segment displays
+but with the lower right dot added.
+
+Horizontal/vertical line drawing: Start with 0x9080, but add the numbers:
+  0x0001 = line to right
+  0x0002 = line to left
+  0x0004 = line to top
+  0x0008 = line to bottom
+  0x0010 = double horizontal lines
+  0x0020 = double vertical lines
+If there are no lines, then a middle dot should be shown. (The range of
+these line drawings are therefore 0x9080 to 0x90BF.) (Also note that the
+single vertical line should line up with the halfs of the integral sign.)
+
+0x90F1 to 0x90F7 = NEC APC dashed line drawing 0xF1 to 0xF7:
+  dashed horizontal
+  dashed vertical
+  solid horizontal and dashed up
+  solid horizontal and dashed down
+  solid vertical and dashed left
+  solid vertical and dashed right
+  dashed horizontal and dashed vertical
+
+0x90FD = Amiga Topaz-9 character 0x7F
+
+0x9180 to 0x91A1 = ISO 2047 control symbols 0x00 to 0x20 and 0x7F;
+MIL-STD-188-100, 1972.
+
+0x91A2 = Newer variant of ISO 2047 sign for bell control (ASCII 0x07)
+0x91C1 = Two dots like PC character 0x07, one right of the other one
+0x91C6 = PC character 0x16
+0x91C7 = PC character 0x07
+0x91C8 = PC character 0x08
+0x91C9 = PC character 0x09
+0x91CA = PC character 0x0A
+0x91CD = PC character 0x0D (single music)
+0x91CE = PC character 0x0E (double music)
+0x91CF = PC character 0x0F
+
+IBM 3270 characters; the below numbers use the numbers in the x3270 fonts:
+  [TRON]  [3270 CG]  [Name]      [Description]
+  0xE0D2  0x0D2      boxA        box with A above to the left
+  0xE0D3  0x0D3      insert
+  0xE0D4  0x0D4      boxB        box with B above to the right
+  0xE0D5  0x0D5      box6
+  0xE0D6  0x09E      fm          semicolon with bar above
+  0xE0D7  0x09F      dup         asterisk with bar above
+  0xE0DA  0x0DA      upshift
+  0xE0DB  0x0DB      human
+  0xE0DC  0x0DC      underB
+  0xE0DD  0x0DD      downshift
+  0xE0DE  0x0DE      boxquestion
+  0xE0E0  0x0F0      badcommhi
+  0xE0E1  0x0F1      commhi
+  0xE0E2  0x0F2      commjag
+  0xE0E3  0x0F3      commlo
+  0xE0E4  0x0F4      clockleft   left half of clock
+  0xE0E5  0x0F5      clockright  right half of clock
+  0xE0E6  0x0F6      lock        thick X
+  0xE0EA  0x0FA      keyleft     left half of key
+  0xE0EB  0x0FB      keyright    right half of key
+  0xE0EC  0x0FC      box4
+  0xE0ED  0x0FD      underA
+  0xE0EE  0x0FE      magcard
+  0xE0EF  0x0FF      boxhuman
+(possibly reorder or remove some, to be added outside of 3270 sub-block?)
+
+0xF680 to 0xF6DE = Infocom character graphics 0x20 to 0x7E (Amiga variant)
+0xF780 to 0xF7DE = Infocom character graphics 0x20 to 0x7E (PC variant)
+
+0xF880 to 0xF8FD, 0xF980 to 0xF9FD, etc up to 0xFCF9 are semi-solid and
+solid 2x2 mosaics, each quarter is one of the following:
+  0 = blank
+  1 = light shade
+  2 = medium shade
+  3 = heavy shade
+  4 = solid
+Then apply the multiplier as follows:
+  0 = top right
+  5 = top left
+  25 = bottom right
+  125 = bottom left
+This is then made linear to hi/lo according to the range given above.
+
+
+=== PC character set mapping ===
+
+      _0   _1   _2   _3   _4   _5   _6   _7   _8   _9   _A   _B   _C   _D   _E   _F
+  0_      3138 3038 3030 3031 3032 3033 91C7 91C8 91C9 91CA 2285 2282 91CD 91CE 91CF
+  1_ 3034 3036 3238 2421 3321 2127 91C6 323A 3235 3237 3234 3236      3239 3035 3037
+  2_ 2121 2221 2222 2223 2224 2225 2226 2227 2228 2229 222A 222B 222C 222D 222E 222F
+  3_ 2230 2231 2232 2233 2234 2235 2236 2237 2238 2239 223A 223B 223C 223D 223E 223F
+  4_ 2240 2241 2242 2243 2244 2245 2246 2247 2248 2249 224A 224B 224C 224D 224E 224F
+  5_ 2250 2251 2252 2253 2254 2255 2256 2257 2258 2259 225A 225B 225C 225D 225E 225F
+  6_ 2260 2261 2262 2263 2264 2265 2266 2267 2268 2269 226A 226B 226C 226D 226E 226F
+  7_ 2270 2271 2272 2273 2274 2275 2276 2277 2278 2279 227A 227B 227C 227D 227E 335E
+  8_ 2143 5275 3265 6261 5261 4261 A261 2163 6265 5265 4265 5269 6269 4269 5241 A241
+  9_ 3245 
+  A_                                         253F           3232 3231 2521 233C 233D
+  B_                908C 908E 909E 90AE 90AA 909A 90BE 90AC 90BA 90B6 90A6 9096 908A
+  C_
+  D_
+  E_
+  F_ 233D 232B 213C 213E                                                        F880
+

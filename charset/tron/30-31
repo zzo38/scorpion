@@ -1,0 +1,4 @@
+These planes are used for Unicode. The encoding is the Unicode code point
+number (in range 0 to 65535) converted by "linear2hilo". Code points 0 to
+48399 are in plane 0x30, and 48400 to 65535 are in plane 0x31.
+

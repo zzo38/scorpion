@@ -3,7 +3,8 @@ are defined). "Extended TRON Code" defines some of the planes outside of
 that range as well; the ordinary TRON planes are also used in Extended TRON
 Code and no additions are made to them. (The Unicode-based planes are
 deprecated in Extended TRON Code, but remain available for working with
-data which is originally in Unicode format.)
+data which is originally in Unicode format, and for cases where it is
+necessary to use the characters as they are defined in Unicode.)
 
 The arrangement of the TRON code is 0xVVPPXXXX where VV is the volume, PP
 is the plane, and XXXX is the character code within the plane. The plane
