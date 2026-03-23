@@ -86,6 +86,14 @@ same protocol URI scheme should be treated as equivalent by the server
 (but not by the client, which MUST treat them differently). (Proxied
 requests will treat the scheme in the request like the client does.)
 
+If the client sends a certificate chain, then this chain MUST include
+all certificiates in the proper order from the end to the root, and each
+certificate MUST directly certify the preceding one. If the server
+explicitly specifies that a certain certificate authority is allowed,
+and that authority is the root certificate of the client's chain, then
+the client MAY omit the root certificate from the chain, although it is
+recommended to include it anyways.
+
 The recommended use of SNI is:
 
 * Clients SHOULD use SNI when connecting to the server, and MAY have an
