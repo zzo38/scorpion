@@ -100,7 +100,8 @@ asn1_make_oid(const char*text,ASN1*out)
   data after you are finished with it.
 
   text = The text representation of the OID, which is a sequence of
-  integers in decimal notation with dots in between.
+  integers in decimal notation with dots in between. If the text begins
+  with "..." then it will make a relative OID.
 
   out = Pointer to ASN1 structure to write the result to.
 

@@ -168,6 +168,9 @@ If there are no lines, then a middle dot should be shown. (The range of
 these line drawings are therefore 0x9080 to 0x90BF.) (Also note that the
 single vertical line should line up with the halfs of the integral sign.)
 
+0x90C4 = bottom half of integral sign
+0x90C8 = top half of integral sign
+
 0x90F1 to 0x90F7 = NEC APC dashed line drawing 0xF1 to 0xF7:
   dashed horizontal
   dashed vertical

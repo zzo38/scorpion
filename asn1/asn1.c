@@ -373,6 +373,7 @@ static size_t make_oid_part(const char**text,uint8_t*buf,size_t maxlen,char add8
 }
 
 int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out) {
+  uint32_t t=ASN1_OID;
   char c;
   size_t m;
   if(!text || !buf || !maxlen || !out) return ASN1_ERROR;
@@ -401,6 +402,7 @@ int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out) {
       maxlen-=m;
       if(*text=='.') {
         ++text;
+    more2:
         if(*text<'0' || *text>'9') return ASN1_IMPROPER_VALUE;
         m=make_oid_part(&text,buf,maxlen,0);
         goto more;
@@ -408,11 +410,17 @@ int asn1_make_static_oid(const char*text,uint8_t*buf,size_t maxlen,ASN1*out) {
         return ASN1_IMPROPER_VALUE;
       }
       break;
+    case '.':
+      t=ASN1_RELATIVE_OID;
+      if(text[1]!='.' || text[2]!='.') return ASN1_IMPROPER_VALUE;
+      if(!text[3]) break;
+      text+=3;
+      goto more2;
     default: return ASN1_IMPROPER_VALUE;
   }
   out->constructed=0;
   out->class=ASN1_UNIVERSAL;
-  out->type=ASN1_OID;
+  out->type=t;
   return ASN1_OK;
 }
 

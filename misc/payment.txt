@@ -90,11 +90,33 @@ this step is skipped if step 5 above is skipped).
 7. Seller sends a receipt to the buyer, and uses the order details to
 send whatever they ordered as well.
 
-The catalog file is not defined yet, but it is also supposed to be DER
-format, and might include some things such as proof of work, signature,
-and other things to mitigate some kinds of dishonesty.
-
 (Note that there are a few things which I deliberately intend to avoid
 including, due to being opposed to such things.)
 
 I probably missed some things in this document; please tell me if so.
+
+
+=== Catalog file ===
+
+If a catalog file is available, then the format of the order division in
+the payment file is defined according to the catalog file. A customer who
+has the catalog file can use it to decide what to order and what parameters
+are needed, and to calculate the total price from the information that it
+contains and make up the order division in the correct format.
+
+Anywhere in the catalog file that a General string is allowed, a
+translation list of General strings is also allowed, and anywhere that
+a Graphic string is allowed, a translation list of Graphic strings is
+also allowed.
+
+The catalog file must be hashed with a proof of work, which is included
+in the catalog file. One purpose of this (as well as several other features
+of the catalog file and payment file) is as one of the mitigations against
+some kind of dishonesty (such as surveillance pricing). The catalog file
+also should be cryptographically signed, and the hash of the file also must
+be used to identify the version of the catalog file being used (to avoid
+the possibility of the catalog being unexpectedly changed when placing an
+order, so that the order will specify the version of the catalog needed).
+
+(TODO: actually make the format description)
+

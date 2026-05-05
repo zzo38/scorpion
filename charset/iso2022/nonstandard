@@ -49,9 +49,10 @@ C0 sets:
 C1 sets:
 <1B 22 23 42> Uninterpreted transparent controls 0x80 to 0x9F
 <1B 22 23 44> Opaque application-specific controls
+<1B 22 23 45> Localization controls
 
 DOCS:
-<1B 25 38> UTF-8 (obsolete)
+<1B 25 38> UTF-8 (obsolete; use <1B 25 47> instead)
 <1B 25 23 40> TRON-8
 <1B 25 2F 30> X Window System Extended Segment - variable bytes per character
 <1B 25 2F 31> X Window System Extended Segment - one byte per character
