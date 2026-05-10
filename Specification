@@ -212,6 +212,8 @@ it is a part of the URL and might not be hidden.)
 file; this is used as the response of a range request. The file size
 parameter is the entire file size, and not only the requested part.
 
+22 = Response is OK, for a metadata request, rather than the file itself.
+
 30 = Temporary redirect.
 
 31 = Permanent redirect. A client may automatically update bookmarks, etc
@@ -540,6 +542,9 @@ rather than accessing the contents of the file itself.
 
 This can be used in a similar way like the item attribute information of
 Gopher+, or the metadata request of Scroll, although it is not the same.
+
+Optionally, after the M and before the space preceding the URL, you can
+specify the desired MIME or ULFI type. The server may ignore it.
 
 
 === Hashed URI scheme ===
