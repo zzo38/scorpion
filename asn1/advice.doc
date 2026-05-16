@@ -53,6 +53,8 @@ the use of automatic tags. I do not agree with that, for several reasons.
 BOOLEAN (1)
   Use this for data with two states, e.g. yes/no, true/false, on/off, etc.
 
+  See also ENUMERATED (10).
+
 INTEGER (2)
   Use this for integers, whether or not they are allowed to be negative,
   and might or might not have a minimum and/or maximum. Some appropriate
@@ -123,8 +125,8 @@ OCTET_STRING (4)
   See also BIT_STRING (3).
 
 NULL (5)
-  Use this type when a field is required (it cannot or should not be made
-  optional), but has no applicable data.
+  Use this type when a field is required (if it cannot or should not be
+  made optional), but has no applicable data.
 
   It can also be used if the presence of the field is significant but there
   is no data needed (e.g. if a schema allows extensions to be added that
@@ -233,8 +235,7 @@ UTF8_STRING (12)
   Note about the use of Unicode: Some people say Unicode is a good
   character set, or that it is the only good character set and others
   are no good, or that you should assume that all text is Unicode or
-  should convert all text to Unicode, but they are wrong. This is not
-  generally correct; there are many problems with this.
+  should convert all text to Unicode, but they are wrong.
 
   I would suggest avoiding Unicode in newer formats if you can avoid it,
   unless interoperability is needed with other formats that require it.
@@ -311,7 +312,7 @@ SET (17)
 
   There is also a "set with fields" type in ASN.1, although I do not
   recommend using this because usually a sequence with fields would be
-  better. (There might be some uses, but if so, it is probably rare.)
+  better. (There are some possible uses though, but it is rare.)
 
 NUMERIC_STRING (18)
   Use this when only digits and spaces are required. (In many cases,
@@ -319,7 +320,8 @@ NUMERIC_STRING (18)
 
   For some things, other characters are also used, such as ISBN-10 which
   may use "X" for the checksum if it is ten, and telephone numbers which
-  may have "*" and "#" and extensions.
+  may have "*" and "#" and extensions. You cannot (correctly) use this
+  type in those circumstances.
 
   In ASN.1X, the BCD string type is usually better than this one, and
   should be used instead of this one, but see the description of that
@@ -371,8 +373,7 @@ IA5_STRING (22)
   string), although this may be useful for some purposes.
 
 UTC_TIME (23)
-  I recommend avoiding this type in new specifications, since it is not
-  Y2K compliant.
+  Avoid this type in new specifications, since it is not Y2K compliant.
 
   See also GENERALIZED_TIME (24), which should be used instead of this one.
 
@@ -449,8 +450,8 @@ GENERAL_STRING (27)
   * Text that should be restricted to ASCII (use IA5 or Visible string)
   * Text that should be restricted to Unicode
   * ISO 2022 without control characters (use Graphic string instead)
-  * URLs
-  * Internet domain names
+  * URLs (use Visible string instead)
+  * Internet domain names (use Printable string instead)
   * Most kind of computer commands
 
 UNIVERSAL_STRING (28)
@@ -469,6 +470,11 @@ CHARACTER_STRING (29)
   any arbitrary character set and character encoding, and the data can
   specify what character encoding is used.
 
+  One use of this is if it is helpful to store the text in the original
+  encoding while also specifying what character set and encoding it is. (If
+  you don't care about the original encoding, then you might decide to use
+  ISO 2022 instead for interoperability.)
+
 UTF16_STRING (30)
   This is a string with 16-bit Unicode characters. It might be useful when
   storing data from other sources if the application uses UTF-16 encoding
@@ -486,6 +492,7 @@ UTF16_STRING (30)
   * Arbitrary file names
   * Unicode text that is mostly ASCII (use UTF-8 instead)
   * Unicode text used with formats that use UTF-8 instead
+  * Text that should not be restricted to one character set
 
   See also UTF8_STRING (12) for notes about the use of Unicode in general.
 
@@ -659,7 +666,7 @@ REFERENCE (74)
   might be better due to simplicity and compactness, although the reference
   type might be used if you consider it more important to handle it with a
   program that does not understand the schema to be able to identify what
-  is being referenced.
+  is being referenced (and to automatically update references).
 
 IDENTIFIED_DATA (75)
   This type can be useful for identifying what schema a file in DER format
@@ -710,7 +717,7 @@ RATIONAL (76)
   * Tempo ratio
 
   Examples where it should be avoided:
-  * Time signature in music
+  * Time signature in music (the individual numbers are significant)
   * Most cases where approximate numbers are desired
 
 TRANSLATION_LIST (77)
@@ -720,6 +727,11 @@ TRANSLATION_LIST (77)
 
   This is the same as the key/value list type except that it has the
   special purpose described above.
+
+  For example, some fields in a schema might allow a translation list in
+  place of the other value, where the values in the translation list are
+  of the type that would otherwise be expected, so that when the file is
+  loaded, it can load the appropriate value according to the language.
 
 SCIENTIFIC (78)
   Use this type to store numbers that are not necessarily integers and
