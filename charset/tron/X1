@@ -1,0 +1,97 @@
+(DRAFT; unassigned, possibly may be assigned to plane 0x71 in future)
+
+
+Nyctography alphabet is encoded at 0x2140 to 0x2161.
+
+   1 X
+  o-.
+ 8| |2
+  ._.
+ Z 4 Y
+
+Codes 0x2140 to 0x214F do not have dots, and the above diagram shows where
+the lines occur. Codes 0x2150 to 0x2161 are with dots, as follows:
+
+  Code  Lines  Dots
+   50     0     X--
+   51     0     -Y-
+   52     0     XY-
+   53     0     --Z
+   54     0     X-Z
+   55     0     -YZ
+   56     0     XYZ
+   57     1     -Y-
+   58     1     --Z
+   59     1     -YZ
+   5A     2     --Z
+   5B     3     --Z
+   5C     4     X--
+   5D     8     X--
+   5E     8     -Y-
+   5F     8     XY-
+   60     9     -Y-
+   61     C     X--
+
+
+Vexillological symbols are encoded at 0x2221 to 0x2234:
+  2221 -- normal, de jure, obverse side
+  2222 -- proposed, not officially adopted
+  2223 -- reconstructed
+  2224 -- reverse side
+  2225 -- variant
+  2226 -- alternate
+  2227 -- de facto, not official but commonly known
+  2228 -- two sided, different obverse than reverse
+  2229 -- sinister, hoisted with pole to observer's right
+  222A -- officially authorized
+  222B -- historical, now abandoned
+  222C -- mirror, reverse side is mirror of obverse side
+  222D -- equal, reverse side is congruent of obverse side
+  222E -- no info about reverse side
+  222F -- vertical normal, hoist transformationally identical to horizontal hoist
+  2230 -- rotated when hoisted vertically
+  2231 -- vertical unknown
+  2232 -- vertical not applicable, no rotatable element
+  2233 -- vertical only
+  2234 -- not authorized to represent group or country
+
+Vexillological usage symbols are encoded at 0x223F to 0x227E by starting
+with 0x223F and adding the following numbers according to the usage:
+  0001 -- Private/Land
+  0002 -- Public/Land
+  0004 -- Military/Land
+  0008 -- Private/Water
+  0010 -- Public/Water
+  0020 -- Military/Water
+
+
+Klingon pIqaD:
+  232C = pause
+  232E = period
+  2330-2339 = numbers zero to nine
+  2341-235A = alphabets "a" to "'"
+  235F = mummification glyph
+
+
+D'ni numbers:
+  2421 = zero (with dot)
+  2422-243A = one to twenty-five
+  243B = zero (empty)
+
+D'ni alphabets:
+  243C-245E = alphabetical order ("v" to "n")
+  245F = apostrophe
+  2460 = period
+
+
+Quikscript alphabets are 0x2521 to 0x2552:
+    --0----- --1----- --2----- --3----- --4----- --5----- --6----- --7-----
+20           Pipe     Bob      Tut      Deed     Kick     Gig      Thoth
+28  Thither  Fife     Valve    Sis      Zoos     Shush    Zhivago  Church
+30  Judge    Yo-yo    Win-win  Ha-ha    Whitewh. Inkling  Mime     Nun
+38  Loll     Roar     If       Eat      Ed       Age      Ash      Ice
+40  Ah       Awl      On       Oil      Ado      Out      Oak      Wool
+48  Ooze     Air      Yew      Earth    Are      Or       Ear      Llan
+50  Loch     Ax       Exam
+    --8----- --9----- --A----- --B----- --C----- --D----- --E----- --F-----
+
