@@ -1,5 +1,5 @@
-This is describe the composite characters of the Extended TRON Code. (This
-is currently a draft and may be changed in future; others may write
+This is describe the composite characters of the "Extended TRON Code".
+(This is currently a DRAFT and may be changed in future; others may write
 comments about it if you have something to write, please.)
 
 Composite character groups may be defined; each group is limited to
@@ -8,11 +8,14 @@ Beginning Codes, Middle Codes, and Ending Codes (only one each; a
 single code cannot be more than one of these). Also, each character
 code can only belong to up to one group (although a character code
 might not belong to any group, in which case it is a Isolated Code).
+(A plane can contain any number of groups, including zero.)
 
-A composite character sequence of two or more character codes that all
+A composite character consists of two or more character codes that all
 belong to the same group, of which the first is a Beginning Code, the last
 is a Ending Code, and the rest are Middle Codes. Nothing else is allowed
-between these codes, including control characters and plane shifts.
+between these codes, including control characters and plane shifts. (If it
+does not meet this criteria, then it is a invalid composite character
+sequence, but is not otherwise invalid.)
 
 Composite character rendering can be enabled or disabled (usually it will
 be disabled if Reveal Codes is active or enabled otherwise), and can be
@@ -22,33 +25,298 @@ both are disabled). When the composite character rendering is enabled, then
 a composite character as defined above is considered as a single character,
 for moving cursor, deleting, etc; otherwise, they are separate characters.
 
-A font will contains additional information based on this:
-
-* The font will contain the definition of composite character groups which
-are included in that font.
-
-* Each character will also have a "composite width" flag; if the flag is
-set, then the width is considered to be zero when measuring the width of a
-string if composite character rendering is enabled.
-
-* Each kern will have a "composite kern" flag; if the flag is set, then the
-kern is ignored except for measuring the width of a string when composite
-character rendering is enabled.
-
-* For each composite character group in the font, also a program (using
-some simple and very limited VM code) for converting the sequence of
-character codes into a set of glyphs to draw (which may include private
-glyphs) and the relative positions of the glyphs, using the measurements
-of other characters in the font as the units of measurement.
-
-Note that the font will also have to specify text direction, which can be
-any direction, and may have different glyphs for different directions. The
-text direction is set by separate control characters and/or formatting
-codes which are not a part of the character set and not set by the font.
-So, the advancements in the font are "forward" in whatever text direction
-is the current text direction, which is not necessarily to the right.
-
 (Combining characters and stuff like that are not used; European alphabets
 will have separate character codes for accented vs non-accented alphabets
 andare not considered to be composite characters. However, composite
-characters might possibly be useful for Cangjie, Blissymbols, etc.)
+characters might possibly be useful for Cangjie, Blissymbols, etc. Kerns,
+ligatures, text directions, are also separate than composite characters.)
+
+
+=== Composite character group definition format ===
+
+The following codes are used:
+
+0x00 to 0x1F = Set mode. This is followed by the bytes that specify which
+codes belong to the group, and then if not finished yet then there will be
+another mode byte before the further data, if any.
+
+0x20, 0x7F, 0xFE, 0xFF = Indicates the end of the composite character group
+definition and the beginning of the VM codes; which of these codes are used
+is relevant and is described in the below section. If none of these codes
+are present, then the VM codes are not included. If the first byte is one
+of these four codes, then only the VM codes are included; the definition of
+the groups must come from another source.
+
+The mode byte uses the low 2-bits to indicate the mode for the low byte of
+the character code, and the next 2-bits to indicate the mode for the high
+byte of the character code. They are:
+
+0 = The same as the previous value or range. If the entire low nybble of
+the mode byte is 0, then instead it means a linear range.
+
+1 = A single value used until the next mode byte.
+
+2 = Multiple values.
+
+3 = Range.
+
+The bit4 of the mode byte is set if this is the beginning of the next part
+of that group, in the order: Beginning, End, Middle.
+
+The data is given first as the high byte for mode 1, and then the low byte
+for mode 1. After that, will be the pairs, being the high byte for mode 2
+or 3, low byte for mode 2 or 3, high byte for mode 3, low byte for mode 3.
+
+If it is a linear range, then it is given as four bytes per range, where
+they are the high and low byte of the beginning and the high and low byte
+of the end (both inclusive), according to "linear2hilo" function.
+
+(Example: <07 40 21 3A 13 61 7A 13 41 5A> means that Beginning Codes are
+0x4021 to 0x403A, Middle Codes are 0x4041 to 0x405A, and Ending Codes are
+0x4061 to 0x407A.)
+
+
+=== Composite character VM code ===
+
+Rendering composite characters involves executing a VM code with the
+sequence of character codes that make up the composite character as input,
+and a set of glyph codes with position information as the output.
+
+This VM code is deterministic, harvard, total, and lacks dynamic
+allocation. It is isolated from I/O other than what is described above.
+
+The following register classes are available; each register class has four
+registers numbered 0 to 3 (e.g. the first general register is called G0).
+
+* G (general) = Unsigned 16-bits. Initially, G0 and G1 are zero, G2 is the
+Beginning Code, and G3 is the Ending Code.
+
+* I (index) = Unsigned 8-bits. Initially, I0 is the number of character
+codes in this composite character and the others are zero.
+
+* P (program) = Pointer to a VM code instruction. Initially, P0 points to
+the beginning of the program and the others are unset. The address of the
+instruction to be executed is P0, and is automatically advanced.
+
+* X (parallel metric) = Position in the direction of writing (right if it
+is left-to-right writing; note that it can also be negative). The initial
+values are all set to the origin position.
+
+* Y (perpendicular metric) = Position in the direction perpendicular to the
+direction of writing (vertical for horizontal writing). The initial values
+are all set to the origin position.
+
+There are also classes which are not true registers, but instead use the I
+registers to index into the data, and use the same numbers as the I class
+(e.g. C1 for the character code indexed by I1).
+
+* C (character codes) = Accesses the input character codes; the first item
+is index zero and is the Beginning Code, and the last is the Ending Code.
+
+* CR = Same as C but zero is the last item and goes backward.
+
+* D (data) = Accesses the constant data of the VM code, described below.
+(If there is no constant data, then this is not valid.)
+
+* DR = Same as D but zero is the last item and goes backward.
+
+The byte which separates the composite character group definition from the
+VM code decides the format of the constant data of the VM code:
+
+* 0x20 means there is no constant data; the first instruction follows.
+
+* 0x7F is not meaningful.
+
+* 0xFE means the next byte is one less than the number of data items, and
+then the data items which are 8-bit numbers. (The number of data items can
+therefore be 1 to 256.)
+
+* 0xFF is same as 0xFE but each data item is big-endian 16-bits.
+
+All instructions must be complete, including instructions that cannot be
+reached, and all jump targets must jump to the beginning of an instruction
+and not in the middle of an instruction. (Implementations are not required
+to verify this condition, but it is recommended to do so.)
+
+In all cases, if the I1, I2, or I3 register is changed to a greater value
+than it previously had, then the corresponding P register becomes unset.
+
+Instruction opcodes 0x00 to 0x3F use the format:
+
+* Bit5-bit4 = Register number.
+
+* Bit3-bit0 = Operation code.
+
+These operations are:
+
+* 0x00 = Exchange P with P0, and exchange I with I0.
+
+* 0x01 = Copy P0 to selected register and then unconditional jump (the jump
+offset follows).
+
+* 0x02 = If the value of the I register is zero, then unset the P register
+(if register I0 and P0 is selected then stop in this case), otherwise
+decrement I and copy P to P0.
+
+* 0x03 = Next byte has the right shift amount in the low nybble and the
+left shift amount in the high nybble; affect the G register by first the
+right shift and then left shift.
+
+* 0x04 = Reset I to zero.
+
+* 0x05 = Reset G to zero.
+
+* 0x06 = Increment I.
+
+* 0x07 = Increment G.
+
+* 0x08 = Reset X.
+
+* 0x09 = Reset Y.
+
+* 0x0A = A big-endian 16-bit number follows. Do the inverse linear2hilo
+function on G, and then subtract the number that was following.
+
+* 0x0B = A big-endian 16-bit number follows. This is added to G and then
+the linear2hilo function is made and the result is stored in G.
+
+* 0x0C = 
+
+* 0x0D = 
+
+* 0x0E = Output the (G,X,Y) triple.
+
+* 0x0F = Output the (G,X,Y) triple and stop.
+
+Instruction opcodes 0x40 to 0x7F works as follows:
+
+* Bit5-bit4 = The number of the X or Y register that will be modified by
+this instruction.
+
+* Bit3 = Set to use X/Y as input or clear to use G as input.
+
+* Bit2 = Set to use Y or clear to use X. (This affects both the input
+register selection and the output register selection.)
+
+* Bit1-bit0 = The number of the G or X or Y register to use as input.
+
+The second byte of the instruction then uses the format:
+
+* Bit7-bit6 = If bit3 of the first byte is clear, then it is one less than
+the multiplier, but if set then this selects which metric to use, which can
+be: 0(advancement), 1(negative extent), 2(positive extent), 3(extra). (The
+meaning of the metrics, and how the metrics are calculated, depends on the
+font format.)
+
+* Bit5-bit4 = Rounding: 0(none), 1(down), 2(up), 3(default).
+
+* Bit3 = Send output before making the change to X or Y.
+
+* Bit2-bit0 = Kind of calculation.
+
+The kind of calculation for metrics are:
+
+* 0 = Set to value.
+
+* 1 = Set to negated value.
+
+* 2 = Add value.
+
+* 3 = Subtract value.
+
+* 4 = Use the lesser value.
+
+* 5 = Use the greater value.
+
+* 6 = Use the mean of two values.
+
+* 7 = 
+
+Instruction opcodes 0x80 to 0xFF works as follows:
+
+* Bit1-bit0 = Output register number (the output register class is decided
+by the specific operation being performed).
+
+* Bit3-bit2 = Input register number.
+
+* bit6-bit4 = Input register type: 0=G, 1=I, 2=C, 3=CR, 4=D, 5=DR. If it is
+6 then instead bit3-bit2 is a constant number 0-3, and if 7 then the
+bit3-bit2 can be 0 to mean 4, 1 to mean 5, 2 to mean a 8-bit immediate
+follows, and 3 to mean a big-endian 16-bit immediate follows.
+
+After that first byte is the immediate value (if applicable) and then the
+second opcode byte which works like:
+
+* Bit4-bit0 = Operation code.
+
+* Bit7-bit5 = Additional effect.
+
+The additional effect is one of:
+
+* 0 = None
+
+* 1 = Output the (G,X,Y) triple with the output register number (even if
+this operation uses I as the output instead of G). (This is done after the
+other operation is done, regardless of the result of the condition.)
+
+* 2 = Output (as 1), and then stop.
+
+* 3 = Output (as 1), and then reset the corresponding X and Y registers to
+refer to the origin (zero).
+
+* 4 = Also copy P0 to the P register correspoding to the output register
+(after the other operation). (In the case of a jump, the value will be the
+new value of P0 with or without the jump.)
+
+* 5 = 
+
+* 6 = 
+
+* 7 = 
+
+The operation code is one of the below, explained using a C code, where G
+and I refers to the output register and (a) means the input operand.
+
+  00   G=a;
+  01   G+=a;
+  02   G-=a;
+  03   G&=a;
+  04   G|=a;
+  05   G^=a;
+  06   G*=a;
+  07   G/=a;
+  08   G%=a;
+  09   G+=a<<8;
+  0A   if(G==a)
+  0B   if(G!=a)
+  0C   if(G<a)
+  0D   if(G>=a)
+  0E   if(G>a)
+  0F   if(G<=a)
+  10   I=a;
+  11   I+=a;
+  12   I-=a;
+  13   I&=a;
+  14   I|=a;
+  15   I^=a;
+  16   I=a>>8;
+  17   I+=a>>8;
+  18   
+  19   
+  1A   if(I==a)
+  1B   if(I!=a)
+  1C   if(I<a)
+  1D   if(I>=a)
+  1E   if(I>a)
+  1F   if(I<=a)
+
+For the conditional operations, after the second byte is the jump offset
+(see below for the format of the jump offset).
+
+The format of a jump offset is one or two bytes. If one byte, then it is
+1 to 255, and is measured in bytes. If two bytes, then the first byte is 0
+and the second byte is 0 to 255 and 256 is added, and is measured in bytes.
+These are measured from the beginning of the next instruction after this
+one, and is always forward. You can jump to immediately after the last
+instruction, which stops the program; jumping beyond that is an error.
+
