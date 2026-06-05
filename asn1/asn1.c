@@ -1363,56 +1363,29 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
 }
 
 int asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16_t zone) {
+  uint8_t signif[15];
   ASN1_DateTime d;
   int i;
-  if(type==ASN1_UTC_TIMESTAMP || type==ASN1_SI_TIMESTAMP) {
+  if(type==ASN1_UTC_TIMESTAMP) {
     value-=ASN1_TRON_EPOCH;
+    if(nano>=1000000000ULL && ((value+1)%60)) return ASN1_IMPROPER_VALUE;
+    if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_UTC_TIMESTAMP,0)) return ASN1_ERROR;
+    asn1_encode_int64(enc,value);
     if(nano) {
-      uint8_t signif[15];
-      if(type==ASN1_UTC_TIMESTAMP) {
-        if(nano>=1000000000ULL && ((value+1)%60)) return ASN1_IMPROPER_VALUE;
-        if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_UTC_TIMESTAMP,0)) return ASN1_ERROR;
-        asn1_encode_int64(enc,value);
-        signif[0]=(nano/100000000ULL)%100;
-        signif[1]=(nano/1000000ULL)%100;
-        signif[2]=(nano/10000ULL)%100;
-        signif[3]=(nano/100ULL)%100;
-        signif[4]=(nano/1ULL)%100;
-        return asn1_encode_real_parts(enc,signif,5,1,1,1,0)?:asn1_end(enc);
-      } else {
-        int8_t sg=1;
-        if(nano>=1000000000ULL) return ASN1_IMPROPER_VALUE;
-        if(asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SI_TIMESTAMP,0)) return ASN1_ERROR;
-        if(value<0) {
-          value=~value;
-          nano=1000000000ULL-nano;
-          sg=-1;
-        }
-        signif[0]=(value/1000000000000000000ULL)%100;
-        signif[1]=(value/10000000000000000ULL)%100;
-        signif[2]=(value/100000000000000ULL)%100;
-        signif[3]=(value/1000000000000ULL)%100;
-        signif[4]=(value/10000000000ULL)%100;
-        signif[5]=(value/100000000ULL)%100;
-        signif[6]=(value/1000000ULL)%100;
-        signif[7]=(value/10000ULL)%100;
-        signif[8]=(value/100ULL)%100;
-        signif[9]=(value/1ULL)%100;
-        signif[10]=(nano/10000000ULL)%100;
-        signif[11]=(nano/100000ULL)%100;
-        signif[12]=(nano/1000ULL)%100;
-        signif[13]=(nano/10ULL)%100;
-        signif[14]=(nano*10ULL)%100;
-        return asn1_encode_real_parts(enc,signif,15,sg,1,20,0)?:asn1_end(enc);
-      }
+      signif[0]=(nano/100000000ULL)%100;
+      signif[1]=(nano/1000000ULL)%100;
+      signif[2]=(nano/10000ULL)%100;
+      signif[3]=(nano/100ULL)%100;
+      signif[4]=(nano/1ULL)%100;
+      return asn1_encode_real_parts(enc,signif,5,1,1,1,0)?:asn1_end(enc);
     } else {
-      if(!enc->class || !enc->type) enc->class=ASN1_UNIVERSAL,enc->type=type;
-      return asn1_encode_int64(enc,value);
+      return asn1_end(enc);
     }
+  } else {
+    if(i=asn1_time_to_date(value+zone*60LL,nano,&d)) return i;
+    d.zone=zone;
+    return asn1_encode_date(enc,type,&d);
   }
-  if(i=asn1_time_to_date(value+zone*60LL,nano,&d)) return i;
-  d.zone=zone;
-  return asn1_encode_date(enc,type,&d);
 }
 
 int asn1_encode_c_string(ASN1_Encoder*enc,uint32_t type,const char*text) {

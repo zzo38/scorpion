@@ -433,7 +433,7 @@ asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16
   Encodes a date/time value from UNIX time.
 
   type = The ASN.1 type to use; same as for asn1_encode_date, but may also
-  be ASN1_UTC_TIMESTAMP or ASN1_SI_TIMESTAMP.
+  be ASN1_UTC_TIMESTAMP.
 
   value = The UNIX time. Normally, this excludes leap seconds, but if the
   type is ASN1_SI_TIMESTAMP then it includes leap seconds.
@@ -441,7 +441,7 @@ asn1_encode_time(ASN1_Encoder*enc,uint32_t type,time_t value,uint32_t nano,int16
   nano = The number of nanoseconds.
 
   zone = The time zone, in minutes. This is ignored if the type is
-  ASN1_UTC_TIMESTAMP or ASN1_SI_TIMESTAMP.
+  ASN1_UTC_TIMESTAMP.
 
 asn1_encode_uint16(ASN1_Encoder*enc,uint16_t value)
   Encodes a unsigned 16-bit integer.
@@ -990,19 +990,12 @@ is slightly different, in which there must be exactly one digit preceding
 the decimal mark instead of all of them. NR1 and NR2 cannot be used for a
 scientific number, even if it is not canonical form.
 
-The encoding of the new time types can be any one of:
-
-* A primitive encoding, same as the INTEGER type. This represents a
-integer number of seconds. This is valid for all four types.
-
-* A constructed encoding, containing a REAL. This represents a number
-of seconds. This is only valid for the SI-based types.
-
-* A constructed encoding, containing a INTEGER followed by a REAL.
-This represents a integer number of UTC seconds and a number of SI
-seconds. The number of SI seconds must be nonnegative and finite, and
-must be less than one unless the number of UTC seconds is one less
-than a multiple of sixty. This is only valid for ASN1_UTC_TIMESTAMP.
+The encoding of the new time types is constructed, and contains a integer
+followed by a real or scientific number; both fields represent a number of
+seconds. For the UTC-based types, the first field is required and the
+second is optional; the integer is UTC and the second field is always SI
+relative to the UTC number. For the SI-based types, it must have one or the
+other field but not both, and it represents SI seconds either way.
 
 The following additional schema types exist:
 

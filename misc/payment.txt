@@ -95,6 +95,11 @@ including, due to being opposed to such things.)
 
 I probably missed some things in this document; please tell me if so.
 
+One thing that perhaps I should add is two-phase commit; I will need to
+figure out how to put this into the file. Another would be multiple
+payments at once, e.g. if part of it is made by a prepaid card and the
+rest by a ordinary credit card.
+
 
 === Catalog file ===
 
