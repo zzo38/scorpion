@@ -739,6 +739,16 @@ SCIENTIFIC (78)
   is considered to be significant. This includes many types of measurements
   in science and engineering and possibly others.
 
+MULTICULTURAL_TIME (79)
+  (Reserved for future definition.)
+
+GEOGRAPHIC (80)
+  Use for geographic coordinates. You must specify which geographic
+  reference system is used; do not assume it is always WGS 84. If you are
+  using this type to store data about the location of something that is on
+  a specific continent, then you should use the appropriate geographic
+  reference system for that continent.
+
 
 === Frequently asked questions ===
 

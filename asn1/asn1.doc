@@ -990,6 +990,14 @@ is slightly different, in which there must be exactly one digit preceding
 the decimal mark instead of all of them. NR1 and NR2 cannot be used for a
 scientific number, even if it is not canonical form.
 
+* ASN1_MULTICULTURAL_TIME (79): (Reserved for future definition)
+
+* ASN1_GEOGRAPHIC (80): Represents geographic coordinates. The format is
+constructed, and has the fields: Printable string with the geographic
+reference system (e.g. "WGS 84"), longitude, latitude, vertical position.
+The longitude, latitude, vertical position, can be either real numbers or
+scientific numbers, and vertical position is optional.
+
 The encoding of the new time types is constructed, and contains a integer
 followed by a real or scientific number; both fields represent a number of
 seconds. For the UTC-based types, the first field is required and the
