@@ -519,6 +519,10 @@ asn1_wrap(ASN1_Encoder*enc)
   the primitive/constructed bit is clear (indicating primitive) instead of
   set (constructed). (This is used for the data of X.509 extensions.)
 
+asn1_wrap_bits(ASN1_Encoder*enc)
+  Like asn1_wrap but wraps it in a bit string instead of a octet string.
+  (Some fields in X.509 use this.)
+
 
 === Iteration functions ===
 

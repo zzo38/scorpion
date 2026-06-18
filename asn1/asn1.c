@@ -722,34 +722,6 @@ int asn1_decode_date(const ASN1*asn,uint32_t type,ASN1_DateTime*out) {
         }
       }
       if(x==asn->length) return ASN1_OK; else goto zone;
-    case ASN1_DATE:
-      if(asn->length!=10) return ASN1_IMPROPER_VALUE;
-      if(asn->data[4]!='-' || asn->data[7]!='-') return ASN1_IMPROPER_VALUE;
-      TWO_DIGITS(0,y);
-      TWO_DIGITS(2,out->year);
-      out->year+=100*y;
-      TWO_DIGITS(5,out->month);
-      TWO_DIGITS(8,out->day);
-      return ASN1_OK;
-    case ASN1_TIME_OF_DAY:
-      if(asn->length!=8) return ASN1_IMPROPER_VALUE;
-      if(asn->data[2]!=':' || asn->data[5]!=':') return ASN1_IMPROPER_VALUE;
-      TWO_DIGITS(0,out->hours);
-      TWO_DIGITS(3,out->minutes);
-      TWO_DIGITS(6,out->seconds);
-      return ASN1_OK;
-    case ASN1_DATE_TIME:
-      if(asn->length!=19) return ASN1_IMPROPER_VALUE;
-      if(asn->data[4]!='-' || asn->data[7]!='-' || asn->data[10]!='T' || asn->data[13]!=':' || asn->data[16]!=':') return ASN1_IMPROPER_VALUE;
-      TWO_DIGITS(0,y);
-      TWO_DIGITS(2,out->year);
-      out->year+=100*y;
-      TWO_DIGITS(5,out->month);
-      TWO_DIGITS(8,out->day);
-      TWO_DIGITS(11,out->hours);
-      TWO_DIGITS(14,out->minutes);
-      TWO_DIGITS(17,out->seconds);
-      return ASN1_OK;
     default: return ASN1_IMPROPER_TYPE;
   }
 }
@@ -1175,6 +1147,14 @@ int asn1_wrap(ASN1_Encoder*enc) {
   return ASN1_OK;
 }
 
+int asn1_wrap_bits(ASN1_Encoder*enc) {
+  int i;
+  if(!enc->class && !enc->type) enc->type=ASN1_BIT_STRING;
+  if(i=asn1_wrap(enc)) return i;
+  fputc(0,enc->file);
+  return ASN1_OK;
+}
+
 FILE*asn1_primitive_stream(ASN1_Encoder*enc,uint8_t class,uint32_t type) {
   Encoder e={.file=enc->file,.next=enc->sub,.mode=enc->mode};
   Encoder*p;
@@ -1346,13 +1326,13 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
       if(x->zone) len+=snprintf(buf+len,64-len,"%c%02d%02d",x->zone<0?'-':'+',abs(x->zone)/60,abs(x->zone)%60); else buf[len++]='Z';
       break;
     case ASN1_DATE:
-      len=snprintf(buf,64,"%04d-%02d-%02d",x->year,x->month,x->day);
+      len=snprintf(buf,64,"%04d%02d%02d",x->year,x->month,x->day);
       break;
     case ASN1_TIME_OF_DAY:
-      len=snprintf(buf,64,"T%02d:%02d:%02d",x->hours,x->minutes,x->seconds);
+      len=snprintf(buf,64,"T%02d%02d%02d",x->hours,x->minutes,x->seconds);
       break;
     case ASN1_DATE_TIME:
-      len=snprintf(buf,64,"%04d-%02d-%02dT%02d:%02d:%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
+      len=snprintf(buf,64,"%04d%02d%02d%02d%02d%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);
       break;
     case ASN1_UTC_TIMESTAMP:
       if(i=asn1_date_to_time(x,&t,&n)) return i;

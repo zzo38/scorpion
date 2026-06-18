@@ -200,6 +200,7 @@ ASN1_Encoder*asn1_start_encoding_constructed_value(ASN1*out,uint8_t class,uint32
 ASN1_Encoder*asn1_start_encoding_value(ASN1*out);
 int asn1_time_to_date(time_t in,uint32_t nano,ASN1_DateTime*out);
 int asn1_wrap(ASN1_Encoder*enc);
+int asn1_wrap_bits(ASN1_Encoder*enc);
 void asn1_write_length(uint64_t length,FILE*stream);
 void asn1_write_type(uint8_t constructed,uint8_t class,uint32_t type,FILE*stream);
 
