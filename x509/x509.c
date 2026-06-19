@@ -1,5 +1,5 @@
 #if 0
-gcc -g -O0 -c x509.c
+gcc -s -O2 -c x509.c
 exit
 #endif
 
@@ -11,12 +11,22 @@ exit
 #include "x509.h"
 
 enum {
+  Exd_AlgList,
+  Exd_CurrentTime,
   Exd_KeyUsage,
+  Exd_NeedExtKeyUsage,
   Exd_NeedKeyUsage,
   LastExd
 };
 
 static const char exdata[LastExd]={}; // (the contents of this array is unimportant; only the address is used)
+
+typedef struct {
+  X509_Algorithm*list;
+  uint32_t count;
+} AlgList;
+
+static AlgList galglist;
 
 // Built-in extensions
 
@@ -71,13 +81,28 @@ static int bx_basic_constraints(const X509_Extension*ext,X509_Info*info,const X5
 }
 
 static int bx_extended_key_usage(const X509_Extension*ext,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit) {
-  return X509_NOT_IMPLEMENTED;
+  const uint32_t*p;
+  uint32_t k;
+  ASN1_Value v;
+  if(!data->constructed || data->class!=ASN1_UNIVERSAL || data->type!=ASN1_SEQUENCE) return ASN1_IMPROPER_TYPE;
+  p=x509_extra_find(info->in,exdata+Exd_NeedExtKeyUsage,0,0,0);
+  if(!p) return X509_OK;
+  k=*p;
+  if(!asn1_first_of(&v,data)) do {
+    if(v.class!=ASN1_UNIVERSAL || v.constructed || v.type!=ASN1_OID) return ASN1_IMPROPER_TYPE;
+    if(v.length==4 && !(p[1]&X509_EKUF_EXPLICIT) && !memcmp(v.data,"\x55\x1D\x25",4)) return X509_OK;
+    if(v.length==8 && !memcmp(v.data,"\x2B\x06\x01\x05\x05\x07\x03",7) && v.data[7]<32 && (k&(1UL<<v.data[7]))) {
+      if(p[1]&X509_EKUF_ONE_OF) return X509_OK;
+      k&=~(1UL<<v.data[7]);
+    }
+  } while(!asn1_next_of(&v,data));
+  return k?X509_ACCESS_DENIED:0;
 }
 
 static const X509_Extension builtin_extlist[]={
   {.oidlen=3,.oid="\x55\x1D\x0F",.call=bx_key_usage,.flag=0},
   {.oidlen=3,.oid="\x55\x1D\x13",.call=bx_basic_constraints,.flag=0},
-//  {.oidlen=3,.oid="\x55\x1D\x25",.call=bx_extended_key_usage,.flag=0},
+  {.oidlen=3,.oid="\x55\x1D\x25",.call=bx_extended_key_usage,.flag=0},
 };
 #define builtin_extcount (sizeof(builtin_extlist)/sizeof(X509_Extension))
 
@@ -173,6 +198,7 @@ void x509_reset_info(X509_Info*info) {
 }
 
 int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_ExtraData*extra,X509_Info*info) {
+  const time_t*now;
   uint8_t*eb=alloca(builtin_extcount+option->extcount);
   X509_Extension ek;
   const X509_Extension*ex;
@@ -182,9 +208,11 @@ int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_E
   if(!eb) return X509_ERROR;
   memset(eb,0,builtin_extcount+option->extcount);
   info->in=extra;
+  info->phase=0;
   if(i=asn1_first_of(&tbs,cert)) return i;
   if(!tbs.constructed || tbs.class!=ASN1_UNIVERSAL || tbs.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT;
   if(!info->out) info->out=x509_extra_new();
+  now=x509_extra_find(extra,exdata+Exd_CurrentTime,0,0,0)?:&option->now;
   // Version number
   if(i=asn1_first_of(&a,&tbs)) return i;
   if(a.constructed && a.class==ASN1_CONTEXT_SPECIFIC && a.type==0 && a.length==3 && !asn1_first_of(&b,&a) && b.class==ASN1_UNIVERSAL && b.type==ASN1_INTEGER && b.length==1 && !b.constructed) {
@@ -215,8 +243,8 @@ int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_E
   if(i=asn1_next_of(&b,&a)) return i;
   if(b.constructed || b.class!=ASN1_UNIVERSAL || (b.type!=ASN1_UTC_TIME && b.type!=ASN1_GENERALIZED_TIME)) return X509_IMPROPER_FORMAT;
   if(i=asn1_decode_time(&b,ASN1_AUTO,0,&info->expires,0)) return i;
-  if(!(option->flag&X509_IGNORE_NOT_VALID_BEFORE) && option->now<info->starts) return X509_NOT_VALID_YET;
-  if(!(option->flag&X509_IGNORE_NOT_VALID_AFTER) && option->now>info->expires) return X509_EXPIRED;
+  if(!(option->flag&X509_IGNORE_NOT_VALID_BEFORE) && *now<info->starts) return X509_NOT_VALID_YET;
+  if(!(option->flag&X509_IGNORE_NOT_VALID_AFTER) && *now>info->expires) return X509_EXPIRED;
   // Subject name
   if(i=asn1_next_of(&a,&tbs)) return i;
   info->subject=a;
@@ -341,9 +369,10 @@ int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraD
   uint32_t n;
   uint32_t skip=0;
   int i;
-  if(option->begin_chain && (i=option->begin_chain(chain,option,extra,info))) return i;
+  if(option->begin_chain && (i=option->begin_chain(chain,option,extra))) return i;
   x509_extra_destroy(info->in); info->in=0;
   x509_extra_destroy(info->out); info->out=0;
+  info->phase=-1;
   sinf.in=x509_extra_mirror(extra);
   if(!sinf.in) return X509_ERROR;
   sinf.out=x509_extra_new();
@@ -370,9 +399,12 @@ int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraD
   }
   for(n=skip;n<chain->count;n++) {
     if(n) {
+      i=option->mid_chain?option->mid_chain(chain,option,extra,&sinf):0;
       x509_extra_destroy(sinf.out); sinf.out=0;
       iinf=sinf;
       iinf.in=0;
+      sinf.count=65535;
+      if(i) goto error;
     }
     cert=chain->item+(option->flag&X509_ROOT_LAST?chain->count-n-1:n);
     sinf.issuer=iinf.subject;
@@ -416,7 +448,13 @@ int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraD
   i=X509_OK;
   error:
   info->in=extra;
-  if(!sinf.count) info->out=sinf.out,sinf.out=0;
+  if(!sinf.count) {
+    info->subject=sinf.subject;
+    info->subject_id=sinf.subject_id;
+    info->publickey=sinf.publickey;
+    info->out=sinf.out;
+    sinf.out=0;
+  }
   x509_reset_info(&iinf);
   x509_reset_info(&sinf);
   asn1_free(&auth);
@@ -428,27 +466,267 @@ uint16_t x509_get_key_usage(const X509_Info*info) {
   if(p=x509_extra_find(info->out,exdata+Exd_KeyUsage,0,0,0)) return (p[0]<<8)|p[1]; else return 0xFFFF;
 }
 
-int x509_set_needed_key_usage(X509_Info*info,uint16_t usage) {
+// Certificate making
+
+struct X509_Encoder {
+  ASN1_Encoder*enc;
+  ASN1_Encoder*out;
+  const X509_Info*info;
+  const X509_Options*option;
+  void*key;
+  ASN1_Value tbs;
+  int8_t step;
+};
+
+int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,ASN1_Encoder*enc) {
+  ASN1_Value alg;
+  ASN1_Value sig={.class=ASN1_UNIVERSAL,.type=ASN1_BIT_STRING};
+  int r0;
+  int r1=0;
+  uint8_t*bd=0;
+  size_t bs=0;
+  FILE*f;
+  if(!tbs || !tbs->constructed || tbs->class!=ASN1_UNIVERSAL || tbs->type!=ASN1_SEQUENCE || !tbs->length) return X509_IMPROPER_TYPE;
+  if(r0=asn1_first_of(&alg,tbs)) return r0;
+  if(alg.class==ASN1_CONTEXT_SPECIFIC && (r0=asn1_next_of(&alg,tbs))) return r0;
+  if(alg.class!=ASN1_UNIVERSAL || alg.type!=ASN1_INTEGER) return X509_IMPROPER_TYPE;
+  if(r0=asn1_next_of(&alg,tbs)) return r0;
+  if(alg.class!=ASN1_UNIVERSAL || alg.type!=ASN1_SEQUENCE) return X509_IMPROPER_TYPE;
+  f=open_memstream((void*)&bd,&bs);
+  if(!f) return X509_ERROR;
+  asn1_write_type(1,ASN1_UNIVERSAL,ASN1_SEQUENCE,f);
+  asn1_write_length(tbs->length,f);
+  fclose(f);
+  if(!bd) return X509_ERROR;
+  if(r0=option->make_signature(info,bd,bs,privatekey,&alg,&sig)) goto stop;
+  if(r0=asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0)) goto stop;
+    r0=(asn1_encode(enc,tbs) || asn1_encode(enc,&alg) || asn1_encode(enc,&sig));
+    asn1_free(&sig);
+  r1=asn1_end(enc);
+  stop:
+  free(bd);
+  return r0?:r1;
+}
+
+X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option,ASN1_Encoder*out) {
+  X509_Encoder*e=calloc(1,sizeof(X509_Encoder));
+  if(!e) return 0;
+  e->info=info;
+  e->option=option;
+  e->out=out;
+  e->enc=(option->flag&X509_NO_SIGNATURE?e->out:asn1_start_encoding_value(&e->tbs));
+  if(!e->enc) {
+    free(e);
+    return 0;
+  }
+  asn1_construct(e->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+  asn1_explicit(e->enc,ASN1_CONTEXT_SPECIFIC,0);
+  asn1_primitive(e->enc,ASN1_UNIVERSAL,ASN1_INTEGER,"\x02",1);
+  return e;
+}
+
+int x509_finish_certificate(X509_Encoder*enc) {
+  int i;
+  if(enc->step<2) return X509_IMPROPER_STEP;
+  if(enc->step==3 && (i=asn1_end(enc->enc))) return i; // end of extensions
+  if(i=asn1_end(enc->enc)) return i; // end of tbs certificate
+  if(enc->out!=enc->enc) {
+    if(asn1_finish_encoder(enc->enc)) return X509_ERROR;
+    if(i=x509_sign_certificate(enc->info,enc->option,&enc->tbs,enc->key,enc->out)) return i;
+    asn1_free(&enc->tbs);
+  }
+  free(enc);
+  return X509_OK;
+}
+
+int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len) {
+  FILE*f;
+  if(enc->step>0) return X509_IMPROPER_STEP;
+  while(len && !*data) data++,len--;
+  if(!len) return X509_IMPROPER_VALUE;
+  if(*data&0x80) {
+    f=asn1_primitive_stream(enc->enc,ASN1_UNIVERSAL,ASN1_INTEGER);
+    if(!f) return X509_ERROR;
+    fputc(0,f);
+    fwrite(data,1,len,f);
+    asn1_end(enc->enc);
+  } else {
+    asn1_primitive(enc->enc,ASN1_UNIVERSAL,ASN1_INTEGER,data,len);
+  }
+  enc->step=1;
+  return X509_OK;
+}
+
+int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key) {
+  ASN1_DateTime dt;
+  int i;
+  if(!enc->step && enc->option->set_serial) {
+    enc->step=-1;
+    if(i=enc->option->set_serial(enc->info,enc->option->userdata)) return i;
+  }
+  if(enc->step!=1) return X509_IMPROPER_STEP;
+  if(alg->class!=ASN1_UNIVERSAL) {
+    return X509_IMPROPER_TYPE;
+  } else if(alg->type==ASN1_OBJECT_IDENTIFIER) {
+    asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+      asn1_encode(enc->enc,alg);
+      if(alg->length==9 && !memcmp(alg->data,"\x2A\x86\x48\x86\xF7\x0D\x01\x01",8)) asn1_encode_null(enc->enc);
+    asn1_end(enc->enc);
+  } else if(alg->type==ASN1_SEQUENCE) {
+    asn1_encode(enc->enc,alg);
+  } else {
+    return X509_IMPROPER_TYPE;
+  }
+  enc->key=key;
+  enc->step=2;
+  asn1_encode(enc->enc,&enc->info->issuer);
+  asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+    asn1_time_to_date(enc->info->starts,0,&dt);
+    asn1_encode_date(enc->enc,dt.year<1950||dt.year>2049?ASN1_GENERALIZEDTIME:ASN1_UTCTIME,&dt);
+    asn1_time_to_date(enc->info->expires,0,&dt);
+    asn1_encode_date(enc->enc,dt.year<1950||dt.year>2049?ASN1_GENERALIZEDTIME:ASN1_UTCTIME,&dt);
+  asn1_end(enc->enc);
+  asn1_encode(enc->enc,&enc->info->subject);
+  asn1_encode(enc->enc,&enc->info->publickey);
+  if(enc->info->issuer_id.type && enc->info->issuer_id.length) {
+    asn1_implicit(enc->enc,ASN1_CONTEXT_SPECIFIC,1);
+    asn1_encode(enc->enc,&enc->info->issuer_id);
+  }
+  if(enc->info->subject_id.type && enc->info->subject_id.length) {
+    asn1_implicit(enc->enc,ASN1_CONTEXT_SPECIFIC,2);
+    asn1_encode(enc->enc,&enc->info->subject_id);
+  }
+  return X509_OK;
+}
+
+int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,const ASN1_Value*value) {
+  if(enc->step<2) return X509_IMPROPER_STEP;
+  if(enc->step==2) {
+    asn1_construct(enc->enc,ASN1_CONTEXT_SPECIFIC,3,0);
+    asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+    enc->step=3;
+  }
+  asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+    asn1_primitive(enc->enc,ASN1_UNIVERSAL,ASN1_OBJECT_IDENTIFIER,oid,oidlen);
+    if(crit) asn1_primitive(enc->enc,ASN1_UNIVERSAL,ASN1_BOOLEAN,"\xFF",1);
+    asn1_wrap(enc->enc);
+    asn1_encode(enc->enc,value);
+  asn1_end(enc->enc);
+  return X509_OK;
+}
+
+// Functions to set configurations
+
+int x509_set_needed_key_usage(X509_ExtraData*ex,uint16_t usage) {
   uint8_t*p;
+  if(!ex) return X509_ERROR;
   if(usage) {
-    if(!info->in) info->in=x509_extra_new();
-    if(!info->in) return X509_ERROR;
-    p=x509_extra_find(info->in,exdata+Exd_NeedKeyUsage,0,0,2);
+    p=x509_extra_find(ex,exdata+Exd_NeedKeyUsage,0,0,2);
     if(!p) return X509_ERROR;
     p[0]=usage>>8; p[1]=usage&255;
   } else {
-    x509_extra_delete(info->in,exdata+Exd_NeedKeyUsage);
+    x509_extra_delete(ex,exdata+Exd_NeedKeyUsage);
+  }
+  return X509_OK;
+}
+
+int x509_set_needed_extended_key_usage(X509_ExtraData*ex,uint32_t usage,uint32_t flag) {
+  uint32_t*p;
+  if(!ex) return X509_ERROR;
+  if(usage || flag) {
+    p=x509_extra_find(ex,exdata+Exd_NeedExtKeyUsage,0,0,2*sizeof(uint32_t));
+    if(!p) return X509_ERROR;
+    p[0]=usage; p[1]=flag;
+  } else {
+    x509_extra_delete(ex,exdata+Exd_NeedExtKeyUsage);
+  }
+  return X509_OK;
+}
+
+int x509_set_time(X509_ExtraData*ex,time_t now) {
+  time_t*p;
+  if(!ex) return X509_ERROR;
+  p=x509_extra_find(ex,exdata+Exd_CurrentTime,0,0,sizeof(time_t));
+  if(!p) return X509_ERROR;
+  *p=now;
+  return X509_OK;
+}
+
+int x509_set_alglist(X509_ExtraData*info,X509_Options*option,X509_Algorithm*alglist,uint32_t algcount) {
+  AlgList*p;
+  if(info) {
+    p=x509_extra_find(info,exdata+Exd_AlgList,0,0,sizeof(AlgList));
+    if(!p) return X509_ERROR;
+  } else {
+    p=&galglist;
+  }
+  p->list=alglist;
+  p->count=algcount;
+  if(option) {
+    option->check_signature=x509_check_signature;
+    option->make_signature=x509_make_signature;
   }
   return X509_OK;
 }
 
 // Miscellaneous
 
-int x509_accept_any_self_signed(const X509_Info*info) {
+static int compare_alglist(const void*a,const void*b) {
+  const X509_Algorithm*x=a;
+  const X509_Algorithm*y=b;
+  return x->s_oidlen<y->s_oidlen?-1:x->s_oidlen>y->s_oidlen?1:memcmp(x->s_oid,y->s_oid,x->s_oidlen)?:x->k_oidlen<y->k_oidlen?-1:x->k_oidlen>y->k_oidlen?1:memcmp(x->k_oid,y->k_oid,x->k_oidlen);
+}
+
+int x509_accept_any_self_signed(const X509_Info*info,const ASN1_Value*certificate) {
   return X509_OK;
+}
+
+void x509_sort_alglist(X509_Algorithm*alglist,uint32_t algcount) {
+  qsort(alglist,algcount,sizeof(X509_Algorithm),compare_alglist);
 }
 
 void x509_sort_extlist(X509_Extension*extlist,uint32_t extcount) {
   qsort(extlist,extcount,sizeof(X509_Extension),compare_extlist);
 }
 
+int x509_call_builtin_extension(const uint8_t*oid,size_t oidlen,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit) {
+  X509_Extension ek;
+  const X509_Extension*ex;
+  ek.oid=oid;
+  ek.oidlen=oidlen;
+  if(ex=bsearch(&ek,builtin_extlist,builtin_extcount,sizeof(X509_Extension),compare_extlist)) {
+    if(!crit && (ex->flag&X509_IGNORE_UNLESS_CRITICAL)) return X509_OK;
+    if(crit && (ex->flag&X509_REJECT_IF_CRITICAL)) return X509_REJECTED_EXTENSION;
+    if(!info->phase && (ex->flag&X509_SECOND_PHASE)) return X509_DEFER_EXTENSION;
+    return ex->call(ex,info,option,data,crit);
+  } else {
+    if(crit && !(option->flag&X509_IGNORE_EXTENSIONS)) return X509_UNKNOWN_EXTENSION;
+    return X509_OK;
+  }
+}
+
+int x509_find_algorithm(const X509_Info*info,const ASN1_Value*publickey,const ASN1_Value*algorithm,const X509_Algorithm**result) {
+  int i;
+  const AlgList*ali=0;
+  X509_Algorithm ek;
+  const X509_Algorithm*alg;
+  ASN1_Value v1,v2;
+  if(info->in) ali=x509_extra_find(info->in,exdata+Exd_AlgList,0,0,0);
+  if(!ali) ali=&galglist;
+  if((i=asn1_first_of(&v1,algorithm)) || v1.class!=ASN1_UNIVERSAL || v1.type!=ASN1_OID || v1.constructed) return i?:ASN1_IMPROPER_TYPE;
+  ek.s_oid=v1.data; ek.s_oidlen=v1.length;
+  if((i=asn1_first_of(&v1,publickey)) || v1.class!=ASN1_UNIVERSAL || v1.type!=ASN1_SEQUENCE || !v1.constructed) return i?:ASN1_IMPROPER_TYPE;
+  if((i=asn1_first_of(&v2,&v1)) || v2.class!=ASN1_UNIVERSAL || v2.type!=ASN1_OID || v2.constructed) return i?:ASN1_IMPROPER_TYPE;
+  ek.k_oid=v2.data; ek.k_oidlen=v2.length;
+  return (*result=bsearch(&ek,ali->list,ali->count,sizeof(X509_Algorithm),compare_alglist))?X509_OK:X509_UNKNOWN_SIGNATURE;
+}
+
+int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature) {
+  const X509_Algorithm*alg;
+  return x509_find_algorithm(info,publickey,algorithm,&alg)?:(alg->check_signature?alg->check_signature(alg,info,data,len,publickey,algorithm,signature):X509_UNKNOWN_SIGNATURE);
+}
+
+int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature) {
+  const X509_Algorithm*alg;
+  return x509_find_algorithm(info,&info->publickey,algorithm,&alg)?:(alg->make_signature?alg->make_signature(alg,info,data,len,privatekey,algorithm,signature):X509_UNKNOWN_SIGNATURE);
+}

@@ -1,0 +1,1029 @@
+
+=== Data types ===
+
+X509_Algorithm
+  This structure defines the handling of signatures and public keys based
+  one one algorithm pair.
+
+  void*userdata = Not used; you can store your own data here.
+
+  const uint8_t*s_oid = The binary OID for the signature algorithm.
+
+  size_t s_oidlen = Length (in bytes) of the s_oid;
+
+  const uint8_t*k_oid = The binary OID for the public key algorithm.
+
+  size_t k_oidlen = Length (in bytes) of the k_oid;
+
+  int(*check_signature)(const X509_Algorithm*al, const X509_Info*info,
+  const uint8_t*data, size_t len, const ASN1_Value*publickey, const
+  ASN1_Value* algorithm, const ASN1_Value*signature) = Has the same meaning
+  as the check_signature callback function in the X509_Options structure,
+  except that the first argument is the pointer to this X509_Algorithm.
+
+  int(*make_public_key)(conts X509_Algorithm*al, const X509_Info*info,
+  void*privatekey, const ASN1_Value*keyalgorithm, ASN1_Encoder*encoder) =
+  Converts a private key to a public key. If successful, it should write
+  a ASN.1 bit string to the encoder and return X509_OK, otherwise it should
+  return a nonzero error code.
+
+  int(*make_signature)(const X509_Algorithm*al, const X509_Info*info, const
+  uint8_t*data, size_t len, void*privatekey, const ASN1_Value*algorithm,
+  ASN1_Value*signature) = Same meaning as make_signature in X509_Options,
+  except that the first argument is the pointer to this X509_Algorithm.
+
+X509_Chain
+  A chain of X.509 certificates. The root certificate comes first and then
+  the rest of the certificates come next, and the end certificate will be
+  the last one. There are two fields:
+
+  ASN1_Value*item = The list of certificates.
+
+  uint16_t count = The number of certificates in this chain.
+
+X509_Encoder
+  An opaque object for making a new certificate.
+
+X509_Extension
+  This structure defines the handling of X.509 extensions.
+
+  int(*call)(const X509_Extension*ext, X509_Info*info, const X509_Options*
+  option, const ASN1_Value*data, uint8_t crit) = This function is called
+  when reading the extension from a certificate. The first argument is a
+  pointer to the X509_Extension structure, the second argument is a pointer
+  to the info for the current certificate (not the entire chain, although
+  some parts will depend on certificates in the chain that have already
+  been handled), the third argument is the option pointer that was passed
+  to one of the x509_read_ functions, the fourth argument is the value of
+  the extension (the octet string is already decoded into a ASN.1 value),
+  and the fifth argument is 1 if it is critical or 0 if not critical.
+
+  void*userdata = Not used; you can store your own data here.
+
+  const uint8_t*oid = Pointer to the binary OID of this extension.
+
+  size_t oidlen = Length (in bytes) of the OID.
+
+  uint8_t flag = Flags for handling this extension. This is the bitwise OR
+  of zero or more of the flags listed below.
+
+  X509_IGNORE_UNLESS_CRITICAL = Causes it to avoid calling the callback
+  function if the extension is not critical.
+
+  X509_REQUIRE_EXTENSION_END = Fails if this extension is not present in
+  the end certificate. This is not relevant for CRL extensions.
+
+  X509_REQUIRE_EXTENSION_CA = Fails if this extension is not present in
+  any certificate that is not the end certificate. This is not relevant
+  for CRL extensions.
+
+  X509_SECOND_PHASE = If this is set, then it will add a second phase of
+  handling extensions, and will use this one during the second phase.
+
+  X509_REJECT_IF_CRITICAL = Causes the certificate to be rejected if this
+  extension is critical. (It automatically does this for any extension that
+  is not recognized.)
+
+X509_ExtraData
+  An opaque structure containing data associated with keys, where the keys
+  are pointers. The pointers used as keys are not read or written; only the
+  address is relevant. Use the "x509_extra_" functions to deal with this.
+
+X509_Info
+  Contains information about a parsed certificate. The fields are:
+
+  ASN1_Value subject = The subject name.
+
+  ASN1_Value issuer = The issuer name.
+
+  ASN1_Value subject_id = The subject unique ID. If not present, the class,
+  type, and length are all zero and the data is null.
+
+  ASN1_Value issuer_id = The issuer unique ID. Like the subject ID, this
+  is not necessarily present.
+
+  ASN1_Value publickey = The subject public key.
+
+  time_t starts = The not valid before date.
+
+  time_t expires = The not valid after date. If a certificate chain is
+  read, this is the earliest expiry date of the entire chain.
+
+  uint16_t count = The number of certificates after this one in the chain.
+  The x509_read_certificate function leaves this alone and assumes that the
+  value is correct, but x509_read_chain will automatically set its value
+  when reading each certificate; when it is finished, it will be zero,
+  unless an error occurred.
+
+  X509_ExtraData*in = The input extra data (passed to one of the x509_read_
+  functions).
+
+  X509_ExtraData*out = The output extra data.
+
+  int8_t phase = Automatically set during reading the certificate, and can
+  be read during extension processing to determine if it is the first phase
+  (0) or the second phase (1) of processing extensions. It will be -1 if it
+  is a certificate chain.
+
+X509_Options
+  Contains options for handling X.509 certificates and chains.
+
+  void*userdata = No use; you can use it for your own use.
+
+  const X509_Extension*extlist = List of extension handlers. These must be
+  in the ascending order of the length of the OID (in bytes), and secondly
+  in the sorted order of the OIDs of the same length. You should not have
+  duplicate OIDs in this list.
+
+  uint32_t extcount = Number of extension handlers. If this is zero, then
+  the pointer to the list of extension handlers is ignored and may be null.
+
+  time_t now = The time for which the certificates are validated. In order
+  for the validation to be successful, they must be valid during the time
+  that is mentioned here.
+
+  uint16_t flag = Bitwise OR of zero or more of the option flags.
+
+  See the below section for the list of callback functions that are in
+  this structure.
+
+
+=== Option flags ===
+
+X509_IGNORE_NOT_VALID_BEFORE
+  Causes the not valid before date to be ignored.
+
+X509_IGNORE_NOT_VALID_AFTER
+  Causes the not valid after date to be ignored.
+
+X509_IGNORE_SIGNATURE
+  Skips validating the signature. Ignored for x509_read_certificate; this
+  is only relevant for x509_read_chain.
+
+X509_NO_STANDARD_EXTENSIONS
+  If not specified, then it will use the built-in extension handling for
+  some extensions that this library knows how to deal with if you have not
+  specified your own handlers for those extensions; the use of these will
+  be affected by some of the other options.
+
+X509_ASSUME_NOT_CA
+  Disallows X.509 version 3 certificates that lack a basic constraints
+  extension from issuing further certificates.
+
+X509_IGNORE_EXTENSIONS
+  Causes it to ignore unknown critical extensions. Normally, an unknown
+  critical extension is an error.
+
+X509_ROOT_LAST
+  Means the root certificate comes last instead of first in the list of
+  certificates given to x509_read_chain. (The root certificate is processed
+  first regardless of this flag.)
+
+X509_REVERSE_AUTHORITY
+  Causes it to check authority from the end certificate to the root instead
+  of from the root to the end. If this flag is set, then when trying to
+  find the authority it will not fill in the full info structure, so most
+  of its contents will be unreliable, except "count" and "in", both of
+  which are valid.
+
+X509_NO_SIGNATURE
+  When creating a certificate, this flag causes it to only create the main
+  part of the certificate, without the signature. In this case, you must
+  add the signature afterward.
+
+X509_USER1_OPTION
+  No built-in use; you can use it for your own use.
+
+X509_USER2_OPTION
+  No built-in use; you can use it for your own use.
+
+
+=== Error codes ===
+
+Any of the ASN1_ error codes are also possible, in addition to these ones.
+
+X509_OK
+  Worked successfully; not an error. (The code of this is always zero, and
+  the code of ASN1_OK is also always zero.)
+
+X509_IMPROPER_TYPE
+  Some value within the certificate has the wrong type. (For some cases,
+  it will return X509_IMPROPER_FORMAT instead.) (X509_IMPROPER_TYPE is the
+  same as ASN1_IMPROPER_TYPE.)
+
+X509_NOT_ENOUGH_FIELDS
+  A structure within the certificate does not have enough fields.
+  (X509_NOT_ENOUGH_FIELDS is the same as ASN1_DONE.)
+
+X509_ERROR
+  A general error that no other code applies.
+
+X509_EXPIRED
+  The certificate is expired.
+
+X509_NOT_VALID_YET
+  The certificate is not valid yet but will be valid in future (and should
+  be checked again at that time, if it is to be used at that time).
+
+X509_NAME_MISMATCH
+  There are mismatching certificates in the chain, due to the issuer name
+  and subject name (or ID) not matching.
+
+X509_IMPROPER_FORMAT
+  The certificate (or a part of it) is not in the expected format.
+
+X509_EXT_ERROR
+  This error code can be used by the extension callback function to
+  indicate an error with the extension. (Extension callbacks can return
+  other error codes as well; they are not required to use this one.)
+
+X509_WRONG_SIGNATURE
+  The signature cannot be verified because it does not match the
+  certificate with the issuer's key.
+
+X509_UNKNOWN_SIGNATURE
+  The signature cannot be verified because it uses an unknown algorithm.
+
+X509_UNKNOWN_AUTHORITY
+  Can be returned from one of the callback functions to indicate that the
+  authority is unknown. If find_authority is not null, then it may be
+  called again with the next certificate until it finds one which is a
+  valid authority.
+
+X509_UNKNOWN_EXTENSION
+  The certificate contains an unknown critical extension.
+
+X509_REPEATED_EXTENSION
+  The certificate contains multiple extensions with the same OID.
+
+X509_REVOKED
+  The certificate should not be used because it is revoked.
+
+X509_REJECTED_EXTENSION
+  An extension is rejected, possibly because it is critical but that
+  extension is not allowed to be critical.
+
+X509_DEFER_EXTENSION
+  Not inherently an error. It can be returned from the extension callback
+  in order to cause it to be called again during the second phase. If this
+  code is returned during the second phase, then it is treated as an error
+  and is returned from x509_read_certificate or x509_read_chain.
+
+X509_MISSING_EXTENSION
+  The certificate lacks a required extension.
+
+X509_ACCESS_DENIED
+  Some permission is required that is not granted by the certificate chain
+  (either implicitly or explicitly).
+
+X509_NOT_IMPLEMENTED
+  Something which is not implemented (it might be implemented in future).
+
+X509_IMPROPER_STEP
+  One of the functions for making certificates has been called at the wrong
+  time. They must be called in the correct sequence; if you call them in
+  the wrong sequence then it will return this error code.
+
+X509_IMPROPER_KEY
+  This error code is intended to be used by the functions to make and
+  verify signatures to indicate an unusable key. None of the built-in
+  functions will return this error code unless a callback function does.
+
+
+=== Callback functions ===
+
+This describes the callback functions in the X509_Options structure. Unless
+otherwise specified, any of them may be null.
+
+int(*begin_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra)
+  If this function is defined, it is called when x509_read_chain is called,
+  before any other processing is done. If it returns nonzero then it will
+  return immediately from x509_read_chain.
+
+int(*check_info)(const X509_Info*info,void*userdata)
+  After doing everything for one certificate other than verifying the
+  signature, if it seems valid, it will call this function, and if it
+  returns nonzero then it will be treated as an error.
+
+int(*check_revoked)(const X509_Info*info,const X509_Options*option,const ASN1_Value*certificate,const ASN1_Value*serial);
+  Check if a certificate is revoked. If it is revoked, it should return
+  X509_REVOKED; if not, it should return X509_OK. The info is the info
+  so far of the certificate; you can use the issuer name or issuer ID
+  together with the serial number in order to compare it with records in
+  a revocation list, or you can use the full certificate and compute a
+  hash to look it up if you are using that method instead.
+
+int(*check_signature)(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature)
+  Check the signature of the certificate. The public key comes from the
+  issuer certificate, and the other parameters are from the subject
+  certificate. It should return X509_OK if OK or an error code (usually
+  X509_WRONG_SIGNATURE or X509_UNKNOWN_SIGNATURE) otherwise.
+
+int(*end_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info,int status)
+  This function is called just before x509_read_chain will return, whether
+  it is OK or an error. It is not called if begin_chain returns nonzero.
+  The fifth argument (status) is the status code; if this is nonzero then
+  the info might not be valid and should be ignored. The return value from
+  this callback function will be the return value of x509_read_chain.
+
+int(*find_authority)(const X509_Info*info,const ASN1_Value*certificate)
+  Called for each certificate in the chain, until a valid authority is
+  found. If it returns X509_OK then it will stop calling this to find a
+  authority and assume that one is already found; X509_UNKNOWN_AUTHORITY
+  means that this authority is not valid but there might be another one
+  which can be used; any other return value is an error. This will be
+  called after parsing the certificate, unless the X509_REVERSE_AUTHORITY
+  flag is specified in the options.
+
+int(*find_issuer)(const X509_Info*info,const ASN1_Value*certificate,ASN1_Value*out)
+  Find the issuer of the first certificate if it is not self-signed. If it
+  is found and is an acceptable certificate, then it should write it into
+  the third argument and return X509_OK, otherwise it returns an error
+  code. This may also remember details such as any restrictions on the use
+  of that certificate which are not a part of the certificate itself. If
+  this is null, then certificates that are not self-signed are rejected.
+  It will call asn1_free on the output; set out->own=0 if you want to avoid
+  freeing any memory in this way.
+
+int(*find_root)(const X509_Info*info,const ASN1_Value*certificate)
+  Check if a given root certificate which is self-signed is considered
+  acceptable; should return X509_OK if it is or an error code if it isn't
+  OK. If this is null, then self-signed certificates use find_issuer
+  instead, as though it is not self-signed. If both are null, then it will
+  assume that the first one is considered acceptable (but will still
+  validate it). If find_root is not null but find_issuer is null, then
+  only self-signed certificates will be considered acceptable. Set this to
+  x509_accept_any_self_signed to accept any self-signed certificate without
+  accepting any others.
+
+int(*make_signature)(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature)
+  Make up the signature of the specified data and length using the
+  specified private key and algorithm. The signature should be written into
+  the ASN1_Value structure specified by the last argument. It should return
+  X509_OK if it is successful, or an error code (X509_UNKNOWN_SIGNATURE if
+  it is not a recognized algorithm) if it is an error. It will free the
+  signature value by asn1_free, so you do not need to do that yourself.
+
+int(*mid_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info)
+  Called between certificates in a chain (not before the first one and not
+  after the last one). The info will be the info for the certificate that
+  has just been read, and you can use this to change the extra data between
+  certificates in case the output of one needs to affect the input of the
+  next one, or to copy out some of the intermediate info, or to modify the
+  info that will be used to match the issuer info of the next certificate
+  (and to verify the signature, in case there is somehow some reason to use
+  a different public key than the one in the issuer certificate).
+
+int(*set_serial)(const X509_Info*info,void*userdata)
+  A callback function used by the certificate making functions if the
+  x509_set_serial function is not called before x509_set_signature. This
+  callback function must call x509_set_serial and then return X509_OK. If
+  this is not defined, then it is an error to call x509_set_signature
+  without first calling x509_set_serial successfully.
+
+
+=== Certificate reading functions ===
+
+int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_ExtraData*extra,X509_Info*info)
+  Read and validate a certificate.
+
+  cert = The certificate to read.
+
+  option = The options for reading and validating the certificate.
+
+  extra = Input extra data required for validation.
+
+  info = The structure that the information about the certificate will be
+  written into. Normally, you should call x509_reset_info first (although
+  doing so is not necessary if it is already zeroed).
+
+  The return value is an error message.
+
+int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info)
+  Read and validate a certificate chain. The arguments mostly work like
+  x509_read_certificate, except that the info will automatically be reset
+  (so you do not need to do that by yourself), and you must give it a
+  chain rather than a single certificate.
+
+void x509_reset_info(X509_Info*info)
+  Resets the fields in the X509_Info structure (a null pointer is not
+  allowed). All fields are reset to zero or null, and the output extra
+  data object (if any) is also destroyed (the input is not destroyed,
+  although it is replaced by a null pointer). The x509_read_chain function
+  will automatically do this, but x509_read_certificate does not do this.
+
+
+=== Certificate making functions ===
+
+To create a new certificate, you must call the functions in the order:
+  x509_new_certificate
+  x509_set_serial (optional if option->set_serial is defined)
+  x509_set_signature
+  x509_add_extension (zero or more times)
+  x509_finish_certificate
+
+int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,const ASN1_Value*value)
+  Adds an extension to a certificate. You can call this any number of
+  times, including zero times. You must call x509_set_signature before
+  calling this function. This does not check for duplicate extensions;
+  you must do that by yourself, and avoid calling it multiple times with
+  the same OID, within one certificate.
+
+  enc = The X509_Encoder for making the certificate.
+
+  oid = The binary OID.
+
+  oidlen = The length of the binary OID, in bytes.
+
+  crit = Nonzero if critical or zero if noncritical.
+
+  value = The value of this extension. (A copy will be made, so it is not
+  necessary to keep it after this function returns.)
+
+int x509_finish_certificate(X509_Encoder*enc)
+  Finish the certificate. If successful, it will be written into the
+  ASN1_Value structure specified by x509_new_certificate. The X509_Encoder
+  object is not valid after this function returns.
+
+X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option,ASN1_Encoder*out)
+  Starts creating a new certificate. Only version 3 certificates can be
+  created by this function.
+
+  info = Information to include in the new certificate. This must not be
+  changed before the new certificate is finished.
+
+  option = Options to create the new certificate (some parts are not used
+  for creating certificates, and are only used for reading certificates).
+  This must not be changed before the new certificate is finished.
+
+  out = The ASN1_Encoder object that the new certificate will be written
+  to. One item will be written to it, which is either the full certificate
+  (including signature) or the main certificate, depending on the options.
+  You should not use or free this before finishing the new certificate.
+
+  Returns a X509_Encoder object, which is used with the other functions
+  that are used to fill in the extensions and the other details.
+
+int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len)
+  Set the serial number of the certificate. The data is assumed to
+  represent a non-negative big-endian integer; it will automatically
+  convert it to canonical form (and add a leading zero byte if needed
+  to make it positive).
+
+  If this function is used, it must be used after x509_new_certificate but
+  before any other functions with the same X509_Encoder object.
+
+  This function will return X509_IMPROPER_VALUE if the serial number
+  is zero, and it will not be set.
+
+int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key)
+  Set the signature algorithm and private key for the new certificate. This
+  must be called before x509_add_extensions and x509_finish_certificate.
+
+  enc = The X509_Encoder object which is being used to make a certificate.
+
+  alg = The algorithm identifier. This can be either a sequence or a OID.
+  If it is a OID, then it will make a sequence with that OID, and also NULL
+  as well if it is a RSA algorithm.
+
+  key = The private key. This library does not use the value, and is only
+  used to pass to your own callback function. It is allowed to be null (if
+  your callback function has some other way to determine the private key).
+  If the X509_NO_SIGNATURE flag was specified, then the key is ignored.
+
+int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,ASN1_Encoder*enc)
+  Signs an existing unsigned certificate. (If the certificate is already
+  signed, it will return X509_IMPROPER_TYPE.)
+
+  info = Information about the certificate, which will be passed to the
+  callback function in the X509_Options structure.
+
+  option = Options for creating the certificate; the "make_signature"
+  callback function in this structure is used.
+
+  tbs = The certificate to be signed.
+
+  privatekey = The private key. This library does not use the value, and is
+  only used to pass to your own callback function. It is allowed to be null
+  (if your callback function has some other way to know the private key).
+
+  enc = The ASN1_Encoder object to write the signed certificate to.
+
+
+=== Functions to set configurations ===
+
+Use these functions to set the "in" field of the X509_Info structure,
+before calling the other functions that use it. Calling these functions
+is optional unless you require the functionality specified below. Note
+that you must first call x509_extra_new or x509_extra_mirror.
+
+int x509_set_needed_extended_key_usage(X509_ExtraData*ex,uint32_t usage,uint32_t flag)
+  Set the expected extended key usage. (This function only supports the
+  standard extended key usages; for other ones, you must define your own
+  extension handler instead of using this one.) The usage should be a
+  bitwise OR of the X509_EKU_* constants, and the flag should be a bitwise
+  OR of the X509_EKUF_* constants.
+
+  X509_EKUF_ONE_OF means that at least one of the key usages specified by
+  the bits is required; it is OK if only some of them are present.
+
+  X509_EKUF_ALL_OF means that all of the key usages specified by the bits
+  are required.
+
+  X509_EKUF_EXPLICIT means that 2.5.29.37.0 is not good enough, and that
+  the OID for the expected extended key usage is required. If this flag is
+  not specified, then 2.5.29.37.0 will always be acceptable.
+
+int x509_set_needed_key_usage(X509_ExtraData*ex,uint16_t usage)
+  Set the expected key usage. The usage should be a bitwise OR of the
+  appropriate X509_KEYUSAGE_* constants. If zero, then it does not care
+  about the key usage.
+
+int x509_set_time(X509_ExtraData*ex,time_t now)
+  Set the timestamp to use as the current time. This overrides the time set
+  in the X509_Options structure.
+
+
+=== Extra data functions ===
+
+void x509_extra_delete(X509_ExtraData*extra,const void*key)
+  Deletes the entry associated with the specified key. Does nothing if that
+  key is not present, or if either argument is null. It will call the
+  destructor function when deleting the entry.
+
+void x509_extra_destroy(X509_ExtraData*extra)
+  Destroys a X509_ExtraData; after using this, the pointer is not valid and
+  should not be used. This will call the destructor functions for all data
+  stored in this object.
+
+void*x509_extra_destructor(X509_ExtraData*extra,const void*key)
+  Retrieves a pointer to the destructor function for the specified key. If
+  that key is not present, then it returns null.
+
+void*x509_extra_find(X509_ExtraData*extra,const void*key,void(*destructor)(void*),const void*data,size_t size)
+  Finds the data associated with the specified key, and returns a pointer
+  to the data. If the key is not present, it will be added with the
+  specified size and destructor and will copy the data given by the data
+  pointer, or filled with zero if the data pointer is null. If the size
+  and destructor are both zero then it will not add the key if it is not
+  present and will return null; it also returns null if allocation fails.
+  If the key is already present, then the third, fourth, and fifth
+  arguments are ignored. The key is not allowed to be null.
+
+X509_ExtraData*x509_extra_mirror(const X509_ExtraData*orig)
+  Create a new empty X509_ExtraData which mirrors an existing one. The
+  existing one should not be destroyed while the mirror exists. When
+  trying to find data from the mirror, if it is not present in the mirror
+  and the last three arguments are all zero or null, then it will look in
+  the original as well. Destroying the mirror will not destroy the original
+  and will not call any of the destructor functions in the original. If you
+  call this function with null argument then it is same as x509_extra_new.
+
+X509_ExtraData*x509_extra_new(void)
+  Create a new X509_ExtraData, which is initially empty.
+
+
+=== Trusting and revocation functions ===
+
+(TODO)
+
+
+=== Functions for keys and signature algorithms ===
+
+int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature)
+  A function which can be used as the check_signature callback function
+  and will use the algorithm list specified by x509_set_alglist.
+
+  Returns X509_UNKNOWN_SIGNATURE if the pair of the algorithm OID and
+  key OID is not in the list specified by x509_set_alglist.
+
+int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature)
+  A function which can be used as the make_signature callback function
+  and will use the algorithm list specified by x509_set_alglist.
+
+  Returns X509_UNKNOWN_SIGNATURE if the pair of the algorithm OID and
+  key OID is not in the list specified by x509_set_alglist.
+
+int x509_set_alglist(X509_ExtraData*info,X509_Options*option,X509_Algorithm*alglist,uint32_t algcount)
+  Set the algorithm list to use.
+
+  info = The extra data structure to use to set the algorithm list. If
+  this is null, then it will set a global algorithm list, which will be
+  used if this info is not set in the extra data structure.
+
+  option = The X509_Options structure. If this is not null, then it will
+  set the appropriate callback functions (check_signature and
+  make_signature), but if null then it will skip this step (in case you
+  will set them yourself, possibly to your own functions that will call
+  the standard functions).
+
+  alglist = The list of X509_Algorithm structures to use; this must be
+  sorted in the correct order. This is like the extlist member of the
+  X509_Options but for algorithms instead of extensions; it is sorted
+  primarily by the signature OIDs and length, and secondarily by the key
+  OIDs and length.
+
+  algcount = The number of algorithm handlers.
+
+void x509_sort_alglist(X509_Extension*alglist,uint32_t algcount)
+  Sorts an algorithm list, like x509_sort_extlist but for the algorithm
+  list instead of the extension list.
+
+
+=== Miscellaneous functions ===
+
+int x509_accept_any_self_signed(const X509_Info*info,const ASN1_Value*certificate)
+  Ignores its argument and unconditionally returns X509_OK.
+
+int x509_call_builtin_extension(const uint8_t*oid,size_t oidlen,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit)
+  Calls a built-in extension handler, for the specified OID. You can call
+  this within your custom extension callback functions in order to do the
+  built-in handling as well, in case you want to add your own logic before
+  or after, or to do the built-in logic conditionally, etc. The return
+  value of this function will be suitable to be returned by the callback
+  function; note that it might be X509_DEFER_EXTENSION.
+
+  oid = Binary OID.
+
+  oidlen = Length (in bytes) of binary OID.
+
+  info,option,data,crit = You should put the same values of the
+  corresponding parameters that your callback function received. However,
+  you can specify different values if you have a reason to do so.
+
+void x509_sort_extlist(X509_Extension*extlist,uint32_t extcount)
+  Sorts an extension list. The extension list must be sorted before it can
+  be used, but if it is constant data then you can sort it by yourself (as
+  described in the above documentation about the X509_Options structure),
+  in which case you do not need to use this function.
+
+
+=== Format of X.509 certificates ===
+
+(See also RFC 5280, which describes many of these same things, although a
+different profile (the Scorpion profile) is used here than the profile
+described in that document (the RFC 5280 profile), although there are
+(deliberately) many similarities, there are also some differences.)
+
+The format of a X.509 certificate is a sequence with three fields (encoded
+in DER format): the main certificate, the signature algorithm, and the
+signature value.
+
+The main certificate is a sequence with fields:
+
+* Optional explicit type 0 integer which identifies the version number of
+X.509. If omitted, it means version 1, 1 means version 2, and 2 means
+version 3. Some fields require a specific version number; see below.
+
+* The serial number, which is a positive integer. Each certificate that
+an issuer issues is supposed to use a different serial number, and it is
+recommended to limit this number to not more than twenty bytes. (Note
+that the integer is positive and in canonical form iff either the first
+byte is 0x00 and the second byte is in range 0x80 to 0xFF, or the first
+byte is in range 0x01 to 0x7F.)
+
+* The signature algorithm (which is the same as the signature algorithm
+outside of the main certificate). This is a sequence with a OID and one
+more optional field which can be any type according to the OID.
+
+* The issuer name (see below). This is the same as the subject name of
+the certificate that is issuing this one. If this is a self-signed
+certificate, then the issuer name of this certificate is the same as the
+subject name of this certificate.
+
+* The validity date/time. This a sequence with two timestamps, the first
+is the date at which the validity begins and the second is the expiry date.
+These can be UTC time or Generalized time; if it is UTC time, then year
+numbers in range 00 to 49 are treated as 2000 to 2049, and year numbers in
+range 50 to 99 are treated as 1950 to 1999. If this is a certificate that
+is not intended to expire, then you should specify 99991231235959Z (which
+is Generalized time) for the expiry date.
+
+* The subject name (see below). This is the name for whoever the
+certificate has been issued to.
+
+* The public key of this certificate. This is a sequence with two fields,
+the first is the algorithm identifier (in the same format as the signature
+algorithm identifier, as a sequence with one or two fields, but it is for
+the key instead of for the signature), and the second is a bit string
+(which usually contains the DER encoding of something; the number of unused
+bits will be zero and the rest of the bytes are the DER encoding).
+
+* An optional issuer ID, which a type 1 implicit bit string, and is only
+allowed for a version 2 or version 3 certificate. This may be used together
+with the issuer name in order to identify the issuer. It should match the
+subject ID in the issuer certificate.
+
+* An optional subject ID, which is a type 2 implicit bit string, and is
+only allowed for a version 2 or version 3 certificate. This may be used
+together with the subject name to identify the subject.
+
+* If there are any extensions, an optional type 3 explicit sequence of
+extensions. This is only allowed for a version 3 certificate, and should
+have at least one extension if it is present.
+
+The signature value is a bit string; the data being signed is the DER
+representation of the main certificate.
+
+A name is a sequence of sets of pieces; this sequence describes the
+hierarchy of names by pieces. Each set of pieces (all at the same level
+of the hierarchy) must have at least one piece, and each piece is a
+sequence with two fields, being the OID of that piece and the value of
+that piece (the value can be any type, but is usually some kind of
+character strings). For the purpose of this profile, names must always
+be treated as opaque data for the purpose of comparison, so that they
+are compared according to the raw DER representation of the entire name;
+however, decoding is possible if you want to display them or if you need
+to decode a part of it to compare with a domain name or something else
+which is specific to the application.
+
+The following OIDs are used for the pieces of names:
+  0.9.2342.19200300.100.1.25 = Domain name component
+  1.2.840.113549.1.9.1 = Email address
+  2.5.4.3 = Common name
+  2.5.4.4 = Surname
+  2.5.4.5 = Serial number
+  2.5.4.6 = Country code
+  2.5.4.7 = Locality
+  2.5.4.8 = State of province
+  2.5.4.9 = Street address
+  2.5.4.10 = Organization
+  2.5.4.11 = Organizational unit
+  2.5.4.12 = Title
+  2.5.4.13 = Description
+  2.5.4.15 = Business category
+  2.5.4.16 = Postal address
+  2.5.4.17 = Postal code
+  2.5.4.18 = Post office box
+  2.5.4.20 = Telephone number
+  2.5.4.41 = Name
+  2.5.4.42 = Given name
+  2.5.4.43 = Initials
+  2.5.4.44 = Generation qualifier (e.g. "III", "Jr.")
+  2.5.4.65 = Pseudonym
+(You can also use OIDs that are not listed here, but these are a common
+set of OIDs used for pieces of names.)
+
+A country code is always a Printable string with two letters. Note that
+these are not the same as the country codes for internet domain names.
+
+RFC 5280 uses IA5 for the domain name components; this profile prefers
+to use Printable string for domain name components.
+
+RFC 5280 uses IA5 for email addresses; this profile prefers to use
+Visible string for email addresses.
+
+For most names that may be international, this profile prefers to use the
+Graphic string type. However, for compatibility with RFC 5280, which does
+not use the Graphic string type, any type may be used (and they must match
+the same types in the issuer and subject certificates, so that the
+comparison will work); however, if the common name field is used for a
+domain name (which is not required if you are using the domain name
+components or the subject alternate name extension; the recommended way to
+represent domain names is the subject alternative names extension), then it
+must not use the BMP string or Universal string types since those types are
+not compatible with ASCII and cannot be decoded by a decoder that does not
+expect those types (and Printable string is preferred for domain names, but
+not for wildcard certificates).
+
+Each extension is a sequence with two or three fields:
+
+* The OID which identifies this extension. Duplicate OIDs are not allowed.
+
+* True if this extension is critical or omitted if not critical. If the
+extension is critical, then implementations should reject the certificate
+if this extension cannot be used by this implementation.
+
+* A octet string containing the DER encoding of a single item which is
+the value of this extension.
+
+Note that this specification does not use Unicode (unlike RFC 5280).
+Software that conforms with this specification must treat Unicode text
+as opaque data, and must use ASCII for URLs, domain names, etc. Most
+pieces of names can use any character string type (including Unicode
+types), but ISO 2022 is preferred.
+
+Some of the common (or otherwise important) standard extensions are
+listed in the below section. See also the Scorpion protocol specification
+for more extensions that are not listed in this file.
+
+
+=== Standard extensions ===
+
+2.5.29.9
+  This extension is used to specify attributes that are not a part of the
+  name. The value is a sequence of attributes, where each attribute is a
+  sequence with two fields, the first field being a OID and the second
+  field being a set of the values of the attribute (what the values are
+  expected to be is defined by the OID).
+
+  Many of the same OIDs can be used that are used for names.
+
+  This extension is supposed to be non-critical.
+
+2.5.29.15
+  This extension identifies the usage of the key in this certificate. If
+  this extension is present, then the certificate is not valid for using
+  the key for the purposes not listed in this extension. The value of
+  this extension is a bit string, where the bits are defined as follows:
+
+  (0) This key is used for verifying digital signatures other than the
+  signature of the certificate and of revocation lists.
+
+  (1) This key is used for non-repudiation to protect against the signing
+  entity falsely denying some action.
+
+  (2) This key used for enciphering private or secret keys, for key
+  transport.
+
+  (3) This key is used for directly encrypting data, rather than using an
+  intermediate symmetric cipher (which would use (2) instead). This is
+  not common.
+
+  (4) This key is used for key agreement.
+
+  (5) This key is used for the signatures of certificates. See also the
+  basic constraints extension, which also describes this use.
+
+  (6) This key is used for signatures of revocation lists.
+
+  (7) Encipher only (if (4) is also specified)
+
+  (8) Decipher only (if (4) is also specified)
+
+2.5.29.17
+  This is the "subject alternative name" extension. The value is a
+  sequence of alternative names, where each alternative name is one
+  of the following implicit typed values:
+
+  [0] A implicit sequence of a object identifier followed by a explicit
+  type 0 value of any type according to the specified OID.
+
+  [1] Email address.
+
+  [2] Domain name. If it starts with *. then this certificate is only
+  valid for all subdomains (one level) of the specified domain name.
+
+  [3] X.400 address.
+
+  [4] A name in the same format as the subject name and issuer name of
+  the certificate.
+
+  [5] EDI party (I don't know what this means).
+
+  [6] Absolute URL.
+
+  [7] IP address. This is a octet string, in network byte order, with
+  four bytes for version 4 or sixteen bytes for version 6.
+
+  [8] Object identifier.
+
+  The formats that directly use text strings are encoded as ASCII.
+
+  If this extension is present and is critical, then the name in the main
+  part of the certificate may be empty, but any certificates that this one
+  issues should include the issuer alternative name extension.
+
+2.5.29.18
+  This is the "issuer alternative name" extension, which has the same
+  format as the subject alternative name extension, but it is the
+  alternative names of the issuer instead of the subject.
+
+  It is allowed (and is recommended) to ignore this extension when
+  validating certificates; the issuer name and issuer ID are used instead.
+
+2.5.29.19
+  This is basic constraints, which is used to specifying how many more
+  certificates in the chain may be issued starting with this one.
+
+  The value is a sequence. If this certificate cannot issue any other
+  certificates, then this sequence is empty. If it can issue another
+  certificate, then the first field is true, and the second field is
+  omitted if there is no further constraint or a non-negative integer
+  of the maximum number of intermediate certificates between this one
+  and the end certificate (so zero means it can only issue certificates
+  that cannot themself issue certificates).
+
+  This extension must be critical for certificates that issue other
+  certificates; for other certifiates it may be critical.
+
+  If extension 2.5.29.15 is present as well as this one, then the
+  sequence in this extension is empty if and only if the bit (5) is
+  not set in the 2.5.29.15 extension.
+
+2.5.29.21
+  This is only used in a revocation list and it means that the certificate
+  is revoked and indicates the reason, which is enumerated and is one of:
+
+  (0) It is revoked but none of the below reasons apply, or the reason is
+  unknown, or unspecified for some other reason.
+
+  (1) The subject's private key is compromised.
+
+  (2) The certificate authority's private key is compromised.
+
+  (3) Nothing is compromised, but the name, affiliation, or other
+  information in the certificate is no longer valid, because their name,
+  affiliation, etc has been changed.
+
+  (4) Nothing is compromised, but the certificate has been superseded, so
+  this version of the certificate is no longer valid.
+
+  (5) The certificate is no longer needed, or the subject no longer owns
+  and controls the domain name in the certificate.
+
+  (6) The certificate is temporarily revoked. In future, it might become
+  permanently revoked or unrevoked.
+
+  (8) The certificate is not revoked. It is either valid or it has expired
+  or is invalid for some reason other than having been revoked. This number
+  is intended to be used in case it has previously been temporarily revoked
+  but is no longer revoked.
+
+  (9) The privileges granted by the certificate have been revoked.
+
+  (10) This number is only relevant for attribute authorities, which are
+  not used by the specification in this document.
+
+  (11) The key or algorithm is weak, or the way that the key was generated
+  is considered to have been unsafe. (Not specified in RFC 5280.)
+
+  Note that number 7 is not used.
+
+2.5.29.30
+  This extension defines name constraints for any certificate that
+  this one issues and that any further certificates in the chain issue
+  (but not to this certificate). Restrictions apply to the subject name
+  and alternative names.
+
+  The value of this extension is a sequence with two fields, both optional.
+  The first field is a implicit type 0 sequence of permitted subtrees, and
+  the second field is a implicit type 1 sequence of excluded subtrees.
+
+  Each subtree specification is a sequence with up to three fields. The
+  first field is the same format as a single alternative name. The other
+  two are used for minimum and maximum distances, but those are not
+  applicable to the standard constraints described here.
+
+  If a name appears in the excluded subtrees, then that name is not allowed
+  in the name or alternative names of the certificates it issues, even if
+  the permitted subtrees allows it.
+
+  [1] It can be a full email address or only the domain name. If it is only
+  the domain name, then it matches any email address with that domain name.
+  If it is a domain name preceded by a dot, then it matches any email
+  address with any subdomains of that domain name, but does not match any
+  email address with that domain name itself. This matches both the subject
+  alternative name and any pieces of the subject name that use the OID
+  1.2.840.113549.1.9.1.
+
+  [2] The constraint is a domain name, and matches that domain name as well
+  as any subdomains. According to this specification, when the certificate
+  is checked for validating the domain name, it should use this constraint
+  to check if the domain name it is using is acceptable according to this
+  certificate chain, regardless of where it gets the domain name from
+  (usually it comes from a URL, rather than from the certificate, although
+  it would also check that the domain name in the end certificate's subject
+  alternative name (or subject name, if the SAN is absent or does not have
+  the domain name) matches).
+
+  [6] The constraint is a domain name, which matches any URL with that
+  domain name, or a domain name preceded by a dot, which matches any URL
+  that has any subdomain of that domain name, but does not match the domain
+  name itself. This constraint does not apply to the rest of the URL.
+
+  [7] The length is twice as long as it is in the alternative name
+  extension; it starts with the value, and then the mask follows. It
+  matches any IP address that, when you AND by the mask, will produce
+  the value of this constraint.
+
+2.5.29.37
+  This extension identifies what the certificate can be used for; see also
+  2.5.29.15. This is a sequence of one or more OIDs that identify the uses
+  of the certificate. Some possible uses are:
+
+  2.5.29.37.0 = Any usage is possible, although they are not specified
+  explicitly. This is intended for the possibility that an application
+  expects other usages to be listed here but that the certificate is not
+  exclusively for such purposes and can also be used for other purposes.
+
+  1.3.6.1.5.5.7.3.1 = TLS server authentication.
+
+  1.3.6.1.5.5.7.3.2 = TLS client authentication.
+
+  1.3.6.1.5.5.7.3.3 = It can be used for signing executable programs.
+
+  1.3.6.1.5.5.7.3.4 = It is used for email.
+
+  1.3.6.1.5.5.7.3.8 = It can be used for binding the hash of a file to
+  a timestamp.
+
+  1.3.6.1.5.5.7.3.9 = Signing OCSP responses.
+
+  1.3.6.1.5.5.7.3.21 = SSH client authentication.
+
+  1.3.6.1.5.5.7.3.22 = SSH server authentication.
+
+  (Other uses are possible; you can make up your own OIDs for your own
+  uses if necessary.)
+
