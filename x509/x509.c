@@ -474,11 +474,12 @@ struct X509_Encoder {
   const X509_Info*info;
   const X509_Options*option;
   void*key;
+  ASN1_Value pubkey;
   ASN1_Value tbs;
   int8_t step;
 };
 
-int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,ASN1_Encoder*enc) {
+int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,const ASN1_Value*publickey,ASN1_Encoder*enc) {
   ASN1_Value alg;
   ASN1_Value sig={.class=ASN1_UNIVERSAL,.type=ASN1_BIT_STRING};
   int r0;
@@ -498,7 +499,7 @@ int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const A
   asn1_write_length(tbs->length,f);
   fclose(f);
   if(!bd) return X509_ERROR;
-  if(r0=option->make_signature(info,bd,bs,privatekey,&alg,&sig)) goto stop;
+  if(r0=option->make_signature(info,bd,bs,privatekey,publickey,&alg,&sig)) goto stop;
   if(r0=asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0)) goto stop;
     r0=(asn1_encode(enc,tbs) || asn1_encode(enc,&alg) || asn1_encode(enc,&sig));
     asn1_free(&sig);
@@ -532,7 +533,7 @@ int x509_finish_certificate(X509_Encoder*enc) {
   if(i=asn1_end(enc->enc)) return i; // end of tbs certificate
   if(enc->out!=enc->enc) {
     if(asn1_finish_encoder(enc->enc)) return X509_ERROR;
-    if(i=x509_sign_certificate(enc->info,enc->option,&enc->tbs,enc->key,enc->out)) return i;
+    if(i=x509_sign_certificate(enc->info,enc->option,&enc->tbs,enc->key,&enc->pubkey,enc->out)) return i;
     asn1_free(&enc->tbs);
   }
   free(enc);
@@ -557,12 +558,12 @@ int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len) {
   return X509_OK;
 }
 
-int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key) {
+int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key,const ASN1_Value*publickey) {
   ASN1_DateTime dt;
   int i;
   if(!enc->step && enc->option->set_serial) {
     enc->step=-1;
-    if(i=enc->option->set_serial(enc->info,enc->option->userdata)) return i;
+    if(i=enc->option->set_serial(enc,enc->info,enc->option->userdata)) return i;
   }
   if(enc->step!=1) return X509_IMPROPER_STEP;
   if(alg->class!=ASN1_UNIVERSAL) {
@@ -596,6 +597,7 @@ int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key) {
     asn1_implicit(enc->enc,ASN1_CONTEXT_SPECIFIC,2);
     asn1_encode(enc->enc,&enc->info->subject_id);
   }
+  enc->pubkey=*publickey;
   return X509_OK;
 }
 
@@ -613,6 +615,61 @@ int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char cri
     asn1_encode(enc->enc,value);
   asn1_end(enc->enc);
   return X509_OK;
+}
+
+int x509_prepare_authority(X509_Authority*auth) {
+  // This function has partial functions of x509_read_certificate
+  ASN1_Value v0,a;
+  int i;
+  if(auth->prepare) return X509_OK;
+  memset(&auth->info,0,sizeof(X509_Info));
+  if(!auth->certificate.length) {
+    auth->prepare=2;
+    return X509_OK;
+  }
+  if(auth->certificate.class!=ASN1_UNIVERSAL || auth->certificate.type!=ASN1_SEQUENCE || !auth->certificate.constructed) return X509_IMPROPER_FORMAT;
+  if(i=asn1_first_of(&v0,&auth->certificate)) return i;
+  if(v0.class!=ASN1_UNIVERSAL || v0.type!=ASN1_SEQUENCE || !v0.constructed) return X509_IMPROPER_FORMAT;
+  if(i=asn1_first_of(&a,&v0)) return i;
+  if(a.constructed && a.class==ASN1_CONTEXT_SPECIFIC && a.type==0 && a.length==3 && (i=asn1_next_of(&a,&v0))) return i; // skip version number
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_INTEGER) return X509_IMPROPER_FORMAT; // serial number
+  if(i=asn1_next_of(&a,&v0)) return i;
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // signature algorithm
+  if(i=asn1_next_of(&a,&v0)) return i;
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // issuer name
+  if(i=asn1_next_of(&a,&v0)) return i;
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // date/time
+  if(i=asn1_next_of(&a,&v0)) return i;
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // subject name
+  auth->info.issuer=a;
+  if(i=asn1_next_of(&a,&v0)) return i;
+  if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // public key
+  auth->info.publickey=a;
+  // Optional fields
+  while(!asn1_next_of(&a,&v0)) if(a.class==ASN1_CONTEXT_SPECIFIC && a.type==2 && a.length>0) {
+    auth->info.issuer_id=a;
+    break;
+  }
+  auth->prepare=1;
+  return X509_OK;
+}
+
+// Functions for adding specific extensions to certificates
+
+int x509_addext_basic() {
+  
+}
+
+int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage) {
+  uint8_t x[3]={0,keyusage>>8,keyusage&255};
+  ASN1_Value v={.class=ASN1_UNIVERSAL,.type=ASN1_BIT_STRING,.constructed=0,.data=x,.length=(x[2]?3:2)};
+  if(!keyusage || (keyusage&15)) return X509_IMPROPER_VALUE;
+  *x=__builtin_ctz(x[2]?:x[1]);
+  return x509_add_extension(enc,"\x55\x1D\x0F",3,crit,&v);
+}
+
+int x509_addext_extended_key_usage() {
+  
 }
 
 // Functions to set configurations
@@ -726,7 +783,17 @@ int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,cons
   return x509_find_algorithm(info,publickey,algorithm,&alg)?:(alg->check_signature?alg->check_signature(alg,info,data,len,publickey,algorithm,signature):X509_UNKNOWN_SIGNATURE);
 }
 
-int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature) {
+int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature) {
   const X509_Algorithm*alg;
-  return x509_find_algorithm(info,&info->publickey,algorithm,&alg)?:(alg->make_signature?alg->make_signature(alg,info,data,len,privatekey,algorithm,signature):X509_UNKNOWN_SIGNATURE);
+  return x509_find_algorithm(info,publickey,algorithm,&alg)?:(alg->make_signature?alg->make_signature(alg,info,data,len,privatekey,algorithm,signature):X509_UNKNOWN_SIGNATURE);
+}
+
+int x509_store_extension_data(const X509_Extension*ext,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit) {
+  ASN1_Value*v;
+  if(!info->out) info->out=x509_extra_new();
+  if(!info->out) return X509_ERROR;
+  v=x509_extra_find(info->out,ext->userdata,0,0,sizeof(ASN1_Value));
+  if(!v) return X509_ERROR;
+  *v=*data;
+  return X509_OK;
 }

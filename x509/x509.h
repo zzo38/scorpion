@@ -88,6 +88,7 @@
 #define X509_REASON_WEAK_KEY 11
 
 typedef struct X509_Algorithm X509_Algorithm;
+typedef struct X509_Authority X509_Authority;
 typedef struct X509_Chain X509_Chain;
 typedef struct X509_Encoder X509_Encoder;
 typedef struct X509_Extension X509_Extension;
@@ -128,6 +129,17 @@ struct X509_Info {
   int8_t phase;
 };
 
+struct X509_Authority {
+  X509_Info info;
+  uint8_t prepare;
+  void*userdata;
+  void*privatekey;
+  ASN1_Value certificate;
+  uint8_t*serial;
+  uint8_t seriallen;
+  int(*set_serial)(X509_Encoder*enc,const X509_Info*info,X509_Authority*auth);
+};
+
 struct X509_Options {
   void*userdata;
   int(*begin_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra);
@@ -138,9 +150,9 @@ struct X509_Options {
   int(*find_authority)(const X509_Info*info,const ASN1_Value*certificate);
   int(*find_issuer)(const X509_Info*info,const ASN1_Value*certificate,ASN1_Value*out);
   int(*find_root)(const X509_Info*info,const ASN1_Value*certificate);
-  int(*make_signature)(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature);
+  int(*make_signature)(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature);
   int(*mid_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
-  int(*set_serial)(const X509_Info*info,void*userdata);
+  int(*set_serial)(X509_Encoder*enc,const X509_Info*info,void*userdata);
   const X509_Extension*extlist;
   uint32_t extcount;
   time_t now;
@@ -148,6 +160,8 @@ struct X509_Options {
 };
 
 int x509_accept_any_self_signed(const X509_Info*info,const ASN1_Value*certificate);
+int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,const ASN1_Value*value);
+int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage);
 int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature);
 void x509_extra_delete(X509_ExtraData*extra,const void*key);
 void x509_extra_destroy(X509_ExtraData*extra);
@@ -157,8 +171,10 @@ X509_ExtraData*x509_extra_mirror(const X509_ExtraData*orig);
 X509_ExtraData*x509_extra_new(void);
 int x509_find_algorithm(const X509_Info*info,const ASN1_Value*publickey,const ASN1_Value*algorithm,const X509_Algorithm**result);
 uint16_t x509_get_key_usage(const X509_Info*info);
-int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature);
+X509_Encoder*x509_issue_certificate(const X509_Authority*auth,const ASN1_Value*subject_name,const ASN1_Value*subject_id,const ASN1_Value*subject_key,X509_ExtraData*extra,const X509_Options*option,ASN1_Encoder*out);
+int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature);
 X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option,ASN1_Encoder*out);
+int x509_prepare_authority(X509_Authority*auth);
 int x509_read_certificate(const ASN1_Value*cert,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
 int x509_read_chain(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*extra,X509_Info*info);
 void x509_reset_info(X509_Info*info);
@@ -166,6 +182,7 @@ int x509_set_alglist(X509_ExtraData*info,X509_Options*option,X509_Algorithm*algl
 int x509_set_needed_extended_key_usage(X509_ExtraData*ex,uint32_t usage,uint32_t flag);
 int x509_set_needed_key_usage(X509_ExtraData*ex,uint16_t usage);
 int x509_set_time(X509_ExtraData*ex,time_t now);
-int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,ASN1_Encoder*enc);
+int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,const ASN1_Value*publickey,ASN1_Encoder*enc);
 void x509_sort_alglist(X509_Algorithm*alglist,uint32_t algcount);
 void x509_sort_extlist(X509_Extension*extlist,uint32_t extcount);
+int x509_store_extension_data(const X509_Extension*ext,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit);

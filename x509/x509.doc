@@ -24,13 +24,49 @@ X509_Algorithm
   int(*make_public_key)(conts X509_Algorithm*al, const X509_Info*info,
   void*privatekey, const ASN1_Value*keyalgorithm, ASN1_Encoder*encoder) =
   Converts a private key to a public key. If successful, it should write
-  a ASN.1 bit string to the encoder and return X509_OK, otherwise it should
-  return a nonzero error code.
+  the public key info (in the format used in X.509) to the encoder and
+  return X509_OK, otherwise it should return a nonzero error code.
 
   int(*make_signature)(const X509_Algorithm*al, const X509_Info*info, const
   uint8_t*data, size_t len, void*privatekey, const ASN1_Value*algorithm,
   ASN1_Value*signature) = Same meaning as make_signature in X509_Options,
   except that the first argument is the pointer to this X509_Algorithm.
+
+X509_Authority
+  Contains information about a certificate authority, which is used for
+  issuing new certificates.
+
+  X509_Info info = Used internally; you should zero this field before you
+  initialize this structure.
+
+  uint8_t prepare = Used internally; you should zero this field before you
+  initialize this structure. After calling x509_prepare_authority, this
+  field will be nonzero if successful (but the exact value is not specified
+  here and may be used for internal purposes).
+
+  void*userdata = You can store your own data.
+
+  void*privatekey = The authority's private key. This must match the public
+  key in the certificate, if a certificate is specified.
+
+  ASN1_Value certificate = The authority's certificate. Zero this field if
+  the authority does not have a certificate yet because the new certificate
+  will be a root certificate.
+
+  uint8_t*serial = A buffer to hold the serial number. This is optional; if
+  it is specified but set_serial is not specified then it will use this as
+  the serial number and then increment it afterward. If set_serial is also
+  set, then this buffer is ignored but you can use it yourself.
+
+  uint8_t seriallen = The length of the serial number buffer. Specify zero
+  if it is not used.
+
+  int(*set_serial)(X509_Encoder*enc, const X509_Info*info, X509_Authority*
+  auth) = Called to set the serial number of the certificate. If it returns
+  nonzero then it is an error. If this is not defined but serial is defined
+  then it will work as described above. If this returns zero without
+  calling x509_set_serial then it will call option->set_serial and if that
+  also fails then it is an error.
 
 X509_Chain
   A chain of X.509 certificates. The root certificate comes first and then
@@ -356,7 +392,7 @@ int(*find_root)(const X509_Info*info,const ASN1_Value*certificate)
   x509_accept_any_self_signed to accept any self-signed certificate without
   accepting any others.
 
-int(*make_signature)(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature)
+int(*make_signature)(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature)
   Make up the signature of the specified data and length using the
   specified private key and algorithm. The signature should be written into
   the ASN1_Value structure specified by the last argument. It should return
@@ -374,7 +410,7 @@ int(*mid_chain)(const X509_Chain*chain,const X509_Options*option,X509_ExtraData*
   (and to verify the signature, in case there is somehow some reason to use
   a different public key than the one in the issuer certificate).
 
-int(*set_serial)(const X509_Info*info,void*userdata)
+int(*set_serial)(X509_Encoder*enc,const X509_Info*info,void*userdata)
   A callback function used by the certificate making functions if the
   x509_set_serial function is not called before x509_set_signature. This
   callback function must call x509_set_serial and then return X509_OK. If
@@ -445,6 +481,32 @@ int x509_finish_certificate(X509_Encoder*enc)
   ASN1_Value structure specified by x509_new_certificate. The X509_Encoder
   object is not valid after this function returns.
 
+X509_Encoder*x509_issue_certificate(const X509_Authority*auth,const ASN1_Value*subject_name,const ASN1_Value*subject_id,const ASN1_Value*subject_key,X509_ExtraData*extra,const X509_Options*option,ASN1_Encoder*out)
+  Starts creating a new certificate like x509_new_certificate but also
+  does some additional things. This automatically calls x509_set_serial and
+  x509_set_signature, so you should not call those functions; you will only
+  need to add extensions and call x509_finish_certificate when finished.
+
+  auth = Contains information about the certificate authority.
+
+  subject_name = The full name of the subject, which must be a sequence.
+
+  subject_id = The unique ID of the subject, which must be a bit string.
+  This can be null if the unique ID is not used.
+
+  subject_key = The public key of the subject, including the algorithm.
+
+  extra = Extra data used as input. May be null if not used.
+
+  option = Options to create the new certificate. (See x509_new_certificate
+  for more details.)
+
+  out = The ASN1_Encoder object that the new certificate will be written
+  to. (See x509_new_certificate for more details.)
+
+  Returns a X509_Encoder object, which is used with the other functions
+  that are used to fill in the extensions. Returns null if an error occurs.
+
 X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option,ASN1_Encoder*out)
   Starts creating a new certificate. Only version 3 certificates can be
   created by this function.
@@ -464,6 +526,15 @@ X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option
   Returns a X509_Encoder object, which is used with the other functions
   that are used to fill in the extensions and the other details.
 
+int x509_prepare_authority(X509_Authority*auth)
+  Prepares a X509_Authority object. This must be called before you call
+  x509_issue_certificate, although you can then use it to issue multiple
+  certificates without needing to call this again. However, if you change
+  the contents of the X509_Authority object afterward, then you must set
+  its prepare field to zero and then call this function again.
+
+  Returns X509_OK if OK, or a nonzero error code if an error occurs.
+
 int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len)
   Set the serial number of the certificate. The data is assumed to
   represent a non-negative big-endian integer; it will automatically
@@ -476,7 +547,7 @@ int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len)
   This function will return X509_IMPROPER_VALUE if the serial number
   is zero, and it will not be set.
 
-int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key)
+int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key,const ASN1_Value*publickey)
   Set the signature algorithm and private key for the new certificate. This
   must be called before x509_add_extensions and x509_finish_certificate.
 
@@ -491,7 +562,13 @@ int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key)
   your callback function has some other way to determine the private key).
   If the X509_NO_SIGNATURE flag was specified, then the key is ignored.
 
-int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,ASN1_Encoder*enc)
+  publickey = The issuer's public key, in the same format that is used in
+  the X.509 certificate (including the algorithm informaion). A copy of the
+  fields of the ASN1_Value structure is made, but it does not make a copy
+  of the data that it points to, which must remain valid until after the
+  x509_finish_certificate function returns.
+
+int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,const ASN1_Value*publickey,ASN1_Encoder*enc)
   Signs an existing unsigned certificate. (If the certificate is already
   signed, it will return X509_IMPROPER_TYPE.)
 
@@ -507,7 +584,38 @@ int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const A
   only used to pass to your own callback function. It is allowed to be null
   (if your callback function has some other way to know the private key).
 
+  publickey = The issuer's public key, in the format that it is stored in
+  the certificate (including the algorithm information).
+
   enc = The ASN1_Encoder object to write the signed certificate to.
+
+
+=== Functions for adding specific extensions to certificates ===
+
+You should not call any of these functions more than once per certificate,
+or else it may create an invalid certificate. They are valid at any time
+that x509_add_extension is valid.
+
+int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage)
+  Adds the key usage extension to the certificate.
+
+  enc = The X509_Encoder object of the certificate being made.
+
+  cert = Zero if noncritical or one if critical.
+
+  keyusage = Bitwise OR of one or more of the following:
+    X509_KEYUSAGE_DIGITAL_SIGNATURE
+    X509_KEYUSAGE_NON_REPUDIATION
+    X509_KEYUSAGE_KEY_ENCIPHERMENT
+    X509_KEYUSAGE_DATA_ENCIPHERMENT
+    X509_KEYUSAGE_KEY_AGREEMENT
+    X509_KEYUSAGE_KEY_CERT_SIGN
+    X509_KEYUSAGE_CRL_SIGN
+    X509_KEYUSAGE_ENCIPHER_ONLY
+    X509_KEYUSAGE_DECIPHER_ONLY
+
+  You cannot use X509_KEYUSAGE_UNRESTRICTED nor can the keyusage be zero;
+  in either case it will return an error code and not add the extension.
 
 
 === Functions to set configurations ===
@@ -597,7 +705,14 @@ int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,cons
   Returns X509_UNKNOWN_SIGNATURE if the pair of the algorithm OID and
   key OID is not in the list specified by x509_set_alglist.
 
-int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*algorithm,ASN1_Value*signature)
+int x509_find_algorithm(const X509_Info*info,const ASN1_Value*publickey,const ASN1_Value*algorithm,const X509_Algorithm**result)
+  Find the X509_Algorithm structure for the specified public key and
+  signature algorithm. Returns X509_UNKNOWN_SIGNATURE if not found. If
+  it is found, *result points to the X509_Algorithm structure and it
+  returns X509_OK; if any error occurs (including not being found), then
+  the value of *result is unspecified.
+
+int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature)
   A function which can be used as the make_signature callback function
   and will use the algorithm list specified by x509_set_alglist.
 
@@ -656,6 +771,11 @@ void x509_sort_extlist(X509_Extension*extlist,uint32_t extcount)
   be used, but if it is constant data then you can sort it by yourself (as
   described in the above documentation about the X509_Options structure),
   in which case you do not need to use this function.
+
+int x509_store_extension_data(const X509_Extension*ext,X509_Info*info,const X509_Options*option,const ASN1_Value*data,uint8_t crit)
+  Stores the data in the X509_ExtraData pointed by info->out (creating it
+  if necessary) at the key specified by ext->userdata. This function is
+  suitable to be used as a callback function in a X509_Extension structure.
 
 
 === Format of X.509 certificates ===
