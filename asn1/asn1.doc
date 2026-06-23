@@ -1002,6 +1002,24 @@ reference system (e.g. "WGS 84"), longitude, latitude, vertical position.
 The longitude, latitude, vertical position, can be either real numbers or
 scientific numbers, and vertical position is optional.
 
+* ASN1_NAMESPACE (81): It is constucted with the fields: The first field
+is optional and is the OID of the namespace. The second field specifies
+the class of the name space, which is enumerated and can be 1 or 2 or 3
+(zero is not valid). The third field is a sequence of some kind of name or
+specification of each type (starting from type zero); these items in this
+sequence can be anything, of any types. Next is the data, which can be any
+single item of any type. The types defined by this name space apply to the
+data field, and also to some other constructed types within any type that
+the name space applies to, which are: any non-universal type that belongs
+to any name space (not necessarily this one), and to any name space that
+has a different class than this one, as well as the following universal
+types: sequence, set, key/value list, and/or translation list; but it does
+not apply to any other primitive or constructed type, even if they are
+inside of one of the allowed types. (Note that a type can only belong to
+a name space if the class is the same as the class specified by that name
+space and the type number is less than the number of types defined by that
+name space; however, implementation of the latter constraint is optional.)
+
 The encoding of the new time types is constructed, and contains a integer
 followed by a real or scientific number; both fields represent a number of
 seconds. For the UTC-based types, the first field is required and the
