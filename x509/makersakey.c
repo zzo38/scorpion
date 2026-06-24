@@ -1,5 +1,5 @@
 #if 0
-gcc -s -O2 -o ./makersakey makersakey.c asn1.o -lhogweed -lnettle -lgmp
+gcc -s -O2 -o ~/bin/makersakey makersakey.c asn1.o base64.o -lhogweed -lnettle -lgmp
 exit
 #endif
 
@@ -14,75 +14,7 @@ exit
 #include <string.h>
 #include <unistd.h>
 #include "asn1.h"
-
-// *** Implementation of base64
-
-static const char base64alph[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-typedef struct {
-  FILE*file;
-  uint32_t value;
-  uint8_t width,phase,autoclose;
-} Cookie_base64_enc;
-
-static ssize_t write_base64_enc(void*cookie,const char*buf,size_t size) {
-  Cookie_base64_enc*x=cookie;
-  const uint8_t*b=buf;
-  size_t n;
-  for(n=0;n<size;n++) switch(x->phase) {
-    case 0:
-      x->value=b[n]<<16;
-      x->phase=1;
-      break;
-    case 1:
-      x->value|=b[n]<<8;
-      x->phase=2;
-      break;
-    case 2:
-      x->value|=b[n];
-      fputc(base64alph[(x->value>>18)&63],x->file);
-      fputc(base64alph[(x->value>>12)&63],x->file);
-      fputc(base64alph[(x->value>>6)&63],x->file);
-      fputc(base64alph[(x->value>>0)&63],x->file);
-      if(++x->width==16) x->width=0,fputc('\n',x->file);
-      x->phase=0;
-      break;
-  }
-  return size;
-}
-
-static int close_base64_enc(void*cookie) {
-  Cookie_base64_enc*x=cookie;
-  char y[64];
-  switch(x->phase) {
-    case 1:
-      fputc(base64alph[(x->value>>18)&63],x->file);
-      fputc(base64alph[(x->value>>12)&63],x->file);
-      fputc('=',x->file);
-      fputc('=',x->file);
-      break;
-    case 2:
-      fputc(base64alph[(x->value>>18)&63],x->file);
-      fputc(base64alph[(x->value>>12)&63],x->file);
-      fputc(base64alph[(x->value>>6)&63],x->file);
-      fputc('=',x->file);
-      break;
-  }
-  if(x->width || x->phase) fputc('\n',x->file);
-  return x->autoclose?fclose(x->file):0;
-}
-
-static FILE*open_base64_enc(FILE*f,char autoclose) {
-  Cookie_base64_enc*x=calloc(1,sizeof(Cookie_base64_enc));
-  if(!x) return 0;
-  x->file=f;
-  x->autoclose=autoclose;
-  f=fopencookie(x,"w",(cookie_io_functions_t){.write=write_base64_enc,.close=close_base64_enc});
-  if(!f) free(x);
-  return f;
-}
-
-// *** End of implementation of base64
+#include "base64.h"
 
 static FILE*randomfile;
 static struct rsa_public_key public;
@@ -143,7 +75,7 @@ int main(int argc,char**argv) {
     enc=asn1_start_encoding_file(stdout);
   } else {
     puts("-----BEGIN RSA PRIVATE KEY-----");
-    enc=asn1_start_encoding_file(b64file=open_base64_enc(stdout,0));
+    enc=asn1_start_encoding_file(b64file=open_base64_enc(stdout,16,0,0));
   }
   if(!enc) err(1,"Unexpected error");
   asn1_construct(enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
