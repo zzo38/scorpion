@@ -540,6 +540,10 @@ int x509_finish_certificate(X509_Encoder*enc) {
   return X509_OK;
 }
 
+void x509_cancel_encoder(X509_Encoder*enc) {
+  free(enc);
+}
+
 int x509_set_serial(X509_Encoder*enc,const uint8_t*data,size_t len) {
   FILE*f;
   if(enc->step>0) return X509_IMPROPER_STEP;
@@ -617,6 +621,24 @@ int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char cri
   return X509_OK;
 }
 
+ASN1_Encoder*x509_add_constructed_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,uint8_t class,uint32_t type,uint8_t mode) {
+  if(enc->step<2) return 0;
+  if(enc->step==2) {
+    asn1_construct(enc->enc,ASN1_CONTEXT_SPECIFIC,3,0);
+    asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+    enc->step=3;
+  }
+  asn1_construct(enc->enc,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+  asn1_primitive(enc->enc,ASN1_UNIVERSAL,ASN1_OBJECT_IDENTIFIER,oid,oidlen);
+  if(crit) asn1_primitive(enc->enc,ASN1_UNIVERSAL,ASN1_BOOLEAN,"\xFF",1);
+  asn1_wrap(enc->enc);
+  return asn1_construct(enc->enc,class,type,mode)?0:enc->enc;
+}
+
+int x509_end_constructed_extension(X509_Encoder*enc) {
+  return asn1_end(enc->enc)?:asn1_end(enc->enc);
+}
+
 int x509_prepare_authority(X509_Authority*auth) {
   // This function has partial functions of x509_read_certificate
   ASN1_Value v0,a;
@@ -645,6 +667,7 @@ int x509_prepare_authority(X509_Authority*auth) {
   if(i=asn1_next_of(&a,&v0)) return i;
   if(a.class!=ASN1_UNIVERSAL || a.type!=ASN1_SEQUENCE) return X509_IMPROPER_FORMAT; // public key
   auth->info.publickey=a;
+  auth->publickey=a;
   // Optional fields
   while(!asn1_next_of(&a,&v0)) if(a.class==ASN1_CONTEXT_SPECIFIC && a.type==2 && a.length>0) {
     auth->info.issuer_id=a;
@@ -654,10 +677,49 @@ int x509_prepare_authority(X509_Authority*auth) {
   return X509_OK;
 }
 
+X509_Encoder*x509_issue_certificate(X509_Authority*auth,X509_Subject*subj,X509_ExtraData*extra,const X509_Options*option,ASN1_Encoder*out) {
+  int i;
+  X509_Encoder*enc;
+  if(!auth || !subj || !option || !out) return 0;
+  if(!auth->prepare && (x509_prepare_authority(auth) || !auth->prepare)) return 0;
+  auth->info.in=extra;
+  if(auth->prepare==2) {
+    auth->info.issuer=subj->name;
+    auth->info.issuer_id=subj->uniqueid;
+  }
+  if(auth->begin && auth->begin(&auth->info,auth,subj)) return 0;
+  auth->info.subject=subj->name;
+  auth->info.subject_id=subj->uniqueid;
+  auth->info.publickey=subj->publickey;
+  auth->info.starts=subj->starts;
+  auth->info.expires=subj->expires;
+  enc=x509_new_certificate(&auth->info,option,out);
+  if(!enc) return 0;
+  if(auth->set_serial) {
+    if(auth->set_serial(enc,enc->info,auth,subj)) {
+      error: x509_cancel_encoder(enc); return 0;
+    }
+  } else if(auth->serial && auth->seriallen) {
+    for(i=0;i<auth->seriallen && auth->serial[i]==0xFF;i++);
+    if(i==auth->seriallen) goto error;
+    if(x509_set_serial(enc,auth->serial,auth->seriallen)) goto error;
+    for(i=auth->seriallen-1;i>=0;i--) {
+      auth->serial[i]++;
+      if(auth->serial[i]) break;
+    }
+  }
+  if(x509_set_signature(enc,&auth->algorithm,auth->privatekey,&auth->publickey)) goto error;
+  return enc;
+}
+
 // Functions for adding specific extensions to certificates
 
-int x509_addext_basic() {
-  
+int x509_addext_basic(X509_Encoder*enc,char crit,int32_t limit) {
+  ASN1_Encoder*e=x509_add_constructed_extension(enc,"\x55\x1D\x13",3,crit,ASN1_UNIVERSAL,ASN1_SEQUENCE,0);
+  if(!e) return ASN1_ERROR;
+  if(limit) asn1_encode_boolean(e,1);
+  if(limit>0) asn1_encode_integer(e,limit-1);
+  return x509_end_constructed_extension(enc);
 }
 
 int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage) {
@@ -668,8 +730,18 @@ int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage) {
   return x509_add_extension(enc,"\x55\x1D\x0F",3,crit,&v);
 }
 
-int x509_addext_extended_key_usage() {
-  
+int x509_addext_extended_key_usage(X509_Encoder*enc,char crit,uint32_t usage,char allowany) {
+  ASN1_Encoder*e;
+  int i;
+  uint8_t buf[8]="\x2B\x06\x01\x05\x05\x07\x03";
+  if(!usage && !allowany) return X509_IMPROPER_VALUE;
+  if(!(e=x509_add_constructed_extension(enc,"",3,crit,ASN1_UNIVERSAL,ASN1_SEQUENCE,0))) return ASN1_ERROR;
+  if(allowany) asn1_primitive(e,ASN1_UNIVERSAL,ASN1_OBJECT_IDENTIFIER,"\x55\x1D\x25",4);
+  for(i=0;i<32;i++) if(usage&(1UL<<i)) {
+    buf[7]=i;
+    asn1_primitive(e,ASN1_UNIVERSAL,ASN1_OBJECT_IDENTIFIER,buf,8);
+  }
+  return x509_end_constructed_extension(enc);
 }
 
 // Functions to set configurations

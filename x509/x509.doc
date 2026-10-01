@@ -53,6 +53,15 @@ X509_Authority
   the authority does not have a certificate yet because the new certificate
   will be a root certificate.
 
+  ASN1_Value algorithm = The signature algorithm to use for certificates
+  that are being issued (which is not necessarily the same as the algorithm
+  for the issuer's certificate). This field is mandatory.
+
+  ASN1_Value publickey = The authority's public key. If the certificate is
+  defined then it will automatically fill in this field. If it is not
+  automatically filled in, then it might or might not be required depending
+  on how your make_signature callback function is defined.
+
   uint8_t*serial = A buffer to hold the serial number. This is optional; if
   it is specified but set_serial is not specified then it will use this as
   the serial number and then increment it afterward. If set_serial is also
@@ -61,12 +70,18 @@ X509_Authority
   uint8_t seriallen = The length of the serial number buffer. Specify zero
   if it is not used.
 
+  int(*begin)(const X509_Info*info, X509_Authority*auth, X509_Subject*subj)
+  = Called when beginning. The only valid fields of the info structure at
+  this time are info->in, info->issuer, info->issuer_id. This function
+  might be used for adjusting the date/time information in subj. If this
+  function returns nonzero then it is an error.
+
   int(*set_serial)(X509_Encoder*enc, const X509_Info*info, X509_Authority*
-  auth) = Called to set the serial number of the certificate. If it returns
-  nonzero then it is an error. If this is not defined but serial is defined
-  then it will work as described above. If this returns zero without
-  calling x509_set_serial then it will call option->set_serial and if that
-  also fails then it is an error.
+  auth, X509_Subject*subj) = Called to set the serial number of the
+  certificate. If it returns nonzero then it is an error. If this is not
+  defined but serial is defined then it will work as described above. If
+  this returns zero without calling x509_set_serial then it will call
+  option->set_serial and if that also fails then it is an error.
 
 X509_Chain
   A chain of X.509 certificates. The root certificate comes first and then
@@ -182,6 +197,23 @@ X509_Options
 
   See the below section for the list of callback functions that are in
   this structure.
+
+X509_Subject
+  Stores information about the subject of a certificate being issued by
+  x509_issue_certificate.
+
+  void*userdata = No use; you can use it for your own use.
+
+  ASN1_Value name = The subject's name (a sequence).
+
+  ASN1_Value uniqueid = The subject's unique ID, which must be a bit
+  string if it is used. Zero this field if you are not using the unique ID.
+
+  ASN1_Value publickey = The subject's public key.
+
+  time_t starts = The "not valid before" time of the new certificate.
+
+  time_T expires = The "not valid after" time of the new certificate.
 
 
 === Option flags ===
@@ -458,6 +490,17 @@ To create a new certificate, you must call the functions in the order:
   x509_add_extension (zero or more times)
   x509_finish_certificate
 
+ASN1_Encoder*x509_add_constructed_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,uint8_t class,uint32_t type,uint8_t mode)
+  Works like x509_add_extension but returns a ASN1_Encoder object to fill
+  in the extension instead of adding the extension immediately. Do not
+  call x509_add_extension or x509_add_constructed_extension again after a
+  call to this function, until calling x509_end_constructed_extension.
+
+  The first four arguments are like x509_add_extension, and the last three
+  arguments are like asn1_construct.
+
+  Returns null if an error occurs.
+
 int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,const ASN1_Value*value)
   Adds an extension to a certificate. You can call this any number of
   times, including zero times. You must call x509_set_signature before
@@ -475,6 +518,10 @@ int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char cri
 
   value = The value of this extension. (A copy will be made, so it is not
   necessary to keep it after this function returns.)
+
+int x509_end_constructed_extension(X509_Encoder*enc)
+  Ends a construction started by x509_add_constructed_extension. After
+  that, you can add more extensions or finish the certificate.
 
 int x509_finish_certificate(X509_Encoder*enc)
   Finish the certificate. If successful, it will be written into the
@@ -596,23 +643,41 @@ You should not call any of these functions more than once per certificate,
 or else it may create an invalid certificate. They are valid at any time
 that x509_add_extension is valid.
 
+For all of these functions, the "X509_Encoder*enc" argument is always the
+X509_Encoder object returned from either x509_new_certifiate or
+x509_issue_certificate (but not yet finished), and the "char crit" is
+nonzero to make a critical extension or zero to make a noncritical
+extension (although not all extensions have the critical option). The
+return value is X509_OK or an error code.
+
+int x509_addext_basic(X509_Encoder*enc,char crit,int32_t limit)
+  Adds the basic constraint extension, to tell whether or not it is allowed
+  to issue further certificates.
+
+  limit = The maximum number of certificates after this one in the chain,
+  that can be issued. Zero means it is not allowed to issue certificates,
+  one means it can only issue a certificate that cannot itself issue a
+  certificate, etc. Negative numbers mean no limit. (Note that this is not
+  the same as the number actually stored in the basic constraint extension,
+  which is one less than the number specified here.)
+
+int x509_addext_extended_key_usage(X509_Encoder*enc,char crit,uint32_t usage,char allowany)
+  Adds the extended key usage extension to the certificate. Note that this
+  function cannot be used if you want to add your own extended key usages
+  beyond the standard ones; if you want that, then you must make up the
+  extension by x509_add_extension or x509_add_constructed_extension.
+
+  usage = Bitwise OR of the X509_EKU_ constants.
+
+  allowany = Nonzero to allow other uses as well, in case you do not intend
+  to restrict uses of the certificate.
+
+  At least one of usage and allowany must be nonzero.
+
 int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage)
   Adds the key usage extension to the certificate.
 
-  enc = The X509_Encoder object of the certificate being made.
-
-  cert = Zero if noncritical or one if critical.
-
-  keyusage = Bitwise OR of one or more of the following:
-    X509_KEYUSAGE_DIGITAL_SIGNATURE
-    X509_KEYUSAGE_NON_REPUDIATION
-    X509_KEYUSAGE_KEY_ENCIPHERMENT
-    X509_KEYUSAGE_DATA_ENCIPHERMENT
-    X509_KEYUSAGE_KEY_AGREEMENT
-    X509_KEYUSAGE_KEY_CERT_SIGN
-    X509_KEYUSAGE_CRL_SIGN
-    X509_KEYUSAGE_ENCIPHER_ONLY
-    X509_KEYUSAGE_DECIPHER_ONLY
+  keyusage = Bitwise OR of one or more of the X509_KEYUSAGE_ constants.
 
   You cannot use X509_KEYUSAGE_UNRESTRICTED nor can the keyusage be zero;
   in either case it will return an error code and not add the extension.
@@ -888,10 +953,12 @@ A country code is always a Printable string with two letters. Note that
 these are not the same as the country codes for internet domain names.
 
 RFC 5280 uses IA5 for the domain name components; this profile prefers
-to use Printable string for domain name components.
+to use Printable string for domain name components. (For compatibility,
+IA5 may be used with the existing fields that use it.)
 
 RFC 5280 uses IA5 for email addresses; this profile prefers to use
-Visible string for email addresses.
+Visible string for email addresses. (For compatibility, IA5 may be used
+with the existing fields that use it.)
 
 For most names that may be international, this profile prefers to use the
 Graphic string type. However, for compatibility with RFC 5280, which does
@@ -982,7 +1049,8 @@ for more extensions that are not listed in this file.
   [1] Email address.
 
   [2] Domain name. If it starts with *. then this certificate is only
-  valid for all subdomains (one level) of the specified domain name.
+  valid for all subdomains (one level) of the specified domain name. If
+  it does not start with *. then it is only the exact match.
 
   [3] X.400 address.
 
@@ -1002,7 +1070,9 @@ for more extensions that are not listed in this file.
 
   If this extension is present and is critical, then the name in the main
   part of the certificate may be empty, but any certificates that this one
-  issues should include the issuer alternative name extension.
+  issues should include the issuer alternative name extension. (This
+  document recommends not using a empty subject name in the main part of
+  the certificate, even if this extension is present.)
 
 2.5.29.18
   This is the "issuer alternative name" extension, which has the same

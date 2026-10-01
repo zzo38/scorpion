@@ -95,6 +95,7 @@ typedef struct X509_Extension X509_Extension;
 typedef struct X509_ExtraData X509_ExtraData;
 typedef struct X509_Info X509_Info;
 typedef struct X509_Options X509_Options;
+typedef struct X509_Subject X509_Subject;
 
 struct X509_Algorithm {
   void*userdata;
@@ -134,10 +135,11 @@ struct X509_Authority {
   uint8_t prepare;
   void*userdata;
   void*privatekey;
-  ASN1_Value certificate;
+  ASN1_Value certificate,algorithm,publickey;
   uint8_t*serial;
   uint8_t seriallen;
-  int(*set_serial)(X509_Encoder*enc,const X509_Info*info,X509_Authority*auth);
+  int(*begin)(const X509_Info*info,X509_Authority*auth,X509_Subject*subj);
+  int(*set_serial)(X509_Encoder*enc,const X509_Info*info,X509_Authority*auth,X509_Subject*subj);
 };
 
 struct X509_Options {
@@ -159,10 +161,21 @@ struct X509_Options {
   uint16_t flag;
 };
 
+struct X509_Subject {
+  void*userdata;
+  ASN1_Value name,uniqueid,publickey;
+  time_t starts,expires;
+};
+
 int x509_accept_any_self_signed(const X509_Info*info,const ASN1_Value*certificate);
+ASN1_Encoder*x509_add_constructed_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,uint8_t class,uint32_t type,uint8_t mode);
 int x509_add_extension(X509_Encoder*enc,const uint8_t*oid,size_t oidlen,char crit,const ASN1_Value*value);
+int x509_addext_basic(X509_Encoder*enc,char crit,int32_t limit);
+int x509_addext_extended_key_usage(X509_Encoder*enc,char crit,uint32_t usage,char allowany);
 int x509_addext_key_usage(X509_Encoder*enc,char crit,uint16_t keyusage);
+void x509_cancel_encoder(X509_Encoder*enc);
 int x509_check_signature(const X509_Info*info,const uint8_t*data,size_t len,const ASN1_Value*publickey,const ASN1_Value*algorithm,const ASN1_Value*signature);
+int x509_end_constructed_extension(X509_Encoder*enc);
 void x509_extra_delete(X509_ExtraData*extra,const void*key);
 void x509_extra_destroy(X509_ExtraData*extra);
 void*x509_extra_destructor(X509_ExtraData*extra,const void*key);
@@ -171,7 +184,7 @@ X509_ExtraData*x509_extra_mirror(const X509_ExtraData*orig);
 X509_ExtraData*x509_extra_new(void);
 int x509_find_algorithm(const X509_Info*info,const ASN1_Value*publickey,const ASN1_Value*algorithm,const X509_Algorithm**result);
 uint16_t x509_get_key_usage(const X509_Info*info);
-X509_Encoder*x509_issue_certificate(const X509_Authority*auth,const ASN1_Value*subject_name,const ASN1_Value*subject_id,const ASN1_Value*subject_key,X509_ExtraData*extra,const X509_Options*option,ASN1_Encoder*out);
+X509_Encoder*x509_issue_certificate(X509_Authority*auth,X509_Subject*subj,X509_ExtraData*extra,const X509_Options*option,ASN1_Encoder*out);
 int x509_make_signature(const X509_Info*info,const uint8_t*data,size_t len,void*privatekey,const ASN1_Value*publickey,const ASN1_Value*algorithm,ASN1_Value*signature);
 X509_Encoder*x509_new_certificate(const X509_Info*info,const X509_Options*option,ASN1_Encoder*out);
 int x509_prepare_authority(X509_Authority*auth);
@@ -181,6 +194,7 @@ void x509_reset_info(X509_Info*info);
 int x509_set_alglist(X509_ExtraData*info,X509_Options*option,X509_Algorithm*alglist,uint32_t algcount);
 int x509_set_needed_extended_key_usage(X509_ExtraData*ex,uint32_t usage,uint32_t flag);
 int x509_set_needed_key_usage(X509_ExtraData*ex,uint16_t usage);
+int x509_set_signature(X509_Encoder*enc,const ASN1_Value*alg,void*key,const ASN1_Value*publickey);
 int x509_set_time(X509_ExtraData*ex,time_t now);
 int x509_sign_certificate(const X509_Info*info,const X509_Options*option,const ASN1_Value*tbs,void*privatekey,const ASN1_Value*publickey,ASN1_Encoder*enc);
 void x509_sort_alglist(X509_Algorithm*alglist,uint32_t algcount);

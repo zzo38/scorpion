@@ -1329,7 +1329,7 @@ int asn1_encode_date(ASN1_Encoder*enc,uint32_t type,const ASN1_DateTime*x) {
       len=snprintf(buf,64,"%04d%02d%02d",x->year,x->month,x->day);
       break;
     case ASN1_TIME_OF_DAY:
-      len=snprintf(buf,64,"T%02d%02d%02d",x->hours,x->minutes,x->seconds);
+      len=snprintf(buf,64,"%02d%02d%02d",x->hours,x->minutes,x->seconds);
       break;
     case ASN1_DATE_TIME:
       len=snprintf(buf,64,"%04d%02d%02d%02d%02d%02d",x->year,x->month,x->day,x->hours,x->minutes,x->seconds);

@@ -1,0 +1,124 @@
+This document describes the command-line programs included in this
+directory, including makersakey, x509make, x509read.
+
+These programs require Nettle and GNU Multi Precision.
+
+Types of keys other than RSA is not implemented yet. Passworded private
+keys are also not implemented yet.
+
+
+=== makersakey ===
+
+This program is used for making a RSA key pair, written to stdout.
+
+You must invoke this program with the following switches:
+
+-b
+  If specified, then the output is binary format. If not specified, then
+  it will be encoded as base64, with a PEM header.
+
+-e <number>
+  The size of the public exponent, in bits. This is mutually exclusive with
+  the -x switch; use only one or the other.
+
+-m <number>
+  The size of the modulus, in bits. This switch is mandatory.
+
+-r <file>
+  The file or device to read random data from. The default is /dev/urandom
+  if you do not specify a different one. If the specified file runs out of
+  data, then it is an error.
+
+-x <number>
+  Specifies the exact value of the public exponent, in decimal. This is
+  mutually exclusive with the -e switch; use only one or the other. The
+  default value is 65537, if you do not specify -e or -x.
+
+
+=== x509make ===
+
+This program will make a X.509 certificate, written to stdout.
+
+-B [c]<number or ->
+  Specify the basic constraints, where c means critical and the number is
+  the number of further certificates (including the end certificate, so
+  zero means the new certificate cannot issue any more certificates) or -
+  if there is no limit.
+
+-S <name>
+  Specify the type of signature algorithm, according to the hash name. It
+  can be "md5", "sha1", "sha256", or "sha512". The default is "sha256".
+
+-T <number>
+  Activate a testing mode. Zero is for normal operation (which is the
+  default value, so does not need to be specified). Other numbers are not
+  documented; see the source code for details if you need this function,
+  and note that the meanings may change in future. Using this switch with
+  any value other than zero might result in an invalid certificate.
+
+-b
+  If specified, then the output is in binary format. If not specified, then
+  it will be encoded as base64, with a PEM header.
+
+-c <name>
+  Specify the character encoding for command-line arguments. Currently, the
+  only possibility is "ascii", which is also the default value.
+
+-i [=]<file>
+  Specify the file containing the issuer's certificate. If = is included
+  then it is expected to be binary format, otherwise it is base64. Omit
+  this to create a self-signed root certificate.
+
+-k [=]<file>
+  Specify the file containing the issuer's private key. If = is included
+  then it is expected to be binary format, otherwise it is base64. If this
+  is omitted, then the new certificate will not have a signature.
+
+-r
+  If specified, reads additional data from stdin, which must be DER format.
+  This is a key/value list; see below for the list of possible keys.
+
+You can specify key=value pairs on the command-line, in which case they are
+treated as text with the character encoding specified by the -c switch. If
+the -r switch is specified, then additional key/value pairs are read from
+the input and can be of any type rather than only text.
+
+basic =
+  The same as the -B switch.
+
+domain =
+  Specify the domain names for the new certificate, in the subject
+  alternative names extension. This can either be a sequence of strings,
+  or a single string with the names separated by commas.
+
+expires =
+  The date/time that the certificate expires. If omitted, then it does not
+  expire. This can be a date/time or it can be a UTC-based time interval.
+
+ext =
+  Define the sequence of extensions. This is in the standard format in
+  X.509 but without the explicit type.
+
+extkeyusage =
+  A set or sequence of OIDs, or a ASCII string with a combination of any of
+  the following separated by commas: tls_server, tls_client, exec, mail,
+  timestamp, ocsp, ssh_client, ssh_server, any.
+
+key =
+  Define the subject's public key (in the same format that it is found in a
+  X.509 certificate). If it is a self-signed certificate, then this is not
+  needed and it will convert the private key to a public key.
+
+keyusage =
+  Either a bit string, or a ASCII string with a combination of any of the
+  following separated by commas: 
+
+name =
+  The subject name. This can either be the sequence with the pieces like in
+  the X.509 certificate, or a text string. (However, the format as a text
+  string is not implemented yet.)
+
+starts =
+  The date/time that it starts to be valid. If omitted, then the current
+  time is used.
+

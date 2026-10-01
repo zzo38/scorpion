@@ -372,12 +372,12 @@ without first asking the user.
 
 When creating a new certificate, the default settings for the new
 certificate should be made up as follows (although the user might be
-able to override them; the ability to override is not mandatory, since
-an external program can be used to make up your own certificates if you
-do not want to use the ones included in the browser):
+able to override them; even if not, it is OK since it should also be
+possible to import certificates created by external software):
 
 * The key type, signature type, number of key bits, etc should match
-that of the server's certificate. This is the most likely to be compatible.
+that of the server's certificate (it should be possible for the user to
+override these specifications), since it is most likely to be compatible.
 
 * The "extended key usage" (2.5.29.37) extension should be included, and it
 should specify "TLS client auth" (1.3.6.1.5.5.7.3.2) as the key usage.
@@ -972,7 +972,10 @@ bit5 of the command code is clear.
 * "d" = Means that the files with the specified prefix are probably dynamic
 so it might not be useful to mirror them.
 
-* "c" = Allows crawling the specified prefix.
+* "c" = Allows crawling the specified prefix. This does not include any
+URLs containing a (unescaped) question mark unless the specified prefix
+includes a question mark, since such files are likely to be dynamic files
+which may be sorted and unlikely to be useful to be crawled.
 
 * "C" = Disallows crawling the specified prefix.
 
