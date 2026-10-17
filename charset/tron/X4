@@ -59,6 +59,7 @@ document is a draft version. A few things already are added)
 0x237C = vertical bar without a gap in the middle
 0x2421 = double exclamation (PC 0x13)
 0x2423 = "Cz" (Brazilian cruzado)
+0x2426 = upsidedown ampersand (linear logic (Girard) sign for multiplicative disjuction)
 0x2430 to 0x2439 = superscript numbers 0 to 9
 0x243D = element of
 0x2440 = infinity
@@ -92,6 +93,7 @@ document is a draft version. A few things already are added)
 0x3324 = paragraph sign, forward P, solid
 0x3338 = Face without the circle around
 0x335E = house (PC 0x7F)
+0x337E = schwa
 
 (For Turkish alphabets, use the dotless "I" and "i" and then apply the dot
 accent as described below if applicable.)
@@ -141,7 +143,10 @@ ones commonly used on older computers, but is not only limited to that.)
   [08] [04]
   [20] [10]
 
+0x80C0 to 0x80CC = ISO-IR-173 mosaics 0x40 to 0x4C
+
 0x81A1 to 0x81BF = ISO-IR-137 mosaics 0x21 to 0x3F
+0x81C0 to 0x81DD = Reverse video ISO-IR-137 mosaics 0x60 to 0x7D
 0x81E0 to 0x81FD = ISO-IR-137 mosaics 0x60 to 0x7D
 
 (The ISO-IR 137 mosaics 0x60 to 0x7D are the same as the ISO-IR 173 mosaics
@@ -195,6 +200,8 @@ MIL-STD-188-100, 1972.
 0x91CD = PC character 0x0D (single music)
 0x91CE = PC character 0x0E (double music)
 0x91CF = PC character 0x0F
+0x91E0 = Lock (locked)
+0x91E1 = Lock (unlocked)
 
 IBM 3270 characters; the below numbers use the numbers in the x3270 fonts:
   [TRON]  [3270 CG]  [Name]      [Description]
@@ -224,6 +231,39 @@ IBM 3270 characters; the below numbers use the numbers in the x3270 fonts:
   0xE0EF  0x0FF      boxhuman
 (possibly reorder or remove some, to be added outside of 3270 sub-block?)
 
+0xF186 to 0xF187 = Apple MouseText "running man"
+0xF1A0 to 0xF1BF = Apple MouseText (revised)
+
+VCR/DVD controls:
+  0xF280 = Eject
+  0xF281 = Stop
+  0xF282 = Pause
+  0xF283 = Play
+  0xF284 = Record
+  0xF285 = Rewind
+  0xF286 = Fast-forward
+  0xF287 = Previous track
+  0xF288 = Next track
+
+Atari ST characters:
+  0xF380 = Hollow arrow up
+  0xF381 = Hollow arrow down
+  0xF382 = Hollow arrow right
+  0xF383 = Hollow arrow left
+  0xF384
+  0xF385
+  0xF386
+  0xF387 = Check mark
+  0xF388 = Clock
+  0xF389 = Bell
+  0xF38E = Left half of Atari logo
+  0xF38F = Right half of Atari logo
+  0xF39C = Top left quarter of "Bob"
+  0xF39D = Top right quarter of "Bob"
+  0xF39E = Bottom left quarter of "Bob"
+  0xF39F = Bottom right quarter of "Bob"
+  0xF3C2 to 0xF3DC = Atari ST Hebrew alphabets
+
 0xF680 to 0xF6DE = Infocom character graphics 0x20 to 0x7E (Amiga variant)
 0xF780 to 0xF7DE = Infocom character graphics 0x20 to 0x7E (PC variant)
 
@@ -235,11 +275,17 @@ solid 2x2 mosaics, each quarter is one of the following:
   3 = heavy shade
   4 = solid
 Then apply the multiplier as follows:
-  0 = top right
+  1 = top right
   5 = top left
   25 = bottom right
   125 = bottom left
 This is then made linear to hi/lo according to the range given above.
+
+(Note: Some fonts may replace some of the logos with others that resemble
+them, e.g. the hollow and solid apples in the MouseText characters should
+be hollow and solid apples but do not necessarily resemble those of Apple
+Computer company. Also, text direction is not affected by any graphic
+characters; you must use control characters to control text directions.)
 
 
 === PC character set mapping ===
