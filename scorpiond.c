@@ -354,6 +354,9 @@ int main(int argc,char**argv) {
         } else if(S_ISREG(stats.st_mode)) {
 #ifdef CONFIG_ALLOW_CGI
           if((stats.st_mode&(CONFIG_FILEMODE_EXECUTE))==(CONFIG_FILEMODE_EXECUTE)) {
+#ifdef CONFIG_EXEC_GROUP
+            if(stats.st_gid!=CONFIG_EXEC_GROUP) goto noexec;
+#endif
 #ifdef CONFIG_USER_DIR
 #ifndef CONFIG_ALLOW_USER_CGI
             if(userinfo) goto noexec;
@@ -377,6 +380,9 @@ int main(int argc,char**argv) {
           return 0;
 #ifdef CONFIG_ALLOW_SOCKET
         } else if(S_ISSOCK(stats.st_mode)) {
+#ifdef CONFIG_EXEC_GROUP
+            if(stats.st_gid!=CONFIG_EXEC_GROUP) goto noexec;
+#endif
 #ifndef CONFIG_ALLOW_USER_SOCKET
           if(userinfo) goto noexec;
 #endif

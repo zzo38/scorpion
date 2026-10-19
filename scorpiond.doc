@@ -74,6 +74,11 @@ CONFIG_FILEMODE_EXECUTE *
   execute the file, otherwise it will send the contents of the file to
   the client. (This is only required if CONFIG_ALLOW_CGI is defined.)
 
+CONFIG_EXEC_GROUP
+  The group ID number that is required to allow executing CGI programs and
+  to connect to sockets in the file system. If not defined, then it will
+  not check the group ID number.
+
 CONFIG_USER_DIR
   The name of a subdirectory of user directories which contains files for
   making available by internet.
